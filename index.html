@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🎨 Floor Tile Visualizer - SAM 2</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        padding: 30px;
+        max-width: 1400px;
+        width: 100%;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .subtitle {
+        color: #666;
+        margin-bottom: 30px;
+        font-size: 1.1em;
+      }
+
+      .main-content {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 30px;
+      }
+
+      .canvas-section {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 20px;
+      }
+
+      .canvas-container {
+        position: relative;
+        width: 100%;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        background: #ddd;
+        min-height: 400px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      canvas {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        cursor: crosshair;
+      }
+
+      .controls-section {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 20px;
+      }
+
+      .section-title {
+        font-size: 1.2em;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e0e0e0;
+      }
+
+      .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 10px;
+        padding: 30px;
+        text-align: center;
+        margin-bottom: 20px;
+        transition: all 0.3s;
+        cursor: pointer;
+      }
+
+      .upload-area:hover {
+        border-color: #667eea;
+        background: #f0f3ff;
+      }
+
+      .upload-icon {
+        font-size: 48px;
+        color: #667eea;
+        margin-bottom: 10px;
+      }
+
+      .upload-text {
+        color: #666;
+        font-size: 0.9em;
+      }
+
+      .input-group {
+        margin-bottom: 15px;
+      }
+
+      .input-group label {
+        display: block;
+        margin-bottom: 5px;
+        color: #555;
+        font-weight: 500;
+      }
+
+      .input-group input[type="range"] {
+        width: 100%;
+      }
+
+      .input-group input[type="color"] {
+        width: 100%;
+        height: 40px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+
+      .input-group select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+
+      .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin: 20px 0;
+      }
+
+      .btn {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .btn-primary {
+        background: #667eea;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #5a67d8;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      .btn-secondary {
+        background: #48bb78;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #38a169;
+      }
+
+      .status {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 0.95em;
+        display: none;
+      }
+
+      .status.success {
+        background: #c6f6d5;
+        color: #22543d;
+        display: block;
+      }
+
+      .status.error {
+        background: #fed7d7;
+        color: #742a2a;
+        display: block;
+      }
+
+      .status.info {
+        background: #bee3f8;
+        color: #2c5282;
+        display: block;
+      }
+
+      .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .coords-info {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 10px;
+        text-align: center;
+      }
+
+      .tile-controls {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        border: 1px solid #e0e0e0;
+      }
+
+      .tile-preview {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .tile-option {
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s;
+      }
+
+      .tile-option:hover {
+        border-color: #667eea;
+        transform: scale(1.02);
+      }
+
+      .tile-option.selected {
+        border-color: #667eea;
+        background: #e6f3ff;
+      }
+
+      .tile-pattern-preview {
+        width: 100%;
+        height: 80px;
+        background-size: cover;
+        background-position: center;
+        border-radius: 4px;
+        margin-bottom: 5px;
+      }
+
+      .walls-list {
+        max-height: 150px;
+        overflow-y: auto;
+        margin-top: 10px;
+        padding: 10px;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+      }
+
+      .wall-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        margin-bottom: 5px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        font-size: 0.9em;
+      }
+
+      .wall-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        margin-right: 10px;
+      }
+
+      .remove-wall {
+        color: #f56565;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .instructions {
+        margin-top: 20px;
+        padding: 15px;
+        background: #e6f7ff;
+        border-radius: 8px;
+        border-left: 4px solid #1890ff;
+      }
+
+      .instructions h4 {
+        margin-bottom: 10px;
+        color: #1890ff;
+      }
+
+      .instructions ol {
+        margin-left: 20px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🏠 Floor Tile Visualizer</h1>
+      <div class="subtitle">
+        Powered by SAM 2 - Click on the floor to select it, then apply tiles!
+      </div>
+
+      <div class="main-content">
+        <div class="canvas-section">
+          <div class="canvas-container">
+            <canvas id="mainCanvas"></canvas>
+          </div>
+          <div class="coords-info" id="coordsInfo">
+            Click on the floor to select it
+          </div>
+        </div>
+
+        <div class="controls-section">
+          <div class="section-title">📁 Image Upload</div>
+          <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📸</div>
+            <div class="upload-text">
+              Click to upload or drag & drop a room photo
+            </div>
+            <input
+              type="file"
+              id="fileInput"
+              accept="image/*"
+              style="display: none"
+            />
+          </div>
+
+          <div class="section-title">📍 Floor Selection</div>
+          <div class="action-buttons">
+            <button class="btn btn-secondary" id="clearFloorBtn">
+              <span>🗑️</span> Clear Floor Selection
+            </button>
+          </div>
+
+          <div class="walls-list" id="floorList">
+            <div style="text-align: center; color: #888; padding: 10px">
+              No floor selected yet. Click on the floor in the image.
+            </div>
+          </div>
+
+          <!-- Tile Controls Section -->
+          <div class="tile-controls">
+            <h3>🧱 Tile Settings</h3>
+
+            <div class="input-group">
+              <label>Tile Size (cm):</label>
+              <input
+                type="range"
+                id="tileSize"
+                min="10"
+                max="60"
+                value="30"
+                step="5"
+              />
+              <span id="tileSizeValue">30 cm</span>
+            </div>
+
+            <div class="input-group">
+              <label>Tile Color:</label>
+              <input type="color" id="tileColor" value="#E8D1B5" />
+            </div>
+
+            <div class="input-group">
+              <label>Grout Color:</label>
+              <input type="color" id="groutColor" value="#A9A9A9" />
+            </div>
+
+            <div class="input-group">
+              <label>Pattern:</label>
+              <select id="tilePattern">
+                <option value="grid">Grid</option>
+                <option value="brick">Brick (Offset)</option>
+                <option value="diagonal">Diagonal</option>
+                <option value="herringbone">Herringbone</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary" id="applyTilesBtn">
+              <span>🎨</span> Apply Tiles to Floor
+            </button>
+
+            <div class="tile-preview" id="tilePreview"></div>
+          </div>
+
+          <div class="status" id="status"></div>
+
+          <div class="instructions">
+            <h4>📖 How to use:</h4>
+            <ol>
+              <li>Upload a room photo</li>
+              <li>Click on the floor to select it (one click only)</li>
+              <li>Adjust tile size, color, and pattern</li>
+              <li>Click "Apply Tiles to Floor"</li>
+              <li>See your floor with tiles applied!</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Configuration
+      const API_URL = "http://127.0.0.1:8000";
+
+      // State management
+      let state = {
+        originalImage: null,
+        canvas: null,
+        ctx: null,
+        floorMask: null, // Store just one floor mask
+        floorConfidence: 0,
+        isLoading: false,
+        imageDimensions: { width: 0, height: 0 },
+      };
+
+      // Initialize the app
+      document.addEventListener("DOMContentLoaded", () => {
+        initializeCanvas();
+        initializeEventListeners();
+        updateTilePreview();
+      });
+
+      function initializeCanvas() {
+        state.canvas = document.getElementById("mainCanvas");
+        state.ctx = state.canvas.getContext("2d");
+      }
+
+      function initializeEventListeners() {
+        // Upload area
+        const uploadArea = document.getElementById("uploadArea");
+        const fileInput = document.getElementById("fileInput");
+
+        uploadArea.addEventListener("click", () => fileInput.click());
+
+        uploadArea.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          uploadArea.style.borderColor = "#667eea";
+          uploadArea.style.background = "#f0f3ff";
+        });
+
+        uploadArea.addEventListener("dragleave", () => {
+          uploadArea.style.borderColor = "#ccc";
+          uploadArea.style.background = "none";
+        });
+
+        uploadArea.addEventListener("drop", (e) => {
+          e.preventDefault();
+          uploadArea.style.borderColor = "#ccc";
+          uploadArea.style.background = "none";
+
+          const file = e.dataTransfer.files[0];
+          if (file && file.type.startsWith("image/")) {
+            handleImageUpload(file);
+          }
+        });
+
+        fileInput.addEventListener("change", (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            handleImageUpload(file);
+          }
+        });
+
+        // Canvas click
+        state.canvas.addEventListener("click", handleCanvasClick);
+
+        // Buttons
+        document
+          .getElementById("clearFloorBtn")
+          .addEventListener("click", clearFloorSelection);
+        document
+          .getElementById("applyTilesBtn")
+          .addEventListener("click", applyTilesToFloor);
+
+        // Tile settings listeners
+        document
+          .getElementById("tileColor")
+          .addEventListener("input", updateTilePreview);
+        document
+          .getElementById("groutColor")
+          .addEventListener("input", updateTilePreview);
+        document
+          .getElementById("tilePattern")
+          .addEventListener("change", updateTilePreview);
+        document.getElementById("tileSize").addEventListener("input", (e) => {
+          document.getElementById("tileSizeValue").textContent =
+            e.target.value + " cm";
+          updateTilePreview();
+        });
+      }
+
+      async function handleImageUpload(file) {
+        showStatus("Loading image...", "info");
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            // Set canvas dimensions (max 1000px width)
+            const maxWidth = 1000;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+
+            state.canvas.width = width;
+            state.canvas.height = height;
+            state.imageDimensions = { width, height };
+
+            // Draw image
+            state.ctx.drawImage(img, 0, 0, width, height);
+            state.originalImage = img;
+
+            // Clear floor selection
+            state.floorMask = null;
+            updateFloorList();
+
+            showStatus(
+              "Image loaded successfully! Click on the floor to select it.",
+              "success",
+            );
+            document.getElementById("coordsInfo").textContent =
+              "Click on the floor to select it";
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      async function handleCanvasClick(event) {
+        if (!state.originalImage) {
+          showStatus("Please upload an image first", "error");
+          return;
+        }
+
+        if (state.isLoading) {
+          showStatus("Processing... please wait", "info");
+          return;
+        }
+
+        // Get click coordinates
+        const rect = state.canvas.getBoundingClientRect();
+        const scaleX = state.canvas.width / rect.width;
+        const scaleY = state.canvas.height / rect.height;
+
+        const clickX = Math.round((event.clientX - rect.left) * scaleX);
+        const clickY = Math.round((event.clientY - rect.top) * scaleY);
+
+        document.getElementById("coordsInfo").textContent =
+          `Selected point: (${clickX}, ${clickY}) - Processing...`;
+
+        state.isLoading = true;
+        showStatus("🎯 SAM 2 is detecting floor...", "info");
+
+        try {
+          // Convert canvas to blob
+          const blob = await new Promise((resolve) =>
+            state.canvas.toBlob(resolve, "image/jpeg", 0.95),
+          );
+
+          // Create form data
+          const formData = new FormData();
+          formData.append("image", blob, "room.jpg");
+          formData.append("click_x", clickX.toString());
+          formData.append("click_y", clickY.toString());
+
+          // Call API
+          const response = await fetch(`${API_URL}/segment-floor`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+          }
+
+          const result = await response.json();
+
+          // Store floor mask
+          state.floorMask = result.mask;
+          state.floorConfidence = result.score;
+
+          // Redraw to show selection
+          redrawWithFloorHighlight();
+
+          // Update UI
+          updateFloorList();
+          document.getElementById("coordsInfo").textContent =
+            `✅ Floor selected! (confidence: ${(result.score * 100).toFixed(1)}%)`;
+          showStatus(
+            "Floor selected successfully! Now adjust tile settings and apply.",
+            "success",
+          );
+        } catch (error) {
+          console.error("Error:", error);
+          showStatus(`Error: ${error.message}`, "error");
+          document.getElementById("coordsInfo").textContent =
+            "❌ Failed to detect floor. Try clicking on a different area.";
+        } finally {
+          state.isLoading = false;
+        }
+      }
+
+      function redrawWithFloorHighlight() {
+        if (!state.originalImage || !state.floorMask) return;
+
+        // Redraw original image
+        state.ctx.drawImage(
+          state.originalImage,
+          0,
+          0,
+          state.canvas.width,
+          state.canvas.height,
+        );
+
+        // Highlight floor with semi-transparent overlay
+        const imageData = state.ctx.getImageData(
+          0,
+          0,
+          state.canvas.width,
+          state.canvas.height,
+        );
+        const data = imageData.data;
+
+        // Apply highlight where mask > 0
+        for (let y = 0; y < state.canvas.height; y++) {
+          for (let x = 0; x < state.canvas.width; x++) {
+            const idx = (y * state.canvas.width + x) * 4;
+
+            // Check if this pixel is in the floor mask
+            let inFloor = false;
+            if (state.floorMask[y] && state.floorMask[y][x] > 0) {
+              inFloor = true;
+            }
+
+            if (inFloor) {
+              // Add green tint to selected floor
+              data[idx] = data[idx] * 0.7 + 100; // R
+              data[idx + 1] = data[idx + 1] * 0.7 + 150; // G
+              data[idx + 2] = data[idx + 2] * 0.7 + 100; // B
+            }
+          }
+        }
+
+        state.ctx.putImageData(imageData, 0, 0);
+
+        // Draw outline
+        drawFloorOutline();
+      }
+
+      function drawFloorOutline() {
+        // Simple outline - find contours (simplified)
+        state.ctx.strokeStyle = "#00FF00";
+        state.ctx.lineWidth = 3;
+
+        // Find boundary pixels (simplified)
+        for (let y = 1; y < state.canvas.height - 1; y++) {
+          for (let x = 1; x < state.canvas.width - 1; x++) {
+            if (state.floorMask[y] && state.floorMask[y][x] > 0) {
+              // Check neighbors
+              const neighbors = [
+                state.floorMask[y - 1]?.[x],
+                state.floorMask[y + 1]?.[x],
+                state.floorMask[y]?.[x - 1],
+                state.floorMask[y]?.[x + 1],
+              ];
+
+              if (neighbors.some((n) => !n || n === 0)) {
+                state.ctx.fillStyle = "#00FF00";
+                state.ctx.fillRect(x, y, 1, 1);
+              }
+            }
+          }
+        }
+      }
+
+      async function applyTilesToFloor() {
+        if (!state.originalImage) {
+          showStatus("Please upload an image first", "error");
+          return;
+        }
+
+        if (!state.floorMask) {
+          showStatus("Please select a floor first by clicking on it", "error");
+          return;
+        }
+
+        const tileSize = document.getElementById("tileSize").value;
+        const tileColor = document.getElementById("tileColor").value;
+        const groutColor = document.getElementById("groutColor").value;
+        const pattern = document.getElementById("tilePattern").value;
+
+        showStatus("🎨 Applying tiles to floor...", "info");
+
+        try {
+          // Convert canvas to blob
+          const blob = await new Promise((resolve) =>
+            state.canvas.toBlob(resolve, "image/jpeg", 0.95),
+          );
+
+          // Prepare form data
+          const formData = new FormData();
+          formData.append("image", blob, "room.jpg");
+          formData.append("mask", JSON.stringify(state.floorMask));
+          formData.append("tile_size", tileSize);
+          formData.append("tile_color", tileColor);
+          formData.append("grout_color", groutColor);
+          formData.append("pattern", pattern);
+
+          // Call tile API
+          const response = await fetch(`${API_URL}/apply-tiles`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Tile application failed: ${error}`);
+          }
+
+          // Get the tiled image
+          const blobResult = await response.blob();
+          const imageUrl = URL.createObjectURL(blobResult);
+
+          // Load and display tiled image
+          const img = new Image();
+          img.onload = () => {
+            state.ctx.drawImage(
+              img,
+              0,
+              0,
+              state.canvas.width,
+              state.canvas.height,
+            );
+            showStatus("✅ Tiles applied successfully!", "success");
+          };
+          img.src = imageUrl;
+        } catch (error) {
+          console.error("Error:", error);
+          showStatus(`Error: ${error.message}`, "error");
+        }
+      }
+
+      function clearFloorSelection() {
+        if (!state.originalImage) return;
+
+        state.floorMask = null;
+        state.ctx.drawImage(
+          state.originalImage,
+          0,
+          0,
+          state.canvas.width,
+          state.canvas.height,
+        );
+        updateFloorList();
+        showStatus("Floor selection cleared", "success");
+        document.getElementById("coordsInfo").textContent =
+          "Click on the floor to select it";
+      }
+
+      function updateFloorList() {
+        const floorList = document.getElementById("floorList");
+
+        if (!state.floorMask) {
+          floorList.innerHTML =
+            '<div style="text-align: center; color: #888; padding: 10px;">No floor selected yet. Click on the floor in the image.</div>';
+          return;
+        }
+
+        floorList.innerHTML = `
+                <div class="wall-item">
+                    <span style="display: flex; align-items: center;">
+                        <span class="wall-color" style="background: #00FF00;"></span>
+                        Floor Selected
+                    </span>
+                    <span>${(state.floorConfidence * 100).toFixed(0)}% confidence</span>
+                </div>
+            `;
+      }
+
+      function updateTilePreview() {
+        const preview = document.getElementById("tilePreview");
+        const size = document.getElementById("tileSize").value;
+        const color = document.getElementById("tileColor").value;
+        const grout = document.getElementById("groutColor").value;
+
+        const patterns = ["grid", "brick", "diagonal", "herringbone"];
+        const patternNames = ["Grid", "Brick", "Diagonal", "Herringbone"];
+
+        preview.innerHTML = "";
+
+        patterns.forEach((pattern, i) => {
+          const div = document.createElement("div");
+          div.className = "tile-option";
+          div.onclick = () => {
+            document.getElementById("tilePattern").value = pattern;
+            document
+              .querySelectorAll(".tile-option")
+              .forEach((el) => el.classList.remove("selected"));
+            div.classList.add("selected");
+          };
+
+          if (pattern === document.getElementById("tilePattern").value) {
+            div.classList.add("selected");
+          }
+
+          const previewDiv = document.createElement("div");
+          previewDiv.className = "tile-pattern-preview";
+
+          // Generate preview pattern
+          const canvas = document.createElement("canvas");
+          canvas.width = 100;
+          canvas.height = 100;
+          const ctx = canvas.getContext("2d");
+
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          const tileSize = Math.floor(size * 0.8);
+
+          ctx.strokeStyle = grout;
+          ctx.lineWidth = 2;
+
+          switch (pattern) {
+            case "grid":
+              for (let x = 0; x <= canvas.width; x += tileSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+              }
+              for (let y = 0; y <= canvas.height; y += tileSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+              }
+              break;
+
+            case "brick":
+              for (let row = 0; row < 5; row++) {
+                let offset = ((row % 2) * tileSize) / 2;
+                for (let col = -1; col < 5; col++) {
+                  let x = col * tileSize + offset;
+                  let y = row * tileSize;
+                  ctx.strokeRect(x, y, tileSize, tileSize);
+                }
+              }
+              break;
+
+            default:
+              for (let x = 0; x <= canvas.width; x += tileSize) {
+                for (let y = 0; y <= canvas.height; y += tileSize) {
+                  ctx.strokeRect(x, y, tileSize, tileSize);
+                }
+              }
+          }
+
+          previewDiv.style.backgroundImage = `url(${canvas.toDataURL()})`;
+
+          div.appendChild(previewDiv);
+          div.appendChild(document.createTextNode(patternNames[i]));
+          preview.appendChild(div);
+        });
+      }
+
+      function showStatus(message, type) {
+        const status = document.getElementById("status");
+        status.className = `status ${type}`;
+        status.innerHTML = state.isLoading
+          ? `<span class="loading-spinner"></span>${message}`
+          : message;
+      }
+    </script>
+  </body>
+</html>
