@@ -68,55 +68,58 @@ async def segment_floor(image: UploadFile = File(...),
 def hex_to_bgr(h: str):
     h = h.lstrip('#')
     try:
-        r,g,b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
         return (b, g, r)
-    except: return (128,128,128)
+    except:
+        return (128, 128, 128)
 
 
-def estimate_vanishing_point(mask: np.ndarray):
-    """
-    Estimate the vanishing point (where the floor meets the wall).
-    Strategy: find the top edge of the mask and fit a horizontal line.
-    The VP x is the horizontal centre of the floor at the top edge.
-    The VP y is slightly above that top edge.
-    """
+def extract_floor_quad(mask: np.ndarray):
     h, w = mask.shape
-    # For each column, find the topmost mask pixel
-    top_y = np.full(w, h, dtype=np.float32)
-    for x in range(w):
-        col = np.where(mask[:, x] > 0)[0]
-        if len(col): top_y[x] = float(col.min())
-
-    # Only use columns that actually have floor pixels
-    valid_cols = np.where(top_y < h)[0]
-    if len(valid_cols) < 2:
-        return w / 2.0, 0.0
-
-    # Robust estimate: use median of top-edge y values in centre 60% of floor
-    x_min, x_max = valid_cols.min(), valid_cols.max()
-    cx = (x_min + x_max) // 2
-    margin = (x_max - x_min) // 5
-    centre_cols = valid_cols[(valid_cols > x_min + margin) &
-                             (valid_cols < x_max - margin)]
-    if len(centre_cols) == 0:
-        centre_cols = valid_cols
-
-    vp_y = float(np.median(top_y[centre_cols]))
-    vp_x = float(cx)
-
-    # Push VP slightly above the top edge
-    vp_y -= 2
-    print(f"  Vanishing point: ({vp_x:.1f}, {vp_y:.1f})")
-    return vp_x, vp_y
-
-
-def get_near_edge(mask: np.ndarray):
-    """Return (y_near, x_left_near, x_right_near) — the bottom row of the mask."""
     ys, xs = np.where(mask > 0)
     if len(ys) == 0: return None
+
     y_near = int(ys.max())
-    cols   = np.where(mask[y_near] > 0)[0]
-    return y_near, int(cols.min()), int(cols.max())
+    y_far  = int(ys.min())
+
+    def get_edges(y_center: int, band: int = 8):
+        lefts, rights = [], []
+        for dy in range(-band, band + 1):
+            y = y_center + dy
+            if 0 <= y < h:
+                cols = np.where(mask[y] > 0)[0]
+                if len(cols) >= 2:
+                    lefts.append(int(cols[0]))
+                    rights.append(int(cols[-1]))
+        if not lefts:
+            cols = np.where(mask[y_center] > 0)[0]
+            if len(cols) < 2: return None, None
+            return float(cols[0]), float(cols[-1])
+        return float(np.median(lefts)), float(np.median(rights))
+
+    nl, nr = get_edges(y_near, band=8)
+    fl, fr = get_edges(y_far,  band=8)
+    if nl is None or fl is None: return None
+
+    near_left  = np.array([nl, float(y_near)], dtype=np.float32)
+    near_right = np.array([nr, float(y_near)], dtype=np.float32)
+    far_left   = np.array([fl, float(y_far)],  dtype=np.float32)
+    far_right  = np.array([fr, float(y_far)],  dtype=np.float32)
+
+    print(f"  Quad NL={near_left} NR={near_right} FL={far_left} FR={far_right}")
+    return near_left, near_right, far_left, far_right
+
+
+def estimate_real_depth_cm(near_left, near_right, far_left, far_right,
+                           real_width_cm: float = 400.0) -> float:
+    near_w = float(np.linalg.norm(near_right - near_left))
+    far_w  = float(np.linalg.norm(far_right  - far_left))
+    if near_w <= 0: return real_width_cm
+    ratio = float(np.clip(far_w / near_w, 0.05, 0.99))
+    real_depth = real_width_cm * (1.0 / ratio - 1.0)
+    real_depth = float(np.clip(real_depth, 50.0, 2000.0))
+    print(f"  near_w={near_w:.1f} far_w={far_w:.1f} ratio={ratio:.3f} depth={real_depth:.1f}cm")
+    return real_depth
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -127,28 +130,24 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray,
                             tile_color: str, grout_color: str,
                             tile_size_cm: float, pattern: str) -> np.ndarray:
     """
-    Perspective-correct tiling using a vanishing-point coordinate system.
+    Inverse-homography tile renderer.
 
-    Algorithm
-    ---------
-    For every pixel (x, y) inside the mask:
+    Grout line detection — the correct method
+    ──────────────────────────────────────────
+    Previous approach: on_grout = frac(v) < threshold
+    Problem: near the camera, one tile spans many pixels vertically,
+    so frac(v) sweeps 0→1 slowly → threshold works fine.
+    But for some homography parameters, adjacent rows can have
+    frac(v) that BOTH fall under the threshold → doubled line.
 
-    1.  Compute rays from the vanishing point VP through (x, y).
-    2.  Measure depth  d = distance from VP along the ray, normalised so
-        d=1 at the near edge (bottom of floor).
-    3.  Horizontal coordinate  u = angle of the ray relative to the floor
-        centre, also normalised.
-    4.  Perspective-correct tile coords:
-          tile_u  =  u / d  *  scale_u
-          tile_v  =  (1/d)  *  scale_v
-        This gives smaller tiles near the VP and larger near the camera,
-        exactly matching real perspective.
-    5.  Grout lines where frac(tile_u) or frac(tile_v) < grout_fraction.
-    6.  Lighting from original image brightness.
-    7.  Composite onto original using mask as clip.
+    Correct approach: edge detection on the tile-index map.
+    1. Compute tile_id_u = floor(u) and tile_id_v = floor(v) for every pixel.
+    2. A pixel is on a grout line if its tile_id differs from its
+       right-neighbour OR bottom-neighbour.
+    3. Grout line THICKNESS is controlled by dilating the edge map.
 
-    No quad fitting → no gaps.  Straight grout lines because coordinates
-    are derived from a fixed VP, not from the noisy mask boundary.
+    This guarantees exactly ONE grout line per tile boundary,
+    regardless of perspective or zoom level.
     """
     mask = (mask > 0).astype(np.uint8)
 
@@ -157,89 +156,100 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray,
 
     h_img, w_img = image.shape[:2]
 
-    near = get_near_edge(mask)
-    if near is None: return image
-    y_near, x_left_near, x_right_near = near
-    near_width_px = float(x_right_near - x_left_near)
+    quad = extract_floor_quad(mask)
+    if quad is None:
+        print("⚠️ No quad"); return image
+
+    near_left, near_right, far_left, far_right = quad
+    near_width_px = float(np.linalg.norm(near_right - near_left))
     if near_width_px <= 0: return image
 
-    vp_x, vp_y = estimate_vanishing_point(mask)
-
-    # Real-world scale
     real_width_cm = 400.0
-    px_per_cm     = near_width_px / real_width_cm
-    real_depth_cm = (y_near - vp_y) / px_per_cm if px_per_cm > 0 else 300.0
+    real_depth_cm = estimate_real_depth_cm(
+        near_left, near_right, far_left, far_right, real_width_cm)
 
-    # How many tiles fit
-    n_tiles_x = max(4, int(np.ceil(real_width_cm / tile_size_cm)))
-    n_tiles_y = max(4, int(np.ceil(real_depth_cm  / tile_size_cm)))
-    grout_f   = 0.05   # 5 % of tile → thin grout line
+    n_tiles_x = max(4, int(round(real_width_cm / tile_size_cm)))
+    n_tiles_y = max(4, int(round(real_depth_cm  / tile_size_cm)))
 
-    print(f"🟡 VP-based tiling  tiles={n_tiles_x}×{n_tiles_y}  "
-          f"near_w={near_width_px:.0f}  depth={y_near - vp_y:.0f} px")
+    print(f"🟡 tiles={n_tiles_x}×{n_tiles_y}  "
+          f"real={real_width_cm:.0f}×{real_depth_cm:.0f}cm")
 
-    # ── build pixel coordinate grids ─────────────────────────────────────────
-    ys_grid, xs_grid = np.mgrid[0:h_img, 0:w_img]   # (H,W)
+    # ── Homography ────────────────────────────────────────────────────────────
+    plane_pts = np.array([
+        [0,         0        ],
+        [n_tiles_x, 0        ],
+        [n_tiles_x, n_tiles_y],
+        [0,         n_tiles_y],
+    ], dtype=np.float32)
 
-    # Vector from VP to each pixel
-    dx = xs_grid.astype(np.float32) - vp_x
-    dy = ys_grid.astype(np.float32) - vp_y          # positive downward
+    image_pts = np.array([far_left, far_right, near_right, near_left],
+                         dtype=np.float32)
 
-    # Only pixels below VP (dy > 0) are on the floor
-    # dy_near = y_near - vp_y  (depth of the near edge)
-    dy_near = float(y_near) - vp_y
-    if dy_near <= 0: dy_near = 1.0
+    H_fwd, _ = cv2.findHomography(plane_pts, image_pts)
+    if H_fwd is None:
+        print("⚠️ Homography failed"); return image
+    H_inv = np.linalg.inv(H_fwd)
 
-    # Normalised depth d:  d=1 at near edge,  d→0 at VP
-    d = dy / dy_near   # (H,W)
+    # ── Project ALL pixels (full image grid) through H_inv ────────────────────
+    # We do this for the full image so we can compute neighbours correctly.
+    ys_all, xs_all = np.mgrid[0:h_img, 0:w_img]
+    ones = np.ones((h_img * w_img,), dtype=np.float64)
+    img_coords = np.stack([
+        xs_all.ravel().astype(np.float64),
+        ys_all.ravel().astype(np.float64),
+        ones
+    ], axis=1)  # (H*W, 3)
 
-    # Horizontal angle normalised by near-edge half-width
-    # At depth d the apparent half-width is d * (near_width_px/2)
-    half_w_near = near_width_px / 2.0
-    u_norm = dx / (d * half_w_near + 1e-6)   # ∈ [-1, 1] at near edge
+    plane_coords = img_coords @ H_inv.T  # (H*W, 3)
+    w_div = plane_coords[:, 2]
+    w_div = np.where(np.abs(w_div) < 1e-9, 1e-9, w_div)
 
-    # Perspective-correct tile coordinates
-    # tile_u: advances n_tiles_x over u_norm in [-1,1]
-    tile_u = (u_norm + 1.0) / 2.0 * n_tiles_x   # 0..n_tiles_x
+    u_all = (plane_coords[:, 0] / w_div).reshape(h_img, w_img)
+    v_all = (plane_coords[:, 1] / w_div).reshape(h_img, w_img)
 
-    # tile_v: advances n_tiles_y as 1/d goes from 1 (near) to ∞ (VP)
-    # Map: v=0 at near (d=1), v=n_tiles_y at far (d≈0)
-    # Use   tile_v = (1/d - 1) * scale
-    # Choose scale so that tile_v = n_tiles_y when d = vp_y/y_near (approx)
-    scale_v = n_tiles_y / (1.0 / max(vp_y / y_near, 0.05) - 1.0 + 1e-6) \
-              if y_near > 0 else n_tiles_y
-    # Simpler & robust: tile_v = (1-d)/d * n_tiles_y   → 0 at near, ∞ at VP
-    # Cap at n_tiles_y * 2 to avoid overflow
-    with np.errstate(divide='ignore', invalid='ignore'):
-        tile_v = np.where(d > 0.001, (1.0 - d) / d * n_tiles_y, n_tiles_y * 10)
+    # ── Tile index maps ────────────────────────────────────────────────────────
+    tile_u = np.floor(u_all).astype(np.int32)  # (H,W)
+    tile_v = np.floor(v_all).astype(np.int32)  # (H,W)
 
-    # Fractional parts → grout detection
-    frac_u = tile_u - np.floor(tile_u)
-    frac_v = tile_v - np.floor(tile_v)
+    # ── Edge detection: grout where tile index changes ─────────────────────────
+    # Horizontal boundaries (change in v going downward — these are the
+    # horizontal grout lines that were doubling before)
+    diff_v_vert  = np.zeros((h_img, w_img), dtype=bool)
+    diff_v_vert[:-1, :] = (tile_v[:-1, :] != tile_v[1:, :])
 
-    on_grout = (frac_u < grout_f) | (frac_u > 1.0 - grout_f) | \
-               (frac_v < grout_f) | (frac_v > 1.0 - grout_f)
+    # Vertical boundaries (change in u going rightward)
+    diff_u_horiz = np.zeros((h_img, w_img), dtype=bool)
+    diff_u_horiz[:, :-1] = (tile_u[:, :-1] != tile_u[:, 1:])
 
-    # ── lighting ─────────────────────────────────────────────────────────────
+    # Raw grout edge map
+    grout_edges = diff_v_vert | diff_u_horiz  # (H,W) bool
+
+    # Dilate to give grout lines visible thickness (2 px each side = 5px total)
+    grout_thickness = 3   # pixels total width of grout line
+    kernel = np.ones((grout_thickness, grout_thickness), dtype=np.uint8)
+    grout_map = cv2.dilate(grout_edges.astype(np.uint8), kernel, iterations=1)
+    grout_map = grout_map.astype(bool)
+
+    # ── Lighting ──────────────────────────────────────────────────────────────
     orig_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
     mb = float(np.mean(orig_gray[mask > 0])) if mask.any() else 0.5
     mb = max(mb, 0.01)
-    light = np.clip(orig_gray / mb, 0.35, 1.9)   # (H,W)
+    light = np.clip(orig_gray / mb, 0.3, 2.0)   # (H,W)
 
-    # ── colour assignment ─────────────────────────────────────────────────────
-    # Expand to (H,W,3)
-    tile_colour  = tile_bgr[np.newaxis, np.newaxis, :]   * np.ones((h_img, w_img, 1))
-    grout_colour = grout_bgr[np.newaxis, np.newaxis, :] * np.ones((h_img, w_img, 1))
+    # ── Colour map ────────────────────────────────────────────────────────────
+    # Build full colour image then mask-composite
+    colour_img = np.where(
+        grout_map[:, :, np.newaxis],
+        grout_bgr[np.newaxis, np.newaxis, :],
+        tile_bgr[np.newaxis, np.newaxis, :]
+    ).astype(np.float32)
 
-    colours = np.where(on_grout[:,:,np.newaxis], grout_colour, tile_colour)
-    colours = colours * light[:,:,np.newaxis]
-    colours = np.clip(colours, 0, 255).astype(np.uint8)
+    colour_img *= light[:, :, np.newaxis]
+    colour_img  = np.clip(colour_img, 0, 255).astype(np.uint8)
 
-    # ── composite ────────────────────────────────────────────────────────────
+    # ── Composite: only paint inside mask ─────────────────────────────────────
     result = image.copy()
-    floor_px = (mask > 0) & (d > 0.001) & (d <= 1.0 + grout_f)
-    result[floor_px] = colours[floor_px]
-
+    result[mask > 0] = colour_img[mask > 0]
     return result
 
 
@@ -249,17 +259,17 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray,
 
 @app.post("/apply-tiles")
 async def apply_tiles(
-    image: UploadFile = File(...),
-    mask: str  = Form(...),
-    tile_size:   float = Form(30),
-    tile_color:  str   = Form("#E8D1B5"),
-    grout_color: str   = Form("#A9A9A9"),
-    pattern:     str   = Form("grid")
+    image:       UploadFile = File(...),
+    mask:        str        = Form(...),
+    tile_size:   float      = Form(30),
+    tile_color:  str        = Form("#E8D1B5"),
+    grout_color: str        = Form("#A9A9A9"),
+    pattern:     str        = Form("grid")
 ):
     try:
         image_data = await image.read()
-        nparr = np.frombuffer(image_data, np.uint8)
-        img   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        nparr      = np.frombuffer(image_data, np.uint8)
+        img        = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             return JSONResponse({"error": "Could not decode image"}, status_code=400)
 
@@ -287,12 +297,12 @@ async def apply_tiles(
 
 @app.get("/health")
 async def health():
-    return {"status":"healthy","device":"cpu",
+    return {"status": "healthy", "device": "cpu",
             "cuda_available": torch.cuda.is_available()}
 
 @app.get("/")
 async def root():
-    return {"message":"Floor Tile Visualizer API","status":"running"}
+    return {"message": "Floor Tile Visualizer API", "status": "running"}
 
 
 if __name__ == "__main__":
