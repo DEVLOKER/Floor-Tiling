@@ -769,9 +769,15 @@
       try {
         // ✅ Always send the original clean image — never the green-overlay canvas
         const blob = await originalImageToBlob();
+
+        // ✅ Convert mask array to binary
+        const maskData = new Uint8Array(state.floorMask.flat());
+        const maskBlob = new Blob([maskData], { type: "application/octet-stream" });
+
         const fd = new FormData();
         fd.append("image", blob, "room.jpg");
-        fd.append("mask", JSON.stringify(state.floorMask));
+        // fd.append("mask", JSON.stringify(state.floorMask));
+        fd.append("mask", maskBlob, "mask.bin"); // Send as a file, not a string
         fd.append("tile_width", val("tileWidth"));
         fd.append("tile_height", val("tileHeight"));
         fd.append("tile_color", tileColor);

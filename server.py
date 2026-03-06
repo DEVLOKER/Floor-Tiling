@@ -1,3 +1,5 @@
+from starlette.formparsers import MultiPartParser
+MultiPartParser.max_part_size = 100 * 1024 * 1024  # 100 MB
 """Floor Tile Visualizer API
 
 A FastAPI application for interactive floor tile visualization using SAM 2
@@ -31,6 +33,7 @@ from patterns import PATTERN_FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
 # Application Setup
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 app = FastAPI(
     title="Floor Tile Visualizer",
@@ -107,7 +110,8 @@ async def segment_floor(
 @app.post("/apply-tiles")
 async def apply_tiles(
     image: UploadFile = File(...),
-    mask: str = Form(...),
+    # mask: str = Form(...), # Changed to UploadFile for binary data
+    mask: UploadFile = File(...), # Changed from Form to File
     tile_width: float = Form(30),
     tile_height: float = Form(30),
     tile_size: float = Form(None),
@@ -149,10 +153,16 @@ async def apply_tiles(
                 {"error": "Could not decode image"},
                 status_code=400
             )
-
-        # Parse and validate mask
+        
+        h, w = img.shape[:2]
+        # 2. Read Mask binary and reshape
+        mask_bytes = await mask.read()
+        # Convert flat binary back to 2D array using image dimensions
+        floor_mask = np.frombuffer(mask_bytes, dtype=np.uint8).reshape((h, w))
+        
+        # ensure it's a binary 0/1 mask
         try:
-            floor_mask = (np.array(json.loads(mask)) > 0).astype(np.uint8)
+            floor_mask = (floor_mask > 0).astype(np.uint8)
         except json.JSONDecodeError:
             return JSONResponse(
                 {"error": "Invalid mask"},
@@ -248,11 +258,25 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     # python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload --limit-max-requests 10485760
+    # python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload --h11-max-incomplete-event-size 10485760
+    # uvicorn.run(
+    #     app,
+    #     host="0.0.0.0",
+    #     port=8000,
+    #     log_level="info",
+    #     limit_max_requests=MAX_SIZE,
+    #     limit_max_requests_jitter=MAX_SIZE,
+    #     # This handles the large 'mask' string event size
+    #     h11_max_incomplete_event_size=MAX_SIZE, 
+    # )
     uvicorn.run(
-        app,
+        "server:app",       # Must be a string path "filename:app" for reload to work
         host="0.0.0.0",
         port=8000,
         log_level="info",
+        reload=True,        # Enables auto-reload on code changes
         limit_max_requests=MAX_SIZE,
-        limit_max_requests_jitter=MAX_SIZE
+        limit_max_requests_jitter=MAX_SIZE,
+        # This handles the large 'mask' string event size
+        h11_max_incomplete_event_size=100 * 1024 * 1024 
     )
