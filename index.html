@@ -188,7 +188,6 @@
       margin-bottom: 0;
     }
 
-    /* checkerboard colour row — shown only when pattern=checkerboard */
     .checker-row {
       display: none;
       grid-template-columns: 1fr 1fr 1fr;
@@ -204,7 +203,6 @@
       margin-bottom: 0;
     }
 
-    /* normal colour row */
     .color-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -619,11 +617,32 @@
       return ["checkerboard", "diagonal_checkerboard"].includes(val("tilePattern"));
     }
 
-    // Show/hide colour pickers based on selected pattern
     function syncPatternUI() {
       const isChecker = isCheckerPattern();
       document.getElementById("normalColorRow").style.display = isChecker ? "none" : "";
       document.getElementById("checkerColorRow").classList.toggle("visible", isChecker);
+    }
+
+    // ── image helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Returns a Blob of the current canvas state (may include green overlay).
+     * Used only for the /segment-floor call where the server needs to see the image.
+     */
+    function canvasToBlob() {
+      return new Promise(resolve => state.canvas.toBlob(resolve, "image/jpeg", 0.95));
+    }
+
+    /**
+     * Returns a Blob of the ORIGINAL image — no green overlay, no tile preview.
+     * Always use this when sending to /apply-tiles so the server gets a clean image.
+     */
+    function originalImageToBlob() {
+      const tmp = document.createElement("canvas");
+      tmp.width = state.canvas.width;
+      tmp.height = state.canvas.height;
+      tmp.getContext("2d").drawImage(state.originalImage, 0, 0, tmp.width, tmp.height);
+      return new Promise(resolve => tmp.toBlob(resolve, "image/jpeg", 0.95));
     }
 
     // ── event listeners ───────────────────────────────────────────────────────
@@ -707,7 +726,8 @@
       showStatus("🎯 SAM 2 is detecting floor…", "info");
 
       try {
-        const blob = await canvasToBlob();
+        // ✅ For segmentation we send the clean original image (not the green-tinted canvas)
+        const blob = await originalImageToBlob();
         const fd = new FormData();
         fd.append("image", blob, "room.jpg");
         fd.append("click_x", clickX);
@@ -747,7 +767,8 @@
       const groutColor = isChecker ? val("groutColorChecker") : val("groutColor");
 
       try {
-        const blob = await canvasToBlob();
+        // ✅ Always send the original clean image — never the green-overlay canvas
+        const blob = await originalImageToBlob();
         const fd = new FormData();
         fd.append("image", blob, "room.jpg");
         fd.append("mask", JSON.stringify(state.floorMask));
@@ -879,7 +900,6 @@
         const pW = Math.max(8, tw * scale * 2);
         const pH = Math.max(8, th * scale * 2);
 
-        // Background
         ctx.fillStyle = color1;
         ctx.fillRect(0, 0, 90, 55);
 
@@ -935,11 +955,10 @@
             break;
 
           case "diagonal_checkerboard": {
-            // Draw rotated checkerboard: rotate canvas 45°, then draw alternating squares
             ctx.save();
             ctx.translate(45, 27.5);
             ctx.rotate(Math.PI / 4);
-            const d = pW; // diamond size
+            const d = pW;
             for (let row = -4; row < 8; row++) {
               for (let col = -4; col < 8; col++) {
                 const isSecond = (row + col) % 2 === 1;
@@ -963,10 +982,6 @@
         div.appendChild(document.createTextNode(p.name));
         preview.appendChild(div);
       });
-    }
-
-    function canvasToBlob() {
-      return new Promise(resolve => state.canvas.toBlob(resolve, "image/jpeg", 0.95));
     }
   </script>
 </body>

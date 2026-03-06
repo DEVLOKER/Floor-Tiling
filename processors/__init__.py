@@ -17,29 +17,11 @@ def apply_perspective_tiles(image: np.ndarray,
                             grout_h_thickness: int,
                             grout_v_thickness: int,
                             pattern: str) -> np.ndarray:
-    """Apply tiles to floor using homography-based perspective rendering.
-    
-    Projects floor pixels to tile-plane coordinates using inverse homography,
-    applies selected pattern with independent H/V grout lines.
-    
-    Args:
-        image: BGR image array
-        mask: Binary floor mask
-        tile_color: Hex color for primary tiles
-        tile_color2: Hex color for secondary tiles (checkerboard)
-        grout_color: Hex color for grout lines
-        tile_width_cm: Real-world tile width in cm
-        tile_height_cm: Real-world tile height in cm
-        grout_h_thickness: Horizontal grout line thickness in pixels
-        grout_v_thickness: Vertical grout line thickness in pixels
-        pattern: Pattern name (grid, brick, diagonal, herringbone, checkerboard, diagonal_checkerboard)
-    
-    Returns:
-        Image with applied tiles
-    """
+    """Apply tiles to floor using homography-based perspective rendering."""
+
     mask = (mask > 0).astype(np.uint8)
 
-    tile_bgr = np.array(hex_to_bgr(tile_color), dtype=np.float32)
+    tile_bgr  = np.array(hex_to_bgr(tile_color),  dtype=np.float32)
     tile2_bgr = np.array(hex_to_bgr(tile_color2), dtype=np.float32)
     grout_bgr = np.array(hex_to_bgr(grout_color), dtype=np.float32)
 
@@ -66,10 +48,10 @@ def apply_perspective_tiles(image: np.ndarray,
 
     # Compute homography: plane → image
     plane_pts = np.array([
-        [0, 0],
-        [n_tiles_x, 0],
+        [0,         0        ],
+        [n_tiles_x, 0        ],
         [n_tiles_x, n_tiles_y],
-        [0, n_tiles_y],
+        [0,         n_tiles_y],
     ], dtype=np.float32)
 
     image_pts = np.array([far_left, far_right, near_right, near_left],
@@ -102,10 +84,6 @@ def apply_perspective_tiles(image: np.ndarray,
     v_all = (plane_coords[:, 1] / w_div).reshape(h_img, w_img)
 
     # ── Adaptive per-pixel grout fractions ──────────────────────────────────
-    # Use np.gradient instead of np.roll to avoid edge-wrap artifacts.
-    # Zero out derivatives outside mask to prevent UV boundary spikes
-    # from bleeding into the floor region.
-
     du_dy, du_dx = np.gradient(u_all)
     dv_dy, dv_dx = np.gradient(v_all)
 
@@ -133,30 +111,39 @@ def apply_perspective_tiles(image: np.ndarray,
         aspect_ratio=tile_width_cm / tile_height_cm if tile_height_cm > 0 else 2.0
     )
 
-    # Apply lighting from original image
+    # ── Lighting + blending ──────────────────────────────────────────────────
+    orig_f    = image.astype(np.float32)
     orig_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
-    mb = float(np.mean(orig_gray[mask > 0])) if mask.any() else 0.5
-    mb = max(mb, 0.01)
-    light = np.clip(orig_gray / mb, 0.3, 2.0)
 
-    # Generate color map: grout > secondary > primary
+    # Luminance map: preserves shadows, highlights and window reflections
+    mb    = float(np.mean(orig_gray[mask > 0])) if mask.any() else 0.5
+    mb    = max(mb, 0.01)
+    light = np.clip(orig_gray / mb, 0.2, 3.0)
+
+    # Flat tile colors modulated by luminance
     colour_img = np.where(
         on_grout[:, :, np.newaxis],
-        grout_bgr[np.newaxis, np.newaxis, :],
+        grout_bgr [np.newaxis, np.newaxis, :],
         np.where(
             is_second[:, :, np.newaxis],
             tile2_bgr[np.newaxis, np.newaxis, :],
-            tile_bgr[np.newaxis, np.newaxis, :]
+            tile_bgr [np.newaxis, np.newaxis, :]
         )
     ).astype(np.float32)
 
     colour_img *= light[:, :, np.newaxis]
+
+    # Blend with original image to preserve real-world lighting/reflections.
+    # BLEND_ALPHA: 1.0 = fully flat tile, 0.0 = fully original image.
+    BLEND_ALPHA = 0.999
+    colour_img = BLEND_ALPHA * colour_img + (1.0 - BLEND_ALPHA) * orig_f
+    # ────────────────────────────────────────────────────────────────────────
+
     colour_img = np.clip(colour_img, 0, 255).astype(np.uint8)
 
-    # Composite result
     result = image.copy()
     result[mask > 0] = colour_img[mask > 0]
     return result
 
-    
+
 __all__ = ["apply_perspective_tiles"]
