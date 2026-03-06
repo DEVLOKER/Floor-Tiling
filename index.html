@@ -490,6 +490,7 @@
               <option value="diagonal">Diagonal</option>
               <option value="herringbone">Herringbone</option>
               <option value="checkerboard">Checkerboard (Chess)</option>
+              <option value="diagonal_checkerboard">Diagonal Chess ◇</option>
             </select>
           </div>
 
@@ -541,7 +542,7 @@
             </div>
             <div class="input-group">
               <label>Grout Color</label>
-              <input type="color" id="groutColor" value="#FFFFFF" />
+              <input type="color" id="groutColor" value="#A9A9A9" />
             </div>
           </div>
 
@@ -614,9 +615,13 @@
         : msg;
     }
 
+    function isCheckerPattern() {
+      return ["checkerboard", "diagonal_checkerboard"].includes(val("tilePattern"));
+    }
+
     // Show/hide colour pickers based on selected pattern
     function syncPatternUI() {
-      const isChecker = val("tilePattern") === "checkerboard";
+      const isChecker = isCheckerPattern();
       document.getElementById("normalColorRow").style.display = isChecker ? "none" : "";
       document.getElementById("checkerColorRow").classList.toggle("visible", isChecker);
     }
@@ -736,7 +741,7 @@
       showStatus("🎨 Applying tiles to floor…", "info");
       state.isLoading = true;
 
-      const isChecker = val("tilePattern") === "checkerboard";
+      const isChecker = isCheckerPattern();
       const tileColor = isChecker ? val("tileColorLight") : val("tileColor");
       const tileColor2 = isChecker ? val("tileColorDark") : "#333333";
       const groutColor = isChecker ? val("groutColorChecker") : val("groutColor");
@@ -836,7 +841,7 @@
       const preview = document.getElementById("tilePreview");
       const tw = parseInt(val("tileWidth") || 30);
       const th = parseInt(val("tileHeight") || 30);
-      const isChecker = val("tilePattern") === "checkerboard";
+      const isChecker = isCheckerPattern();
       const color1 = isChecker ? val("tileColorLight") : val("tileColor");
       const color2 = isChecker ? val("tileColorDark") : "#cccccc";
       const grout = isChecker ? val("groutColorChecker") : val("groutColor");
@@ -848,6 +853,7 @@
         { id: "diagonal", name: "Diagonal" },
         { id: "herringbone", name: "Herringbone" },
         { id: "checkerboard", name: "Checkerboard" },
+        { id: "diagonal_checkerboard", name: "Diagonal Chess ◇" },
       ];
 
       preview.innerHTML = "";
@@ -904,14 +910,13 @@
           }
 
           case "herringbone": {
-            // Simple herringbone preview
             const L = pW, S = pH / 2;
             for (let row = 0; row < 6; row++) {
               for (let col = 0; col < 6; col++) {
                 const x = col * (L + S);
                 const y = row * (L + S);
-                ctx.strokeRect(x, y, L, S);   // horizontal
-                ctx.strokeRect(x + L, y, S, L);   // vertical
+                ctx.strokeRect(x, y, L, S);
+                ctx.strokeRect(x + L, y, S, L);
               }
             }
             break;
@@ -928,6 +933,26 @@
               }
             }
             break;
+
+          case "diagonal_checkerboard": {
+            // Draw rotated checkerboard: rotate canvas 45°, then draw alternating squares
+            ctx.save();
+            ctx.translate(45, 27.5);
+            ctx.rotate(Math.PI / 4);
+            const d = pW; // diamond size
+            for (let row = -4; row < 8; row++) {
+              for (let col = -4; col < 8; col++) {
+                const isSecond = (row + col) % 2 === 1;
+                ctx.fillStyle = isSecond ? color2 : color1;
+                ctx.fillRect(col * d, row * d, d, d);
+                ctx.strokeStyle = grout;
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(col * d, row * d, d, d);
+              }
+            }
+            ctx.restore();
+            break;
+          }
         }
 
         const previewDiv = document.createElement("div");

@@ -228,12 +228,48 @@ def pattern_checkerboard(u, v, grout_h_frac, grout_v_frac, **_):
     return is_second, on_grout
 
 
+def pattern_diagonal_checkerboard(u, v, grout_h_frac, grout_v_frac, **_):
+    """
+    Diagonal Checkerboard — Diagonal (45°) grid + chess alternating colours.
+
+    Steps:
+      1. Rotate (u, v) by 45° — same as pattern_diagonal.
+      2. Apply standard grid in rotated space → straight diagonal grout lines.
+      3. Alternate tile colour by (floor(u') + floor(v')) % 2 — chess parity
+         in the rotated frame, so the dark/light squares are also diagonal.
+
+    Result: diamond-shaped tiles in two alternating colours, like a
+    chessboard tilted 45° — classic "diagonal chess" floor.
+    """
+    SQRT2 = np.sqrt(2.0)
+    u_rot = (u + v) / SQRT2
+    v_rot = (-u + v) / SQRT2
+
+    frac_u = u_rot - np.floor(u_rot)
+    frac_v = v_rot - np.floor(v_rot)
+
+    # Grout lines in rotated space
+    gf = (grout_h_frac + grout_v_frac) / 2.0
+    on_grout = (
+        (frac_u < gf) | (frac_u > 1.0 - gf) |
+        (frac_v < gf) | (frac_v > 1.0 - gf)
+    )
+
+    # Chess parity in rotated tile indices
+    cell_u = np.floor(u_rot).astype(np.int32)
+    cell_v = np.floor(v_rot).astype(np.int32)
+    is_second = ((cell_u + cell_v) % 2) == 1
+
+    return is_second, on_grout
+
+
 PATTERN_FN = {
-    "grid":         pattern_grid,
-    "brick":        pattern_brick,
-    "diagonal":     pattern_diagonal,
-    "herringbone":  pattern_herringbone,
-    "checkerboard": pattern_checkerboard,
+    "grid":                   pattern_grid,
+    "brick":                  pattern_brick,
+    "diagonal":               pattern_diagonal,
+    "herringbone":            pattern_herringbone,
+    "checkerboard":           pattern_checkerboard,
+    "diagonal_checkerboard":  pattern_diagonal_checkerboard,
 }
 
 
@@ -380,8 +416,8 @@ async def apply_tiles(
     tile_color:        str        = Form("#E8D1B5"),
     tile_color2:       str        = Form("#333333"),   # second colour for checkerboard
     grout_color:       str        = Form("#A9A9A9"),
-    grout_h_thickness: int        = Form(3),
-    grout_v_thickness: int        = Form(3),
+    grout_h_thickness: int        = Form(1),
+    grout_v_thickness: int        = Form(1),
     pattern:           str        = Form("grid"),
 ):
     try:
@@ -437,7 +473,6 @@ async def health():
 @app.get("/")
 async def root():
     return {"message": "Floor Tile Visualizer API", "status": "running"}
-
 
 
 if __name__ == "__main__":
