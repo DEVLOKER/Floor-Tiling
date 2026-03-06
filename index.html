@@ -47,7 +47,7 @@
 
     .main-content {
       display: grid;
-      grid-template-columns: 1fr 370px;
+      grid-template-columns: 1fr 380px;
       gap: 30px;
     }
 
@@ -82,7 +82,7 @@
       border-radius: 15px;
       padding: 20px;
       overflow-y: auto;
-      max-height: 90vh;
+      max-height: 92vh;
     }
 
     .section-title {
@@ -134,7 +134,7 @@
       font-size: 0.9em;
     }
 
-    .input-group label .value-badge {
+    .value-badge {
       background: #667eea;
       color: white;
       padding: 1px 8px;
@@ -166,7 +166,6 @@
       font-size: 0.9em;
     }
 
-    /* Two-column layout for paired inputs */
     .input-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -178,7 +177,6 @@
       margin-bottom: 0;
     }
 
-    /* Grout thickness — side-by-side sliders with icons */
     .grout-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -187,6 +185,34 @@
     }
 
     .grout-row .input-group {
+      margin-bottom: 0;
+    }
+
+    /* checkerboard colour row — shown only when pattern=checkerboard */
+    .checker-row {
+      display: none;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .checker-row.visible {
+      display: grid;
+    }
+
+    .checker-row .input-group {
+      margin-bottom: 0;
+    }
+
+    /* normal colour row */
+    .color-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .color-row .input-group {
       margin-bottom: 0;
     }
 
@@ -204,7 +230,6 @@
       color: #444;
     }
 
-    /* Divider between setting groups */
     .settings-divider {
       border: none;
       border-top: 1px dashed #e0e0e0;
@@ -304,7 +329,7 @@
     }
 
     .walls-list {
-      max-height: 80px;
+      max-height: 70px;
       overflow-y: auto;
       padding: 8px;
       background: white;
@@ -317,7 +342,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 8px;
+      padding: 5px 8px;
       background: #f8f9fa;
       border-radius: 5px;
       font-size: 0.85em;
@@ -333,18 +358,18 @@
     .tile-preview {
       margin-top: 10px;
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
     }
 
     .tile-option {
       border: 2px solid #ddd;
       border-radius: 8px;
-      padding: 8px;
+      padding: 6px;
       cursor: pointer;
       text-align: center;
       transition: all 0.2s;
-      font-size: 0.8em;
+      font-size: 0.75em;
     }
 
     .tile-option:hover {
@@ -359,37 +384,13 @@
 
     .tile-pattern-preview {
       width: 100%;
-      height: 60px;
+      height: 55px;
       background-size: cover;
       background-position: center;
       border-radius: 4px;
-      margin-bottom: 4px;
-    }
-
-    .instructions {
-      margin-top: 15px;
-      padding: 12px;
-      background: #e6f7ff;
-      border-radius: 8px;
-      border-left: 4px solid #1890ff;
-      font-size: 0.85em;
-    }
-
-    .instructions h4 {
-      margin-bottom: 8px;
-      color: #1890ff;
-    }
-
-    .instructions ol {
-      margin-left: 18px;
-      color: #555;
-    }
-
-    .instructions li {
       margin-bottom: 3px;
     }
 
-    /* Grout thickness visual hint */
     .thickness-hint {
       display: flex;
       align-items: center;
@@ -417,6 +418,29 @@
       font-size: 0.7em;
       color: #999;
     }
+
+    .instructions {
+      margin-top: 15px;
+      padding: 12px;
+      background: #e6f7ff;
+      border-radius: 8px;
+      border-left: 4px solid #1890ff;
+      font-size: 0.85em;
+    }
+
+    .instructions h4 {
+      margin-bottom: 8px;
+      color: #1890ff;
+    }
+
+    .instructions ol {
+      margin-left: 18px;
+      color: #555;
+    }
+
+    .instructions li {
+      margin-bottom: 3px;
+    }
   </style>
 </head>
 
@@ -426,7 +450,8 @@
     <div class="subtitle">Powered by SAM 2 — Click on the floor to select it, then apply tiles!</div>
 
     <div class="main-content">
-      <!-- ── Canvas ── -->
+
+      <!-- Canvas -->
       <div class="canvas-section">
         <div class="canvas-container">
           <canvas id="mainCanvas"></canvas>
@@ -434,7 +459,7 @@
         <div class="coords-info" id="coordsInfo">Click on the floor to select it</div>
       </div>
 
-      <!-- ── Controls ── -->
+      <!-- Controls -->
       <div class="controls-section">
 
         <div class="section-title">📁 Image Upload</div>
@@ -452,24 +477,34 @@
           <div style="text-align:center;color:#888;padding:6px">No floor selected yet.</div>
         </div>
 
-        <!-- ── Tile Settings ── -->
+        <!-- Tile Settings -->
         <div class="tile-controls">
           <h3>🧱 Tile Settings</h3>
+
+          <!-- Pattern selector -->
+          <div class="input-group">
+            <label>Pattern</label>
+            <select id="tilePattern">
+              <option value="grid">Grid</option>
+              <option value="brick">Brick (Offset)</option>
+              <option value="diagonal">Diagonal</option>
+              <option value="herringbone">Herringbone</option>
+              <option value="checkerboard">Checkerboard (Chess)</option>
+            </select>
+          </div>
+
+          <div class="tile-preview" id="tilePreview"></div>
+
+          <hr class="settings-divider" />
 
           <!-- Tile dimensions -->
           <div class="input-row">
             <div class="input-group">
-              <label>
-                Tile Width
-                <span class="value-badge" id="tileWidthValue">30 cm</span>
-              </label>
+              <label>Tile Width <span class="value-badge" id="tileWidthValue">30 cm</span></label>
               <input type="range" id="tileWidth" min="10" max="120" value="30" step="5" />
             </div>
             <div class="input-group">
-              <label>
-                Tile Height
-                <span class="value-badge" id="tileHeightValue">30 cm</span>
-              </label>
+              <label>Tile Height <span class="value-badge" id="tileHeightValue">30 cm</span></label>
               <input type="range" id="tileHeight" min="10" max="120" value="30" step="5" />
             </div>
           </div>
@@ -479,24 +514,18 @@
           <!-- Grout thickness -->
           <div class="grout-row">
             <div class="input-group">
-              <label>
-                ↔ H-Grout
-                <span class="value-badge" id="groutHValue">1 px</span>
-              </label>
+              <label>↔ H-Grout <span class="value-badge" id="groutHValue">1 px</span></label>
               <input type="range" id="groutHThickness" min="1" max="20" value="1" step="1" />
               <div class="thickness-hint">
-                <div class="thickness-bar-h" id="hintH" style="--th:3px"></div>
+                <div class="thickness-bar-h" id="hintH" style="--th:1px"></div>
                 <span class="hint-label">horizontal</span>
               </div>
             </div>
             <div class="input-group">
-              <label>
-                ↕ V-Grout
-                <span class="value-badge" id="groutVValue">1 px</span>
-              </label>
+              <label>↕ V-Grout <span class="value-badge" id="groutVValue">1 px</span></label>
               <input type="range" id="groutVThickness" min="1" max="20" value="1" step="1" />
               <div class="thickness-hint">
-                <div class="thickness-bar-v" id="hintV" style="--tv:3px"></div>
+                <div class="thickness-bar-v" id="hintV" style="--tv:1px"></div>
                 <span class="hint-label">vertical</span>
               </div>
             </div>
@@ -504,8 +533,8 @@
 
           <hr class="settings-divider" />
 
-          <!-- Colours -->
-          <div class="input-row">
+          <!-- Colours — normal patterns (tile + grout) -->
+          <div class="color-row" id="normalColorRow">
             <div class="input-group">
               <label>Tile Color</label>
               <input type="color" id="tileColor" value="#E8D1B5" />
@@ -516,20 +545,21 @@
             </div>
           </div>
 
-          <hr class="settings-divider" />
-
-          <!-- Pattern -->
-          <div class="input-group">
-            <label>Pattern</label>
-            <select id="tilePattern">
-              <option value="grid">Grid</option>
-              <option value="brick">Brick (Offset)</option>
-              <option value="diagonal">Diagonal</option>
-              <option value="herringbone">Herringbone</option>
-            </select>
+          <!-- Colours — checkerboard (tile1 + tile2 + grout) -->
+          <div class="checker-row" id="checkerColorRow">
+            <div class="input-group">
+              <label>Light Tile</label>
+              <input type="color" id="tileColorLight" value="#F5F5F0" />
+            </div>
+            <div class="input-group">
+              <label>Dark Tile</label>
+              <input type="color" id="tileColorDark" value="#2C2C2C" />
+            </div>
+            <div class="input-group">
+              <label>Grout</label>
+              <input type="color" id="groutColorChecker" value="#888888" />
+            </div>
           </div>
-
-          <div class="tile-preview" id="tilePreview"></div>
 
           <button class="btn btn-primary" id="applyTilesBtn" style="margin-top:14px;width:100%">
             🎨 Apply Tiles to Floor
@@ -543,14 +573,14 @@
           <ol>
             <li>Upload a room photo</li>
             <li>Click on the floor to detect it with SAM 2</li>
-            <li>Set tile width &amp; height (cm) independently</li>
-            <li>Adjust horizontal &amp; vertical grout thickness</li>
-            <li>Pick colours &amp; pattern, then Apply!</li>
+            <li>Choose a pattern (Grid, Brick, Diagonal, Herringbone, Checkerboard)</li>
+            <li>Set tile width &amp; height (cm) + grout thickness</li>
+            <li>Pick colours and click Apply!</li>
           </ol>
         </div>
 
       </div><!-- /controls-section -->
-    </div><!-- /main-content -->
+    </div>
   </div>
 
   <script>
@@ -558,10 +588,8 @@
 
     let state = {
       originalImage: null,
-      canvas: null,
-      ctx: null,
-      floorMask: null,
-      floorConfidence: 0,
+      canvas: null, ctx: null,
+      floorMask: null, floorConfidence: 0,
       isLoading: false,
       imageDimensions: { width: 0, height: 0 },
     };
@@ -571,6 +599,7 @@
       state.ctx = state.canvas.getContext("2d");
       initEventListeners();
       updateTilePreview();
+      syncPatternUI();
     });
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -585,6 +614,13 @@
         : msg;
     }
 
+    // Show/hide colour pickers based on selected pattern
+    function syncPatternUI() {
+      const isChecker = val("tilePattern") === "checkerboard";
+      document.getElementById("normalColorRow").style.display = isChecker ? "none" : "";
+      document.getElementById("checkerColorRow").classList.toggle("visible", isChecker);
+    }
+
     // ── event listeners ───────────────────────────────────────────────────────
     function initEventListeners() {
       const uploadArea = document.getElementById("uploadArea");
@@ -592,56 +628,38 @@
 
       uploadArea.addEventListener("click", () => fileInput.click());
       uploadArea.addEventListener("dragover", e => {
-        e.preventDefault();
-        uploadArea.style.borderColor = "#667eea";
-        uploadArea.style.background = "#f0f3ff";
+        e.preventDefault(); uploadArea.style.borderColor = "#667eea"; uploadArea.style.background = "#f0f3ff";
       });
       uploadArea.addEventListener("dragleave", () => {
-        uploadArea.style.borderColor = "#ccc";
-        uploadArea.style.background = "none";
+        uploadArea.style.borderColor = "#ccc"; uploadArea.style.background = "none";
       });
       uploadArea.addEventListener("drop", e => {
-        e.preventDefault();
-        uploadArea.style.borderColor = "#ccc";
-        uploadArea.style.background = "none";
+        e.preventDefault(); uploadArea.style.borderColor = "#ccc"; uploadArea.style.background = "none";
         const f = e.dataTransfer.files[0];
         if (f && f.type.startsWith("image/")) handleImageUpload(f);
       });
-      fileInput.addEventListener("change", e => {
-        if (e.target.files[0]) handleImageUpload(e.target.files[0]);
-      });
+      fileInput.addEventListener("change", e => { if (e.target.files[0]) handleImageUpload(e.target.files[0]); });
 
       state.canvas.addEventListener("click", handleCanvasClick);
-
       document.getElementById("clearFloorBtn").addEventListener("click", clearFloorSelection);
       document.getElementById("applyTilesBtn").addEventListener("click", applyTilesToFloor);
 
-      // Tile width / height
-      document.getElementById("tileWidth").addEventListener("input", e => {
-        badge("tileWidthValue", e.target.value + " cm");
-        updateTilePreview();
-      });
-      document.getElementById("tileHeight").addEventListener("input", e => {
-        badge("tileHeightValue", e.target.value + " cm");
-        updateTilePreview();
-      });
+      document.getElementById("tileWidth").addEventListener("input", e => { badge("tileWidthValue", e.target.value + " cm"); updateTilePreview(); });
+      document.getElementById("tileHeight").addEventListener("input", e => { badge("tileHeightValue", e.target.value + " cm"); updateTilePreview(); });
 
-      // Grout thickness — update badge + visual hint
       document.getElementById("groutHThickness").addEventListener("input", e => {
-        const v = e.target.value;
-        badge("groutHValue", v + " px");
-        document.getElementById("hintH").style.setProperty("--th", v + "px");
+        badge("groutHValue", e.target.value + " px");
+        document.getElementById("hintH").style.setProperty("--th", e.target.value + "px");
       });
       document.getElementById("groutVThickness").addEventListener("input", e => {
-        const v = e.target.value;
-        badge("groutVValue", v + " px");
-        document.getElementById("hintV").style.setProperty("--tv", v + "px");
+        badge("groutVValue", e.target.value + " px");
+        document.getElementById("hintV").style.setProperty("--tv", e.target.value + "px");
       });
 
-      // Colours & pattern
-      document.getElementById("tileColor").addEventListener("input", updateTilePreview);
-      document.getElementById("groutColor").addEventListener("input", updateTilePreview);
-      document.getElementById("tilePattern").addEventListener("change", updateTilePreview);
+      document.getElementById("tilePattern").addEventListener("change", () => { syncPatternUI(); updateTilePreview(); });
+      ["tileColor", "groutColor", "tileColorLight", "tileColorDark", "groutColorChecker"].forEach(id => {
+        document.getElementById(id).addEventListener("input", updateTilePreview);
+      });
     }
 
     // ── image upload ──────────────────────────────────────────────────────────
@@ -654,8 +672,7 @@
           const maxW = 1000;
           let w = img.width, h = img.height;
           if (w > maxW) { h = h * maxW / w; w = maxW; }
-          state.canvas.width = w;
-          state.canvas.height = h;
+          state.canvas.width = w; state.canvas.height = h;
           state.imageDimensions = { width: w, height: h };
           state.ctx.drawImage(img, 0, 0, w, h);
           state.originalImage = img;
@@ -669,7 +686,7 @@
       reader.readAsDataURL(file);
     }
 
-    // ── canvas click → segment floor ─────────────────────────────────────────
+    // ── canvas click ──────────────────────────────────────────────────────────
     async function handleCanvasClick(event) {
       if (!state.originalImage) { showStatus("Please upload an image first", "error"); return; }
       if (state.isLoading) { showStatus("Processing… please wait", "info"); return; }
@@ -680,9 +697,7 @@
       const clickX = Math.round((event.clientX - rect.left) * scaleX);
       const clickY = Math.round((event.clientY - rect.top) * scaleY);
 
-      document.getElementById("coordsInfo").textContent =
-        `Selected (${clickX}, ${clickY}) — Processing…`;
-
+      document.getElementById("coordsInfo").textContent = `Selected (${clickX}, ${clickY}) — Processing…`;
       state.isLoading = true;
       showStatus("🎯 SAM 2 is detecting floor…", "info");
 
@@ -699,10 +714,8 @@
 
         state.floorMask = result.mask;
         state.floorConfidence = result.score;
-
         redrawWithFloorHighlight();
         updateFloorList();
-
         document.getElementById("coordsInfo").textContent =
           `✅ Floor selected! (confidence: ${(result.score * 100).toFixed(1)}%)`;
         showStatus("Floor selected! Adjust settings and apply tiles.", "success");
@@ -723,6 +736,11 @@
       showStatus("🎨 Applying tiles to floor…", "info");
       state.isLoading = true;
 
+      const isChecker = val("tilePattern") === "checkerboard";
+      const tileColor = isChecker ? val("tileColorLight") : val("tileColor");
+      const tileColor2 = isChecker ? val("tileColorDark") : "#333333";
+      const groutColor = isChecker ? val("groutColorChecker") : val("groutColor");
+
       try {
         const blob = await canvasToBlob();
         const fd = new FormData();
@@ -730,8 +748,9 @@
         fd.append("mask", JSON.stringify(state.floorMask));
         fd.append("tile_width", val("tileWidth"));
         fd.append("tile_height", val("tileHeight"));
-        fd.append("tile_color", val("tileColor"));
-        fd.append("grout_color", val("groutColor"));
+        fd.append("tile_color", tileColor);
+        fd.append("tile_color2", tileColor2);
+        fd.append("grout_color", groutColor);
         fd.append("grout_h_thickness", val("groutHThickness"));
         fd.append("grout_v_thickness", val("groutVThickness"));
         fd.append("pattern", val("tilePattern"));
@@ -759,10 +778,8 @@
     function redrawWithFloorHighlight() {
       if (!state.originalImage || !state.floorMask) return;
       state.ctx.drawImage(state.originalImage, 0, 0, state.canvas.width, state.canvas.height);
-
       const imageData = state.ctx.getImageData(0, 0, state.canvas.width, state.canvas.height);
       const d = imageData.data;
-
       for (let y = 0; y < state.canvas.height; y++) {
         for (let x = 0; x < state.canvas.width; x++) {
           if (state.floorMask[y]?.[x] > 0) {
@@ -782,20 +799,14 @@
       for (let y = 1; y < state.canvas.height - 1; y++) {
         for (let x = 1; x < state.canvas.width - 1; x++) {
           if (state.floorMask[y]?.[x] > 0) {
-            const neighbors = [
-              state.floorMask[y - 1]?.[x],
-              state.floorMask[y + 1]?.[x],
-              state.floorMask[y]?.[x - 1],
-              state.floorMask[y]?.[x + 1],
-            ];
-            if (neighbors.some(n => !n || n === 0))
-              state.ctx.fillRect(x, y, 1, 1);
+            const n = [state.floorMask[y - 1]?.[x], state.floorMask[y + 1]?.[x],
+            state.floorMask[y]?.[x - 1], state.floorMask[y]?.[x + 1]];
+            if (n.some(v => !v || v === 0)) state.ctx.fillRect(x, y, 1, 1);
           }
         }
       }
     }
 
-    // ── floor list ────────────────────────────────────────────────────────────
     function clearFloorSelection() {
       if (!state.originalImage) return;
       state.floorMask = null;
@@ -812,13 +823,12 @@
         return;
       }
       list.innerHTML = `
-        <div class="wall-item">
-          <span style="display:flex;align-items:center">
-            <span class="wall-color" style="background:#00FF00"></span>
-            Floor Selected
-          </span>
-          <span>${(state.floorConfidence * 100).toFixed(0)}% confidence</span>
-        </div>`;
+      <div class="wall-item">
+        <span style="display:flex;align-items:center">
+          <span class="wall-color" style="background:#00FF00"></span>Floor Selected
+        </span>
+        <span>${(state.floorConfidence * 100).toFixed(0)}% confidence</span>
+      </div>`;
     }
 
     // ── tile preview ──────────────────────────────────────────────────────────
@@ -826,8 +836,10 @@
       const preview = document.getElementById("tilePreview");
       const tw = parseInt(val("tileWidth") || 30);
       const th = parseInt(val("tileHeight") || 30);
-      const color = val("tileColor");
-      const grout = val("groutColor");
+      const isChecker = val("tilePattern") === "checkerboard";
+      const color1 = isChecker ? val("tileColorLight") : val("tileColor");
+      const color2 = isChecker ? val("tileColorDark") : "#cccccc";
+      const grout = isChecker ? val("groutColorChecker") : val("groutColor");
       const active = val("tilePattern");
 
       const patterns = [
@@ -835,6 +847,7 @@
         { id: "brick", name: "Brick" },
         { id: "diagonal", name: "Diagonal" },
         { id: "herringbone", name: "Herringbone" },
+        { id: "checkerboard", name: "Checkerboard" },
       ];
 
       preview.innerHTML = "";
@@ -846,42 +859,75 @@
           document.getElementById("tilePattern").value = p.id;
           document.querySelectorAll(".tile-option").forEach(el => el.classList.remove("selected"));
           div.classList.add("selected");
+          syncPatternUI();
+          updateTilePreview();
         };
 
         const c = document.createElement("canvas");
-        c.width = 100;
-        c.height = 80;
+        c.width = 90; c.height = 55;
         const ctx = c.getContext("2d");
 
-        // Scale tile size for preview (keep aspect ratio from tw/th)
-        const scaleW = 100 / (tw * 3);
-        const scaleH = 80 / (th * 3);
+        const scaleW = 90 / (tw * 3);
+        const scaleH = 55 / (th * 3);
         const scale = Math.min(scaleW, scaleH, 1);
         const pW = Math.max(8, tw * scale * 2);
         const pH = Math.max(8, th * scale * 2);
 
-        ctx.fillStyle = color;
-        ctx.fillRect(0, 0, 100, 80);
+        // Background
+        ctx.fillStyle = color1;
+        ctx.fillRect(0, 0, 90, 55);
+
         ctx.strokeStyle = grout;
         ctx.lineWidth = 1.5;
 
         switch (p.id) {
           case "grid":
-            for (let x = 0; x <= 100; x += pW) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 80); ctx.stroke(); }
-            for (let y = 0; y <= 80; y += pH) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(100, y); ctx.stroke(); }
+            for (let x = 0; x <= 90; x += pW) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 55); ctx.stroke(); }
+            for (let y = 0; y <= 55; y += pH) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(90, y); ctx.stroke(); }
             break;
+
           case "brick":
             for (let row = 0; row < 10; row++) {
               const off = (row % 2) * pW / 2;
-              const y = row * pH;
-              for (let col = -1; col < 10; col++) {
-                ctx.strokeRect(col * pW + off, y, pW, pH);
+              for (let col = -1; col < 10; col++) ctx.strokeRect(col * pW + off, row * pH, pW, pH);
+            }
+            break;
+
+          case "diagonal": {
+            ctx.save();
+            ctx.translate(45, 27.5);
+            ctx.rotate(Math.PI / 4);
+            for (let x = -90; x <= 180; x += pW) { ctx.beginPath(); ctx.moveTo(x, -90); ctx.lineTo(x, 90); ctx.stroke(); }
+            for (let y = -90; y <= 90; y += pH) { ctx.beginPath(); ctx.moveTo(-90, y); ctx.lineTo(180, y); ctx.stroke(); }
+            ctx.restore();
+            break;
+          }
+
+          case "herringbone": {
+            // Simple herringbone preview
+            const L = pW, S = pH / 2;
+            for (let row = 0; row < 6; row++) {
+              for (let col = 0; col < 6; col++) {
+                const x = col * (L + S);
+                const y = row * (L + S);
+                ctx.strokeRect(x, y, L, S);   // horizontal
+                ctx.strokeRect(x + L, y, S, L);   // vertical
               }
             }
             break;
-          default:
-            for (let x = 0; x <= 100; x += pW) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 80); ctx.stroke(); }
-            for (let y = 0; y <= 80; y += pH) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(100, y); ctx.stroke(); }
+          }
+
+          case "checkerboard":
+            for (let row = 0; row < 10; row++) {
+              for (let col = 0; col < 10; col++) {
+                const isSecond = (row + col) % 2 === 1;
+                ctx.fillStyle = isSecond ? color2 : color1;
+                ctx.fillRect(col * pW, row * pH, pW, pH);
+                ctx.strokeStyle = grout;
+                ctx.strokeRect(col * pW, row * pH, pW, pH);
+              }
+            }
+            break;
         }
 
         const previewDiv = document.createElement("div");
@@ -894,7 +940,6 @@
       });
     }
 
-    // ── util ──────────────────────────────────────────────────────────────────
     function canvasToBlob() {
       return new Promise(resolve => state.canvas.toBlob(resolve, "image/jpeg", 0.95));
     }

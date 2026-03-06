@@ -123,33 +123,140 @@ def estimate_real_depth_cm(near_left, near_right, far_left, far_right,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Pattern functions
+# Each returns (is_second_color: bool array, on_grout: bool array)
+# is_second_color: True = use grout_color2 (for checkerboard), False = tile_color
+# ─────────────────────────────────────────────────────────────────────────────
+
+def pattern_grid(u, v, grout_h_frac, grout_v_frac, **_):
+    frac_u = u - np.floor(u)
+    frac_v = v - np.floor(v)
+    on_grout = (
+        (frac_u < grout_v_frac) | (frac_u > 1.0 - grout_v_frac) |
+        (frac_v < grout_h_frac) | (frac_v > 1.0 - grout_h_frac)
+    )
+    is_second = np.zeros_like(on_grout)
+    return is_second, on_grout
+
+
+def pattern_brick(u, v, grout_h_frac, grout_v_frac, **_):
+    row = np.floor(v).astype(np.int32)
+    u_shifted = u + (row % 2) * 0.5
+    frac_u = u_shifted - np.floor(u_shifted)
+    frac_v = v - np.floor(v)
+    on_grout = (
+        (frac_u < grout_v_frac) | (frac_u > 1.0 - grout_v_frac) |
+        (frac_v < grout_h_frac) | (frac_v > 1.0 - grout_h_frac)
+    )
+    is_second = np.zeros_like(on_grout)
+    return is_second, on_grout
+
+
+def pattern_diagonal(u, v, grout_h_frac, grout_v_frac, **_):
+    SQRT2 = np.sqrt(2.0)
+    u_rot = (u + v) / SQRT2
+    v_rot = (-u + v) / SQRT2
+    frac_u = u_rot - np.floor(u_rot)
+    frac_v = v_rot - np.floor(v_rot)
+    gf = (grout_h_frac + grout_v_frac) / 2.0
+    on_grout = (
+        (frac_u < gf) | (frac_u > 1.0 - gf) |
+        (frac_v < gf) | (frac_v > 1.0 - gf)
+    )
+    is_second = np.zeros_like(on_grout)
+    return is_second, on_grout
+
+
+def pattern_herringbone(u, v, grout_h_frac, grout_v_frac, aspect_ratio=2.0, **_):
+    AR  = float(aspect_ratio)
+    S   = 1.0 / AR
+    CW  = 1.0 + S
+    CH  = 1.0 + S
+
+    cell_x = np.floor(u / CW).astype(np.int32)
+    cell_y = np.floor(v / CH).astype(np.int32)
+    lu = u - cell_x * CW
+    lv = v - cell_y * CH
+
+    in_H = (lv < S)
+    in_V = (~in_H) & (lv < S + 1.0)
+
+    frac_u = np.where(in_H, lu,      lu / S)
+    frac_v = np.where(in_H, lv / S,  lv - S)
+
+    outside  = ~(in_H | in_V)
+    gv = grout_v_frac
+    gh = grout_h_frac
+    on_grout = outside | (
+        (frac_u < gv) | (frac_u > 1.0 - gv) |
+        (frac_v < gh) | (frac_v > 1.0 - gh)
+    )
+    is_second = np.zeros_like(on_grout)
+    return is_second, on_grout
+
+
+def pattern_checkerboard(u, v, grout_h_frac, grout_v_frac, **_):
+    """
+    Checkerboard (chess) pattern.
+
+    Every tile is the same size (square grid), but alternating tiles
+    use a second colour — exactly like a chessboard.
+
+    The second colour is the grout_color passed from the frontend,
+    so the user picks:
+      • tile_color  → light squares
+      • grout_color → dark squares
+    Grout lines are drawn between ALL tiles in a neutral mid-grey
+    derived by blending the two colours.
+
+    is_second = (floor(u) + floor(v)) % 2 == 1
+    """
+    frac_u = u - np.floor(u)
+    frac_v = v - np.floor(v)
+
+    # Grout lines (thin border around every tile)
+    on_grout = (
+        (frac_u < grout_v_frac) | (frac_u > 1.0 - grout_v_frac) |
+        (frac_v < grout_h_frac) | (frac_v > 1.0 - grout_h_frac)
+    )
+
+    # Alternate tile colour based on checkerboard parity
+    cell_u = np.floor(u).astype(np.int32)
+    cell_v = np.floor(v).astype(np.int32)
+    is_second = ((cell_u + cell_v) % 2) == 1   # bool array
+
+    return is_second, on_grout
+
+
+PATTERN_FN = {
+    "grid":         pattern_grid,
+    "brick":        pattern_brick,
+    "diagonal":     pattern_diagonal,
+    "herringbone":  pattern_herringbone,
+    "checkerboard": pattern_checkerboard,
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Core renderer
 # ─────────────────────────────────────────────────────────────────────────────
 
 def apply_perspective_tiles(image: np.ndarray,
                             mask: np.ndarray,
                             tile_color: str,
+                            tile_color2: str,       # second colour (checkerboard dark tile / grout)
                             grout_color: str,
-                            tile_width_cm: float,       # real-world tile width
-                            tile_height_cm: float,      # real-world tile height
-                            grout_h_thickness: int,     # horizontal grout line thickness in px
-                            grout_v_thickness: int,     # vertical grout line thickness in px
+                            tile_width_cm: float,
+                            tile_height_cm: float,
+                            grout_h_thickness: int,
+                            grout_v_thickness: int,
                             pattern: str) -> np.ndarray:
-    """
-    Inverse-homography tile renderer with fully configurable:
-      - tile_width_cm  : real-world width of one tile  (X direction)
-      - tile_height_cm : real-world height of one tile (Y / depth direction)
-      - grout_h_thickness : pixel thickness of horizontal grout lines
-      - grout_v_thickness : pixel thickness of vertical grout lines
 
-    Grout lines are detected via tile-index edge detection (floor(u) and
-    floor(v) change maps), then dilated independently for H and V lines
-    using asymmetric kernels so thickness is controlled separately.
-    """
     mask = (mask > 0).astype(np.uint8)
 
-    tile_bgr  = np.array(hex_to_bgr(tile_color),  dtype=np.float32)
-    grout_bgr = np.array(hex_to_bgr(grout_color), dtype=np.float32)
+    tile_bgr   = np.array(hex_to_bgr(tile_color),   dtype=np.float32)
+    tile2_bgr  = np.array(hex_to_bgr(tile_color2),  dtype=np.float32)
+    grout_bgr  = np.array(hex_to_bgr(grout_color),  dtype=np.float32)
 
     h_img, w_img = image.shape[:2]
 
@@ -165,16 +272,10 @@ def apply_perspective_tiles(image: np.ndarray,
     real_depth_cm = estimate_real_depth_cm(
         near_left, near_right, far_left, far_right, real_width_cm)
 
-    # Tile counts using independent width / height
-    n_tiles_x = max(2, int(round(real_width_cm / tile_width_cm)))
+    n_tiles_x = max(2, int(round(real_width_cm  / tile_width_cm)))
     n_tiles_y = max(2, int(round(real_depth_cm  / tile_height_cm)))
 
-    print(f"🟡 tiles={n_tiles_x}×{n_tiles_y}  "
-          f"tile={tile_width_cm}×{tile_height_cm}cm  "
-          f"grout H={grout_h_thickness}px V={grout_v_thickness}px  "
-          f"real={real_width_cm:.0f}×{real_depth_cm:.0f}cm")
-
-    # ── Homography: flat floor plane → image ──────────────────────────────────
+    # ── Homography ────────────────────────────────────────────────────────────
     plane_pts = np.array([
         [0,         0        ],
         [n_tiles_x, 0        ],
@@ -190,7 +291,30 @@ def apply_perspective_tiles(image: np.ndarray,
         print("⚠️ Homography failed"); return image
     H_inv = np.linalg.inv(H_fwd)
 
-    # ── Project all pixels → tile-plane coords ────────────────────────────────
+    # ── Compute grout fractions via H_inv (perspective-correct) ───────────────
+    # We project the near-centre floor point and offset versions through H_inv.
+    # The tile-plane distance for N image pixels = exact grout fraction.
+    # This is correct at ALL depths because the homography encodes perspective.
+    def img_to_plane(px, py):
+        p = H_inv @ np.array([px, py, 1.0], dtype=np.float64)
+        return p[0] / p[2], p[1] / p[2]
+
+    cx = float((near_left[0] + near_right[0]) / 2)
+    cy = float(near_left[1])
+
+    u0, v0 = img_to_plane(cx, cy)
+    u1, _  = img_to_plane(cx + grout_v_thickness, cy)       # horizontal offset → V grout
+    _, v1  = img_to_plane(cx, cy - grout_h_thickness)       # vertical offset   → H grout
+
+    grout_v_frac = float(np.clip(abs(u1 - u0), 0.0005, 0.45))
+    grout_h_frac = float(np.clip(abs(v1 - v0), 0.0005, 0.45))
+
+    print(f"🟡 Pattern={pattern}  tiles={n_tiles_x}×{n_tiles_y}  "
+          f"tile={tile_width_cm}×{tile_height_cm}cm  "
+          f"grout px=({grout_v_thickness},{grout_h_thickness})  "
+          f"grout_frac H={grout_h_frac:.4f} V={grout_v_frac:.4f}")
+
+    # ── Project all pixels ────────────────────────────────────────────────────
     ys_all, xs_all = np.mgrid[0:h_img, 0:w_img]
     ones = np.ones(h_img * w_img, dtype=np.float64)
     img_coords = np.stack([
@@ -206,32 +330,14 @@ def apply_perspective_tiles(image: np.ndarray,
     u_all = (plane_coords[:, 0] / w_div).reshape(h_img, w_img)
     v_all = (plane_coords[:, 1] / w_div).reshape(h_img, w_img)
 
-    # ── Tile index maps ────────────────────────────────────────────────────────
-    tile_u = np.floor(u_all).astype(np.int32)
-    tile_v = np.floor(v_all).astype(np.int32)
-
-    # ── Separate edge maps for H and V grout lines ────────────────────────────
-    # Horizontal grout lines = where tile_v changes between vertically adjacent pixels
-    h_edges = np.zeros((h_img, w_img), dtype=np.uint8)
-    h_edges[:-1, :] = (tile_v[:-1, :] != tile_v[1:, :]).astype(np.uint8)
-
-    # Vertical grout lines = where tile_u changes between horizontally adjacent pixels
-    v_edges = np.zeros((h_img, w_img), dtype=np.uint8)
-    v_edges[:, :-1] = (tile_u[:, :-1] != tile_u[:, 1:]).astype(np.uint8)
-
-    # Dilate each independently with asymmetric kernels
-    # H lines: tall kernel  (thickness controls how many pixel rows the line spans)
-    # V lines: wide kernel  (thickness controls how many pixel cols the line spans)
-    grout_h_t = max(1, grout_h_thickness)
-    grout_v_t = max(1, grout_v_thickness)
-
-    kernel_h = np.ones((grout_h_t, 1), dtype=np.uint8)   # vertical dilation for H lines
-    kernel_v = np.ones((1, grout_v_t), dtype=np.uint8)   # horizontal dilation for V lines
-
-    h_grout_map = cv2.dilate(h_edges, kernel_h, iterations=1).astype(bool)
-    v_grout_map = cv2.dilate(v_edges, kernel_v, iterations=1).astype(bool)
-
-    grout_map = h_grout_map | v_grout_map
+    # ── Apply pattern ─────────────────────────────────────────────────────────
+    fn = PATTERN_FN.get(pattern, pattern_grid)
+    is_second, on_grout = fn(
+        u_all, v_all,
+        grout_h_frac=grout_h_frac,
+        grout_v_frac=grout_v_frac,
+        aspect_ratio=tile_width_cm / tile_height_cm if tile_height_cm > 0 else 2.0
+    )
 
     # ── Lighting ──────────────────────────────────────────────────────────────
     orig_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
@@ -240,10 +346,15 @@ def apply_perspective_tiles(image: np.ndarray,
     light = np.clip(orig_gray / mb, 0.3, 2.0)
 
     # ── Colour map ────────────────────────────────────────────────────────────
+    # Priority: grout > second colour > primary colour
     colour_img = np.where(
-        grout_map[:, :, np.newaxis],
+        on_grout[:, :, np.newaxis],
         grout_bgr[np.newaxis, np.newaxis, :],
-        tile_bgr[np.newaxis, np.newaxis, :]
+        np.where(
+            is_second[:, :, np.newaxis],
+            tile2_bgr[np.newaxis, np.newaxis, :],
+            tile_bgr[np.newaxis, np.newaxis, :]
+        )
     ).astype(np.float32)
 
     colour_img *= light[:, :, np.newaxis]
@@ -261,38 +372,18 @@ def apply_perspective_tiles(image: np.ndarray,
 
 @app.post("/apply-tiles")
 async def apply_tiles(
-    image:               UploadFile = File(...),
-    mask:                str        = Form(...),
-
-    # Tile dimensions (real-world cm) — width and height independently
-    tile_width:          float      = Form(30),   # cm, X direction
-    tile_height:         float      = Form(30),   # cm, Y / depth direction
-
-    # Legacy: tile_size sets both width & height if the new params aren't used
-    tile_size:           float      = Form(None),
-
-    # Colours
-    tile_color:          str        = Form("#E8D1B5"),
-    grout_color:         str        = Form("#FFFFFF"), # A9A9A9
-
-    # Grout line thickness in pixels (horizontal and vertical independently)
-    grout_h_thickness:   int        = Form(1),    # horizontal lines (px)
-    grout_v_thickness:   int        = Form(1),    # vertical lines   (px)
-
-    pattern:             str        = Form("grid")
+    image:             UploadFile = File(...),
+    mask:              str        = Form(...),
+    tile_width:        float      = Form(30),
+    tile_height:       float      = Form(30),
+    tile_size:         float      = Form(None),
+    tile_color:        str        = Form("#E8D1B5"),
+    tile_color2:       str        = Form("#333333"),   # second colour for checkerboard
+    grout_color:       str        = Form("#A9A9A9"),
+    grout_h_thickness: int        = Form(3),
+    grout_v_thickness: int        = Form(3),
+    pattern:           str        = Form("grid"),
 ):
-    """
-    Parameters
-    ──────────
-    tile_width          cm – real-world width  of one tile (left-right)
-    tile_height         cm – real-world height of one tile (front-back depth)
-    tile_size           cm – sets both width and height (legacy, overridden by above)
-    tile_color          hex – tile face colour
-    grout_color         hex – grout line colour
-    grout_h_thickness   px – thickness of horizontal grout lines
-    grout_v_thickness   px – thickness of vertical grout lines
-    pattern             "grid" | "brick"
-    """
     try:
         image_data = await image.read()
         nparr      = np.frombuffer(image_data, np.uint8)
@@ -309,20 +400,20 @@ async def apply_tiles(
             floor_mask = cv2.resize(floor_mask, (img.shape[1], img.shape[0]),
                                     interpolation=cv2.INTER_NEAREST)
 
-        # Legacy tile_size overrides if both width/height are at default
         if tile_size is not None:
-            tile_width  = tile_size
-            tile_height = tile_size
+            tile_width = tile_height = tile_size
 
-        # Clamp to sensible ranges
-        tile_width        = float(np.clip(tile_width,        5.0,  200.0))
-        tile_height       = float(np.clip(tile_height,       5.0,  200.0))
-        grout_h_thickness = int(np.clip(grout_h_thickness,   1,    20))
-        grout_v_thickness = int(np.clip(grout_v_thickness,   1,    20))
+        tile_width        = float(np.clip(tile_width,        5.0, 200.0))
+        tile_height       = float(np.clip(tile_height,       5.0, 200.0))
+        grout_h_thickness = int(np.clip(grout_h_thickness,   1,   20))
+        grout_v_thickness = int(np.clip(grout_v_thickness,   1,   20))
+
+        if pattern not in PATTERN_FN:
+            pattern = "grid"
 
         result = apply_perspective_tiles(
             img, floor_mask,
-            tile_color, grout_color,
+            tile_color, tile_color2, grout_color,
             tile_width, tile_height,
             grout_h_thickness, grout_v_thickness,
             pattern
@@ -346,6 +437,8 @@ async def health():
 @app.get("/")
 async def root():
     return {"message": "Floor Tile Visualizer API", "status": "running"}
+
+
 
 if __name__ == "__main__":
     import uvicorn
