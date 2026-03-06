@@ -31,24 +31,23 @@ if os.path.isdir(os.path.join(sam2.__path__[0], "sam2")):
         "rather than its parent dir, or from your home directory) after installing SAM 2."
     )
 
-
 HF_MODEL_ID_TO_FILENAMES = {
-    "facebook/sam2-hiera-tiny": (
-        "configs/sam2/sam2_hiera_t.yaml",
-        "sam2_hiera_tiny.pt",
-    ),
-    "facebook/sam2-hiera-small": (
-        "configs/sam2/sam2_hiera_s.yaml",
-        "sam2_hiera_small.pt",
-    ),
-    "facebook/sam2-hiera-base-plus": (
-        "configs/sam2/sam2_hiera_b+.yaml",
-        "sam2_hiera_base_plus.pt",
-    ),
-    "facebook/sam2-hiera-large": (
-        "configs/sam2/sam2_hiera_l.yaml",
-        "sam2_hiera_large.pt",
-    ),
+    # "facebook/sam2-hiera-tiny": (
+    #     "configs/sam2/sam2_hiera_t.yaml",
+    #     "sam2_hiera_tiny.pt",
+    # ),
+    # "facebook/sam2-hiera-small": (
+    #     "configs/sam2/sam2_hiera_s.yaml",
+    #     "sam2_hiera_small.pt",
+    # ),
+    # "facebook/sam2-hiera-base-plus": (
+    #     "configs/sam2/sam2_hiera_b+.yaml",
+    #     "sam2_hiera_base_plus.pt",
+    # ),
+    # "facebook/sam2-hiera-large": (
+    #     "configs/sam2/sam2_hiera_l.yaml",
+    #     "sam2_hiera_large.pt",
+    # ),
     "facebook/sam2.1-hiera-tiny": (
         "configs/sam2.1/sam2.1_hiera_t.yaml",
         "sam2.1_hiera_tiny.pt",
@@ -72,19 +71,19 @@ HF_MODEL_ID_TO_FILENAMES = {
 MODEL_VARIANTS = {
     "tiny": {
         "config": "configs/sam2.1_hiera_t.yaml",
-        "checkpoint": "./models/sam2.1_hiera_tiny.pt",
+        "checkpoint": "sam2/models/sam2.1_hiera_tiny.pt",
     },
     "small": {
         "config": "configs/sam2.1_hiera_s.yaml",
-        "checkpoint": "./models/sam2.1_hiera_small.pt",
+        "checkpoint": "sam2/models/sam2.1_hiera_small.pt",
     },
     "base_plus": {
         "config": "configs/sam2.1_hiera_b+.yaml",
-        "checkpoint": "./models/sam2.1_hiera_base_plus.pt",
+        "checkpoint": "sam2/models/sam2.1_hiera_base_plus.pt",
     },
     "large": {
         "config": "configs/sam2.1_hiera_l.yaml",
-        "checkpoint": "./models/sam2.1_hiera_large.pt",
+        "checkpoint": "sam2/models/sam2.1_hiera_large.pt",
     },
 }
 

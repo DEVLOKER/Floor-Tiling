@@ -46,6 +46,7 @@ Thumbs.db
 .env.*.local
 
 # SAM2 Model files (large, should be downloaded separately)
+sam2/models/*.pt
 models/*.pt
 !models/.gitkeep
 
