@@ -38,6 +38,8 @@ def apply_perspective_tiles(image: np.ndarray,
     if near_width_px <= 0:
         return image
 
+    # Quad corners are clean — extract_floor_quad now fits boundary lines
+
     # Estimate real-world depth
     real_width_cm = DEFAULT_REAL_WIDTH_CM
     real_depth_cm = estimate_real_depth_cm(
@@ -115,12 +117,10 @@ def apply_perspective_tiles(image: np.ndarray,
     orig_f    = image.astype(np.float32)
     orig_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
 
-    # Luminance map: preserves shadows, highlights and window reflections
     mb    = float(np.mean(orig_gray[mask > 0])) if mask.any() else 0.5
     mb    = max(mb, 0.01)
     light = np.clip(orig_gray / mb, 0.2, 3.0)
 
-    # Flat tile colors modulated by luminance
     colour_img = np.where(
         on_grout[:, :, np.newaxis],
         grout_bgr [np.newaxis, np.newaxis, :],
@@ -133,8 +133,6 @@ def apply_perspective_tiles(image: np.ndarray,
 
     colour_img *= light[:, :, np.newaxis]
 
-    # Blend with original image to preserve real-world lighting/reflections.
-    # BLEND_ALPHA: 1.0 = fully flat tile, 0.0 = fully original image.
     BLEND_ALPHA = 0.999
     colour_img = BLEND_ALPHA * colour_img + (1.0 - BLEND_ALPHA) * orig_f
     # ────────────────────────────────────────────────────────────────────────
