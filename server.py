@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import torch
+from typing import Optional
 
 from config.settings import (
     MAX_SIZE,
@@ -121,6 +122,8 @@ async def apply_tiles(
     grout_h_thickness: int = Form(1),
     grout_v_thickness: int = Form(1),
     pattern: str = Form("grid"),
+    tile_texture: Optional[UploadFile] = File(None),
+    tile_texture2: Optional[UploadFile] = File(None),
 ):
     """Apply tile pattern to segmented floor region.
     
@@ -195,13 +198,27 @@ async def apply_tiles(
         if pattern not in PATTERN_FUNCTIONS:
             pattern = "grid"
 
+        # Decode texture (optional)
+        texture_arr = None
+        if tile_texture is not None:
+            tex_bytes   = await tile_texture.read()
+            texture_arr = cv2.imdecode(np.frombuffer(tex_bytes, np.uint8), cv2.IMREAD_COLOR)
+
+        # Decode secondary (dark) texture (optional, checker patterns)
+        texture_arr2 = None
+        if tile_texture2 is not None:
+            tex_bytes2    = await tile_texture2.read()
+            texture_arr2  = cv2.imdecode(np.frombuffer(tex_bytes2, np.uint8), cv2.IMREAD_COLOR)
+
         # Apply tiles
         result = apply_perspective_tiles(
             img, floor_mask,
             tile_color, tile_color2, grout_color,
             tile_width, tile_height,
             grout_h_thickness, grout_v_thickness,
-            pattern
+            pattern,
+            texture_arr,
+            texture_arr2,
         )
 
         # Encode result

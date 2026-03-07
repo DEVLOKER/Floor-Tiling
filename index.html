@@ -389,6 +389,106 @@
       margin-bottom: 3px;
     }
 
+    /* ── Tile source toggle ── */
+    .tile-source-toggle {
+      display: flex;
+      background: #f0f0f0;
+      border-radius: 8px;
+      padding: 3px;
+      margin-bottom: 14px;
+      gap: 3px;
+    }
+
+    .tile-source-btn {
+      flex: 1;
+      padding: 7px 0;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85em;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: #888;
+      transition: all 0.2s;
+    }
+
+    .tile-source-btn.active {
+      background: white;
+      color: #667eea;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    .texture-upload-area {
+      border: 2px dashed #ccc;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 10px;
+      background: #fafafa;
+    }
+
+    .texture-upload-area:hover {
+      border-color: #667eea;
+      background: #f0f3ff;
+    }
+
+    .texture-upload-area.has-texture {
+      border-color: #48bb78;
+      background: #f0fff4;
+      padding: 8px;
+    }
+
+    .texture-thumb {
+      width: 100%;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 6px;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .texture-name {
+      font-size: 0.8em;
+      color: #48bb78;
+      font-weight: 600;
+    }
+
+    .texture-hint {
+      font-size: 0.78em;
+      color: #999;
+    }
+
+    .texture-pair-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+      transition: grid-template-columns 0.2s;
+    }
+
+    .texture-pair-row.dual {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .texture-slot-label {
+      font-size: 0.78em;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    #colorModePanel,
+    #textureModePanel {
+      display: none;
+    }
+
+    #colorModePanel.active,
+    #textureModePanel.active {
+      display: block;
+    }
+
     .thickness-hint {
       display: flex;
       align-items: center;
@@ -500,11 +600,11 @@
           <div class="input-row">
             <div class="input-group">
               <label>Tile Width <span class="value-badge" id="tileWidthValue">30 cm</span></label>
-              <input type="range" id="tileWidth" min="10" max="120" value="30" step="5" />
+              <input type="range" id="tileWidth" min="10" max="320" value="30" step="5" />
             </div>
             <div class="input-group">
               <label>Tile Height <span class="value-badge" id="tileHeightValue">30 cm</span></label>
-              <input type="range" id="tileHeight" min="10" max="120" value="30" step="5" />
+              <input type="range" id="tileHeight" min="10" max="320" value="30" step="5" />
             </div>
           </div>
 
@@ -532,31 +632,84 @@
 
           <hr class="settings-divider" />
 
-          <!-- Colours — normal patterns (tile + grout) -->
-          <div class="color-row" id="normalColorRow">
-            <div class="input-group">
-              <label>Tile Color</label>
-              <input type="color" id="tileColor" value="#E8D1B5" />
+          <!-- Tile source toggle -->
+          <div class="tile-source-toggle">
+            <button class="tile-source-btn active" id="btnModeColor" onclick="setTileMode('color')">🎨 Color</button>
+            <button class="tile-source-btn" id="btnModeTexture" onclick="setTileMode('texture')">🖼️ Texture</button>
+          </div>
+
+          <!-- Color mode panel -->
+          <div id="colorModePanel" class="active">
+            <!-- Colours — normal patterns (tile + grout) -->
+            <div class="color-row" id="normalColorRow">
+              <div class="input-group">
+                <label>Tile Color</label>
+                <input type="color" id="tileColor" value="#E8D1B5" />
+              </div>
+              <div class="input-group">
+                <label>Grout Color</label>
+                <input type="color" id="groutColor" value="#A9A9A9" />
+              </div>
             </div>
-            <div class="input-group">
-              <label>Grout Color</label>
-              <input type="color" id="groutColor" value="#A9A9A9" />
+            <!-- Colours — checkerboard (tile1 + tile2 + grout) -->
+            <div class="checker-row" id="checkerColorRow">
+              <div class="input-group">
+                <label>Light Tile</label>
+                <input type="color" id="tileColorLight" value="#F5F5F0" />
+              </div>
+              <div class="input-group">
+                <label>Dark Tile</label>
+                <input type="color" id="tileColorDark" value="#2C2C2C" />
+              </div>
+              <div class="input-group">
+                <label>Grout</label>
+                <input type="color" id="groutColorChecker" value="#888888" />
+              </div>
             </div>
           </div>
 
-          <!-- Colours — checkerboard (tile1 + tile2 + grout) -->
-          <div class="checker-row" id="checkerColorRow">
-            <div class="input-group">
-              <label>Light Tile</label>
-              <input type="color" id="tileColorLight" value="#F5F5F0" />
+          <!-- Texture mode panel -->
+          <div id="textureModePanel">
+            <div class="texture-pair-row" id="texturePairRow">
+              <!-- Light / primary texture -->
+              <div id="textureLightGroup">
+                <div class="texture-slot-label" id="textureLightLabel">Tile Texture</div>
+                <div class="texture-upload-area" id="textureUploadArea">
+                  <div id="textureEmpty">
+                    <div style="font-size:28px;margin-bottom:6px">🖼️</div>
+                    <div class="texture-hint">Click to upload a tile texture</div>
+                    <div class="texture-hint" style="margin-top:3px">JPG, PNG, WebP supported</div>
+                  </div>
+                  <div id="texturePreview" style="display:none">
+                    <img id="textureThumb" class="texture-thumb" />
+                    <div class="texture-name" id="textureName"></div>
+                    <div class="texture-hint" style="margin-top:2px">Click to change</div>
+                  </div>
+                  <input type="file" id="textureFileInput" accept="image/*" style="display:none" />
+                </div>
+              </div>
+              <!-- Dark / secondary texture (checker patterns only) -->
+              <div id="textureDarkGroup" style="display:none">
+                <div class="texture-slot-label">Dark Texture</div>
+                <div class="texture-upload-area" id="textureDarkUploadArea">
+                  <div id="textureDarkEmpty">
+                    <div style="font-size:28px;margin-bottom:6px">🖼️</div>
+                    <div class="texture-hint">Click to upload dark texture</div>
+                    <div class="texture-hint" style="margin-top:3px">JPG, PNG, WebP supported</div>
+                  </div>
+                  <div id="textureDarkPreview" style="display:none">
+                    <img id="textureDarkThumb" class="texture-thumb" />
+                    <div class="texture-name" id="textureDarkName"></div>
+                    <div class="texture-hint" style="margin-top:2px">Click to change</div>
+                  </div>
+                  <input type="file" id="textureDarkFileInput" accept="image/*" style="display:none" />
+                </div>
+              </div>
             </div>
+            <!-- Grout color for texture mode -->
             <div class="input-group">
-              <label>Dark Tile</label>
-              <input type="color" id="tileColorDark" value="#2C2C2C" />
-            </div>
-            <div class="input-group">
-              <label>Grout</label>
-              <input type="color" id="groutColorChecker" value="#888888" />
+              <label>Grout Color</label>
+              <input type="color" id="groutColorTexture" value="#A9A9A9" />
             </div>
           </div>
 
@@ -591,12 +744,16 @@
       floorMask: null, floorConfidence: 0,
       isLoading: false,
       imageDimensions: { width: 0, height: 0 },
+      tileMode: 'color',            // 'color' | 'texture'
+      tileTextureDataUrl: null,     // base64 data URL of primary (light) texture
+      tileTextureDarkDataUrl: null, // base64 data URL of secondary (dark) texture
     };
 
     document.addEventListener("DOMContentLoaded", () => {
       state.canvas = document.getElementById("mainCanvas");
       state.ctx = state.canvas.getContext("2d");
       initEventListeners();
+      initTextureUpload();
       updateTilePreview();
       syncPatternUI();
     });
@@ -621,6 +778,74 @@
       const isChecker = isCheckerPattern();
       document.getElementById("normalColorRow").style.display = isChecker ? "none" : "";
       document.getElementById("checkerColorRow").classList.toggle("visible", isChecker);
+      // Texture mode: show/hide dark texture slot and switch to dual-column layout
+      const darkGroup = document.getElementById("textureDarkGroup");
+      const pairRow = document.getElementById("texturePairRow");
+      const lightLbl = document.getElementById("textureLightLabel");
+      if (darkGroup) darkGroup.style.display = isChecker ? "" : "none";
+      if (pairRow) pairRow.classList.toggle("dual", isChecker);
+      if (lightLbl) lightLbl.textContent = isChecker ? "Light Texture" : "Tile Texture";
+    }
+
+    // ── tile mode toggle ──────────────────────────────────────────────────────
+    function setTileMode(mode) {
+      state.tileMode = mode;
+      document.getElementById('btnModeColor').classList.toggle('active', mode === 'color');
+      document.getElementById('btnModeTexture').classList.toggle('active', mode === 'texture');
+      document.getElementById('colorModePanel').classList.toggle('active', mode === 'color');
+      document.getElementById('textureModePanel').classList.toggle('active', mode === 'texture');
+      updateTilePreview();
+    }
+
+    function initTextureUpload() {
+      // ── Light / primary texture ───────────────────────────────────────────
+      const area = document.getElementById('textureUploadArea');
+      const input = document.getElementById('textureFileInput');
+      area.addEventListener('click', () => input.click());
+      area.addEventListener('dragover', e => { e.preventDefault(); area.style.borderColor = '#667eea'; });
+      area.addEventListener('dragleave', () => { area.style.borderColor = ''; });
+      area.addEventListener('drop', e => {
+        e.preventDefault(); area.style.borderColor = '';
+        const f = e.dataTransfer.files[0];
+        if (f && f.type.startsWith('image/')) loadTextureFile(f, 'light');
+      });
+      input.addEventListener('change', e => { if (e.target.files[0]) loadTextureFile(e.target.files[0], 'light'); });
+
+      // ── Dark / secondary texture ──────────────────────────────────────────
+      const darkArea = document.getElementById('textureDarkUploadArea');
+      const darkInput = document.getElementById('textureDarkFileInput');
+      darkArea.addEventListener('click', () => darkInput.click());
+      darkArea.addEventListener('dragover', e => { e.preventDefault(); darkArea.style.borderColor = '#667eea'; });
+      darkArea.addEventListener('dragleave', () => { darkArea.style.borderColor = ''; });
+      darkArea.addEventListener('drop', e => {
+        e.preventDefault(); darkArea.style.borderColor = '';
+        const f = e.dataTransfer.files[0];
+        if (f && f.type.startsWith('image/')) loadTextureFile(f, 'dark');
+      });
+      darkInput.addEventListener('change', e => { if (e.target.files[0]) loadTextureFile(e.target.files[0], 'dark'); });
+    }
+
+    function loadTextureFile(file, which = 'light') {
+      const reader = new FileReader();
+      reader.onload = e => {
+        if (which === 'dark') {
+          state.tileTextureDarkDataUrl = e.target.result;
+          document.getElementById('textureDarkThumb').src = e.target.result;
+          document.getElementById('textureDarkName').textContent = file.name;
+          document.getElementById('textureDarkEmpty').style.display = 'none';
+          document.getElementById('textureDarkPreview').style.display = 'block';
+          document.getElementById('textureDarkUploadArea').classList.add('has-texture');
+        } else {
+          state.tileTextureDataUrl = e.target.result;
+          document.getElementById('textureThumb').src = e.target.result;
+          document.getElementById('textureName').textContent = file.name;
+          document.getElementById('textureEmpty').style.display = 'none';
+          document.getElementById('texturePreview').style.display = 'block';
+          document.getElementById('textureUploadArea').classList.add('has-texture');
+        }
+        updateTilePreview();
+      };
+      reader.readAsDataURL(file);
     }
 
     // ── image helpers ─────────────────────────────────────────────────────────
@@ -637,6 +862,12 @@
      * Returns a Blob of the ORIGINAL image — no green overlay, no tile preview.
      * Always use this when sending to /apply-tiles so the server gets a clean image.
      */
+    /** Convert a base64 data URL to a Blob */
+    async function dataUrlToBlob(dataUrl) {
+      const res = await fetch(dataUrl);
+      return await res.blob();
+    }
+
     function originalImageToBlob() {
       const tmp = document.createElement("canvas");
       tmp.width = state.canvas.width;
@@ -681,7 +912,7 @@
       });
 
       document.getElementById("tilePattern").addEventListener("change", () => { syncPatternUI(); updateTilePreview(); });
-      ["tileColor", "groutColor", "tileColorLight", "tileColorDark", "groutColorChecker"].forEach(id => {
+      ["tileColor", "groutColor", "tileColorLight", "tileColorDark", "groutColorChecker", "groutColorTexture"].forEach(id => {
         document.getElementById(id).addEventListener("input", updateTilePreview);
       });
     }
@@ -757,14 +988,22 @@
     async function applyTilesToFloor() {
       if (!state.originalImage) { showStatus("Please upload an image first", "error"); return; }
       if (!state.floorMask) { showStatus("Please select a floor first", "error"); return; }
+      if (state.tileMode === 'texture' && !state.tileTextureDataUrl) {
+        showStatus("Please upload a texture image first", "error"); return;
+      }
+      const isChecker = isCheckerPattern();
+      if (state.tileMode === 'texture' && isChecker && !state.tileTextureDarkDataUrl) {
+        showStatus("Please upload a dark texture for the checkerboard pattern", "error"); return;
+      }
 
       showStatus("🎨 Applying tiles to floor…", "info");
       state.isLoading = true;
 
-      const isChecker = isCheckerPattern();
       const tileColor = isChecker ? val("tileColorLight") : val("tileColor");
       const tileColor2 = isChecker ? val("tileColorDark") : "#333333";
-      const groutColor = isChecker ? val("groutColorChecker") : val("groutColor");
+      const groutColor = state.tileMode === 'texture'
+        ? val("groutColorTexture")
+        : (isChecker ? val("groutColorChecker") : val("groutColor"));
 
       try {
         // ✅ Always send the original clean image — never the green-overlay canvas
@@ -786,6 +1025,16 @@
         fd.append("grout_h_thickness", val("groutHThickness"));
         fd.append("grout_v_thickness", val("groutVThickness"));
         fd.append("pattern", val("tilePattern"));
+
+        // Texture mode: send primary texture; also send dark texture for checker patterns
+        if (state.tileMode === 'texture' && state.tileTextureDataUrl) {
+          const texBlob = await dataUrlToBlob(state.tileTextureDataUrl);
+          fd.append("tile_texture", texBlob, "texture.jpg");
+          if (isChecker && state.tileTextureDarkDataUrl) {
+            const texBlob2 = await dataUrlToBlob(state.tileTextureDarkDataUrl);
+            fd.append("tile_texture2", texBlob2, "texture2.jpg");
+          }
+        }
 
         const res = await fetch(`${API_URL}/apply-tiles`, { method: "POST", body: fd });
         if (!res.ok) throw new Error(`Tile application failed: ${res.status}`);
@@ -871,8 +1120,13 @@
       const isChecker = isCheckerPattern();
       const color1 = isChecker ? val("tileColorLight") : val("tileColor");
       const color2 = isChecker ? val("tileColorDark") : "#cccccc";
-      const grout = isChecker ? val("groutColorChecker") : val("groutColor");
+      const grout = state.tileMode === 'texture'
+        ? val("groutColorTexture")
+        : (isChecker ? val("groutColorChecker") : val("groutColor"));
       const active = val("tilePattern");
+
+      // In texture mode, draw preview tiles using the texture image
+      const useTexture = state.tileMode === 'texture' && state.tileTextureDataUrl;
 
       const patterns = [
         { id: "grid", name: "Grid" },
@@ -906,8 +1160,31 @@
         const pW = Math.max(8, tw * scale * 2);
         const pH = Math.max(8, th * scale * 2);
 
-        ctx.fillStyle = color1;
+        if (useTexture) {
+          // Draw texture tiled into the preview
+          const texImg = new Image();
+          texImg.src = state.tileTextureDataUrl;
+          if (texImg.complete && texImg.naturalWidth > 0) {
+            const pat = ctx.createPattern(texImg, 'repeat');
+            ctx.fillStyle = pat || color1;
+          } else {
+            ctx.fillStyle = '#d4b896'; // placeholder while loading
+          }
+        } else {
+          ctx.fillStyle = color1;
+        }
         ctx.fillRect(0, 0, 90, 55);
+
+        // Precompute texture patterns for checker tile rendering
+        let texPatLight = null, texPatDark = null;
+        if (useTexture) {
+          const li = new Image(); li.src = state.tileTextureDataUrl;
+          if (li.complete && li.naturalWidth > 0) texPatLight = ctx.createPattern(li, 'repeat');
+          if (state.tileTextureDarkDataUrl) {
+            const di = new Image(); di.src = state.tileTextureDarkDataUrl;
+            if (di.complete && di.naturalWidth > 0) texPatDark = ctx.createPattern(di, 'repeat');
+          }
+        }
 
         ctx.strokeStyle = grout;
         ctx.lineWidth = 1.5;
@@ -952,7 +1229,11 @@
             for (let row = 0; row < 10; row++) {
               for (let col = 0; col < 10; col++) {
                 const isSecond = (row + col) % 2 === 1;
-                ctx.fillStyle = isSecond ? color2 : color1;
+                if (useTexture) {
+                  ctx.fillStyle = isSecond ? (texPatDark || '#666666') : (texPatLight || '#d4b896');
+                } else {
+                  ctx.fillStyle = isSecond ? color2 : color1;
+                }
                 ctx.fillRect(col * pW, row * pH, pW, pH);
                 ctx.strokeStyle = grout;
                 ctx.strokeRect(col * pW, row * pH, pW, pH);
@@ -968,7 +1249,11 @@
             for (let row = -4; row < 8; row++) {
               for (let col = -4; col < 8; col++) {
                 const isSecond = (row + col) % 2 === 1;
-                ctx.fillStyle = isSecond ? color2 : color1;
+                if (useTexture) {
+                  ctx.fillStyle = isSecond ? (texPatDark || '#666666') : (texPatLight || '#d4b896');
+                } else {
+                  ctx.fillStyle = isSecond ? color2 : color1;
+                }
                 ctx.fillRect(col * d, row * d, d, d);
                 ctx.strokeStyle = grout;
                 ctx.lineWidth = 1.5;

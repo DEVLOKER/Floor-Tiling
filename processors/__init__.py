@@ -16,8 +16,19 @@ def apply_perspective_tiles(image: np.ndarray,
                             tile_height_cm: float,
                             grout_h_thickness: int,
                             grout_v_thickness: int,
-                            pattern: str) -> np.ndarray:
-    """Apply tiles to floor using homography-based perspective rendering."""
+                            pattern: str,
+                            tile_texture: np.ndarray = None,
+                            tile_texture2: np.ndarray = None) -> np.ndarray:
+    """Apply tiles to floor using homography-based perspective rendering.
+
+    Args:
+        tile_texture:  Optional BGR texture image for primary (light) tiles.
+                       When provided, the tile colour is replaced by a tiled
+                       sample from the texture mapped so one tile = one texture.
+        tile_texture2: Optional BGR texture image for secondary (dark) tiles
+                       used by checkerboard / diagonal-checkerboard patterns.
+                       Falls back to tile_texture when None.
+    """
 
     mask = (mask > 0).astype(np.uint8)
 
@@ -27,8 +38,8 @@ def apply_perspective_tiles(image: np.ndarray,
 
     h_img, w_img = image.shape[:2]
 
-    # Extract floor quadrilateral
-    quad = extract_floor_quad(mask)
+    # Extract floor quadrilateral — pass image for Hough-based VP detection
+    quad = extract_floor_quad(mask, image=image)
     if quad is None:
         print("⚠️ No quad")
         return image
@@ -121,15 +132,47 @@ def apply_perspective_tiles(image: np.ndarray,
     mb    = max(mb, 0.01)
     light = np.clip(orig_gray / mb, 0.2, 3.0)
 
-    colour_img = np.where(
-        on_grout[:, :, np.newaxis],
-        grout_bgr [np.newaxis, np.newaxis, :],
-        np.where(
-            is_second[:, :, np.newaxis],
-            tile2_bgr[np.newaxis, np.newaxis, :],
-            tile_bgr [np.newaxis, np.newaxis, :]
-        )
-    ).astype(np.float32)
+    # ── Build base color image (color or texture) ────────────────────────
+    if tile_texture is not None:
+        th_tex, tw_tex = tile_texture.shape[:2]
+        # u_all, v_all are in tile-coordinate space (each integer = one tile).
+        # frac(u) and frac(v) give position within a single tile → texture UV.
+        u_frac = u_all - np.floor(u_all)
+        v_frac = v_all - np.floor(v_all)
+        # Map to texture pixel coordinates (primary / light texture)
+        tx = np.clip((u_frac * tw_tex).astype(np.int32), 0, tw_tex - 1)
+        ty = np.clip((v_frac * th_tex).astype(np.int32), 0, th_tex - 1)
+        tex_sample = tile_texture[ty, tx].astype(np.float32)  # (H, W, 3)
+
+        # Secondary (dark) texture — used for is_second pixels when provided
+        if tile_texture2 is not None:
+            th_tex2, tw_tex2 = tile_texture2.shape[:2]
+            tx2 = np.clip((u_frac * tw_tex2).astype(np.int32), 0, tw_tex2 - 1)
+            ty2 = np.clip((v_frac * th_tex2).astype(np.int32), 0, th_tex2 - 1)
+            tex_sample2 = tile_texture2[ty2, tx2].astype(np.float32)
+            tile_fill = np.where(
+                is_second[:, :, np.newaxis],
+                tex_sample2,
+                tex_sample
+            )
+        else:
+            tile_fill = tex_sample
+
+        colour_img = np.where(
+            on_grout[:, :, np.newaxis],
+            grout_bgr[np.newaxis, np.newaxis, :],
+            tile_fill
+        ).astype(np.float32)
+    else:
+        colour_img = np.where(
+            on_grout[:, :, np.newaxis],
+            grout_bgr [np.newaxis, np.newaxis, :],
+            np.where(
+                is_second[:, :, np.newaxis],
+                tile2_bgr[np.newaxis, np.newaxis, :],
+                tile_bgr [np.newaxis, np.newaxis, :]
+            )
+        ).astype(np.float32)
 
     colour_img *= light[:, :, np.newaxis]
 

@@ -271,47 +271,6 @@ def _extract_floor_quad_fallback(mask: np.ndarray) -> tuple:
     print(f"  Quad (fallback) NL={near_left} NR={near_right} FL={far_left} FR={far_right}")
     return near_left, near_right, far_left, far_right
 
-    
-def _extract_floor_quad_fallback(mask: np.ndarray) -> tuple:
-    h, w = mask.shape
-    ys, xs = np.where(mask > 0)
-    if len(ys) == 0:
-        return None
-
-    y_near = int(ys.max())
-    y_far  = int(ys.min())
-
-    def get_edges(y_center, band=8):
-        lefts, rights = [], []
-        for dy in range(-band, band + 1):
-            y = y_center + dy
-            if 0 <= y < h:
-                cols = np.where(mask[y] > 0)[0]
-                if len(cols) >= 2:
-                    lefts.append(int(cols[0]))
-                    rights.append(int(cols[-1]))
-        if not lefts:
-            cols = np.where(mask[y_center] > 0)[0]
-            if len(cols) < 2:
-                return None, None
-            return float(cols[0]), float(cols[-1])
-        return float(np.median(lefts)), float(np.median(rights))
-
-    nl, nr = get_edges(y_near, band=8)
-    fl, fr = get_edges(y_far,  band=8)
-    if nl is None or fl is None:
-        return None
-
-    near_left  = np.array([nl, float(y_near)], dtype=np.float32)
-    near_right = np.array([nr, float(y_near)], dtype=np.float32)
-    far_left   = np.array([fl, float(y_far)],  dtype=np.float32)
-    far_right  = np.array([fr, float(y_far)],  dtype=np.float32)
-
-    print(f"  Quad (fallback) NL={near_left} NR={near_right} FL={far_left} FR={far_right}")
-    return near_left, near_right, far_left, far_right
-
-
-
 
 
 
