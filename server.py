@@ -7,10 +7,12 @@ for floor segmentation and perspective-correct homography-based tile rendering.
 """
 import json
 import io
+import os
 import numpy as np
 import cv2
 from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import torch
@@ -57,12 +59,16 @@ app.add_middleware(
 # Initialize SAM2 model
 predictor = get_sam2_predictor()
 
+# Serve static assets (CSS, JS, images) under /static
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.post("/segment-floor")
+@app.post("/api/segment-floor")
 async def segment_floor(
     image: UploadFile = File(...),
     click_x: float = Form(...),
@@ -108,7 +114,7 @@ async def segment_floor(
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.post("/apply-tiles")
+@app.post("/api/apply-tiles")
 async def apply_tiles(
     image: UploadFile = File(...),
     # mask: str = Form(...), # Changed to UploadFile for binary data
@@ -254,13 +260,15 @@ async def health():
     }
 
 
-@app.get("/")
+@app.get("/", response_class=FileResponse)
 async def root():
-    """Root endpoint.
-    
-    Returns:
-        API information
-    """
+    """Serve the frontend UI."""
+    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+
+
+@app.get("/api")
+async def api_info():
+    """API information endpoint."""
     return {
         "message": "Floor Tile Visualizer API",
         "status": "running",
@@ -274,7 +282,6 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    # python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload --limit-max-requests 10485760
     # python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload --h11-max-incomplete-event-size 10485760
     # uvicorn.run(
     #     app,

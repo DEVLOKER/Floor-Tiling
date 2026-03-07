@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Floor Tile Visualizer</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+
+<body>
+
+    <!-- ── Full-page canvas ────────────────────────────────────── -->
+    <canvas id="mainCanvas"></canvas>
+
+    <!-- ── Welcome state (pre-upload) ─────────────────────────── -->
+    <div class="welcome-overlay" id="welcomeOverlay">
+        <div class="welcome-card">
+            <div class="welcome-icon">🏠</div>
+            <h2>Floor Tile Visualizer</h2>
+            <p>Upload a room photo, click on the floor, and preview any tile style instantly.</p>
+            <button class="btn-welcome" id="welcomeUploadBtn">
+                <span>📸</span> Choose a Photo
+            </button>
+            <div class="welcome-drag-hint">or drag &amp; drop anywhere on this screen</div>
+        </div>
+    </div>
+
+    <!-- ── Drag-and-drop overlay ───────────────────────────────── -->
+    <div class="drop-overlay" id="dropOverlay">
+        <div class="drop-card">
+            <div class="drop-icon">📸</div>
+            <div class="drop-text">Drop your room photo here</div>
+        </div>
+    </div>
+
+    <!-- ── Top bar ────────────────────────────────────────────── -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <span class="app-logo">🏠</span>
+            <div class="app-name">
+                <div class="app-title">Floor Tile Visualizer</div>
+                <div class="app-subtitle">Powered by SCRIPTIHA</div>
+            </div>
+        </div>
+        <div class="top-bar-right">
+            <button class="top-btn" id="uploadBtn">
+                <span>📸</span> Upload Photo
+            </button>
+        </div>
+    </header>
+
+    <!-- ── HUD: instruction / coords pill ────────────────────── -->
+    <div class="hud-pill" id="coordsInfo">Click on the floor to select it</div>
+
+    <!-- ── Floor selection badge ──────────────────────────────── -->
+    <div class="floor-badge" id="floorBadge" style="display:none">
+        <span class="badge-dot"></span>
+        <span id="floorBadgeText">Floor Selected</span>
+        <span class="badge-conf" id="floorBadgeConf"></span>
+    </div>
+
+    <!-- ── Loading overlay ───────────────────────────────────── -->
+    <div class="loading-overlay" id="loadingOverlay" style="display:none">
+        <div class="loading-card">
+            <div class="loading-ring"></div>
+            <div class="loading-text" id="loadingText">Processing…</div>
+        </div>
+    </div>
+
+    <!-- ── Floating action buttons ───────────────────────────── -->
+    <div class="fab-group">
+        <div class="fab-tip-wrap" data-tip="Clear Floor">
+            <button class="fab fab-sm" id="clearFloorBtn" title="Clear Floor Selection">🗑️</button>
+        </div>
+        <div class="fab-tip-wrap" data-tip="Tile Settings">
+            <button class="fab fab-sm" id="openSettingsBtn" title="Tile Settings">⚙️</button>
+        </div>
+        <div class="fab-tip-wrap" data-tip="Download Result" id="downloadFabWrap" style="display:none">
+            <button class="fab fab-sm fab-download" id="downloadBtn" title="Download Result">⬇️</button>
+        </div>
+        <button class="fab fab-main" id="applyTilesBtn">
+            <span>🎨</span>
+            <span class="fab-label">Apply Tiles</span>
+        </button>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" accept="image/*" style="display:none" />
+
+    <!-- ── Side panel backdrop ───────────────────────────────── -->
+    <div class="panel-backdrop" id="panelBackdrop"></div>
+
+    <!-- ── Side panel ────────────────────────────────────────── -->
+    <aside class="side-panel" id="sidePanel">
+        <div class="panel-header">
+            <span class="panel-title">🧱 Tile Settings</span>
+            <button class="panel-close" id="closePanelBtn" title="Close">✕</button>
+        </div>
+
+        <div class="panel-body">
+
+            <!-- Pattern selector -->
+            <div class="panel-section">
+                <div class="section-label">Pattern</div>
+                <select id="tilePattern" class="panel-select">
+                    <option value="grid">Grid</option>
+                    <option value="brick">Brick (Offset)</option>
+                    <option value="diagonal">Diagonal</option>
+                    <option value="herringbone">Herringbone</option>
+                    <option value="checkerboard">Checkerboard (Chess)</option>
+                    <option value="diagonal_checkerboard">Diagonal Chess ◇</option>
+                </select>
+            </div>
+
+            <!-- Pattern thumbnail previews -->
+            <div class="tile-preview" id="tilePreview"></div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Tile size -->
+            <div class="panel-section">
+                <div class="section-label">Tile Size</div>
+                <div class="range-pair">
+                    <div class="range-item">
+                        <div class="range-label">
+                            Width <span class="value-badge" id="tileWidthValue">30 cm</span>
+                        </div>
+                        <input type="range" id="tileWidth" min="10" max="320" value="30" step="5" />
+                    </div>
+                    <div class="range-item">
+                        <div class="range-label">
+                            Height <span class="value-badge" id="tileHeightValue">30 cm</span>
+                        </div>
+                        <input type="range" id="tileHeight" min="10" max="320" value="30" step="5" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Grout -->
+            <div class="panel-section">
+                <div class="section-label">Grout Thickness</div>
+                <div class="range-pair">
+                    <div class="range-item">
+                        <div class="range-label">
+                            ↔ Horizontal <span class="value-badge" id="groutHValue">1 px</span>
+                        </div>
+                        <input type="range" id="groutHThickness" min="1" max="20" value="1" step="1" />
+                        <div class="thickness-hint">
+                            <div class="thickness-bar-h" id="hintH" style="--th:1px"></div>
+                            <span class="hint-label">preview</span>
+                        </div>
+                    </div>
+                    <div class="range-item">
+                        <div class="range-label">
+                            ↕ Vertical <span class="value-badge" id="groutVValue">1 px</span>
+                        </div>
+                        <input type="range" id="groutVThickness" min="1" max="20" value="1" step="1" />
+                        <div class="thickness-hint">
+                            <div class="thickness-bar-v" id="hintV" style="--tv:1px"></div>
+                            <span class="hint-label">preview</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Fill style -->
+            <div class="panel-section">
+                <div class="section-label">Fill Style</div>
+                <div class="tile-source-toggle">
+                    <button class="tile-source-btn active" id="btnModeColor" onclick="setTileMode('color')">🎨
+                        Color</button>
+                    <button class="tile-source-btn" id="btnModeTexture" onclick="setTileMode('texture')">🖼️
+                        Texture</button>
+                </div>
+
+                <!-- Color panel -->
+                <div id="colorModePanel" class="active">
+                    <div class="color-row" id="normalColorRow">
+                        <div class="color-swatch-group">
+                            <label>Tile</label>
+                            <input type="color" id="tileColor" value="#E8D1B5" />
+                        </div>
+                        <div class="color-swatch-group">
+                            <label>Grout</label>
+                            <input type="color" id="groutColor" value="#A9A9A9" />
+                        </div>
+                    </div>
+                    <div class="checker-row" id="checkerColorRow">
+                        <div class="color-swatch-group">
+                            <label>Light</label>
+                            <input type="color" id="tileColorLight" value="#F5F5F0" />
+                        </div>
+                        <div class="color-swatch-group">
+                            <label>Dark</label>
+                            <input type="color" id="tileColorDark" value="#2C2C2C" />
+                        </div>
+                        <div class="color-swatch-group">
+                            <label>Grout</label>
+                            <input type="color" id="groutColorChecker" value="#888888" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Texture panel -->
+                <div id="textureModePanel">
+                    <div class="texture-pair-row" id="texturePairRow">
+                        <!-- Primary / light texture -->
+                        <div id="textureLightGroup">
+                            <div class="texture-slot-label" id="textureLightLabel">Tile Texture</div>
+                            <div class="texture-upload-area" id="textureUploadArea">
+                                <div id="textureEmpty">
+                                    <div class="tex-icon">🖼️</div>
+                                    <div class="texture-hint">Click to upload</div>
+                                    <div class="texture-hint muted">JPG · PNG · WebP</div>
+                                </div>
+                                <div id="texturePreview" style="display:none">
+                                    <img id="textureThumb" class="texture-thumb" alt="texture preview" />
+                                    <div class="texture-name" id="textureName"></div>
+                                    <div class="texture-hint">Click to change</div>
+                                </div>
+                                <input type="file" id="textureFileInput" accept="image/*" style="display:none" />
+                            </div>
+                        </div>
+                        <!-- Secondary / dark texture (checker only) -->
+                        <div id="textureDarkGroup" style="display:none">
+                            <div class="texture-slot-label">Dark Texture</div>
+                            <div class="texture-upload-area" id="textureDarkUploadArea">
+                                <div id="textureDarkEmpty">
+                                    <div class="tex-icon">🖼️</div>
+                                    <div class="texture-hint">Click to upload</div>
+                                    <div class="texture-hint muted">JPG · PNG · WebP</div>
+                                </div>
+                                <div id="textureDarkPreview" style="display:none">
+                                    <img id="textureDarkThumb" class="texture-thumb" alt="dark texture preview" />
+                                    <div class="texture-name" id="textureDarkName"></div>
+                                    <div class="texture-hint">Click to change</div>
+                                </div>
+                                <input type="file" id="textureDarkFileInput" accept="image/*" style="display:none" />
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Grout for texture mode -->
+                    <div class="grout-texture-row">
+                        <label class="grout-texture-label">Grout Color</label>
+                        <input type="color" id="groutColorTexture" value="#A9A9A9" class="grout-texture-input" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Apply button (inside panel) -->
+            <div class="panel-section">
+                <button class="btn-apply-panel" onclick="applyTilesToFloor()">
+                    🎨 Apply Tiles to Floor
+                </button>
+            </div>
+
+            <!-- Floor selection status -->
+            <div class="panel-section">
+                <div class="section-label">Floor Selection</div>
+                <div class="walls-list" id="floorList">
+                    <div class="no-floor-msg">No floor selected yet.</div>
+                </div>
+                <button class="btn-clear-sm" onclick="clearFloorSelection()">🗑️ Clear Selection</button>
+            </div>
+
+            <!-- How to use -->
+            <div class="panel-section">
+                <div class="how-to-box">
+                    <div class="how-to-title">📖 How to use</div>
+                    <ol class="how-to-list">
+                        <li>Upload a room photo</li>
+                        <li>Click on the floor — algorithm detects it</li>
+                        <li>Choose a pattern &amp; adjust sizes</li>
+                        <li>Pick colours or upload textures</li>
+                        <li>Hit <strong>Apply Tiles</strong>!</li>
+                    </ol>
+                </div>
+            </div>
+
+        </div><!-- /panel-body -->
+    </aside>
+
+    <!-- ── Toast notifications ───────────────────────────────── -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
