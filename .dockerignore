@@ -1,0 +1,65 @@
+# ── Version control ─────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── Python bytecode ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Build / dist artefacts ───────────────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+
+# ── IDE & editor configs ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Secrets / local config ───────────────────────────────────────────────────
+.env
+.env.*
+secrets/
+
+# ── Test & CI artefacts ──────────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Docker files themselves (avoid inception) ────────────────────────────────
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# ── Documentation (not needed at runtime) ────────────────────────────────────
+README.md
+ARCHITECTURE.md
+docs/
+
+# ── Test files (avoid test textures and rooms photos) ─────────────────────────
+__tests__/
+
+# ── Model files (keep only the tiny one for a smaller image) ───────────────────
+sam2/models/*.pt
+!sam2/models/sam2.1_hiera_tiny.pt
+
+
+# NOTE: sam2/models/*.pt ARE intentionally included so the image is
+# self-contained. If you want a smaller base image, add the line:
+#   sam2/models/*.pt
+# and volume-mount the models directory at runtime (see docker-compose.yml).
