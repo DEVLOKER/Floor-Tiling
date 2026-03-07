@@ -1,5 +1,29 @@
 # ── Floor Tile Visualizer — Production Dockerfile ──────────────────────────
-# Base: slim Python to keep image lean. SAM2 needs OpenCV C-libs & glibc.
+
+# ==========================================================================
+# Stage 1: Model Downloader
+#   Uses a minimal Alpine image to fetch SAM2 checkpoints from Meta's CDN.
+#   This entire layer is cached by Docker — models are never re-downloaded
+#   unless the URLs (or this RUN command) change, regardless of how often
+#   the application code is rebuilt.
+# ==========================================================================
+FROM alpine:latest AS downloader
+
+RUN apk add --no-cache wget
+
+WORKDIR /models
+
+RUN wget -q -O sam2.1_hiera_tiny.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt 
+# RUN wget -q -O sam2.1_hiera_small.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt \
+# RUN wget -q -O sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt \
+# RUN wget -q -O sam2.1_hiera_large.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+
+# ==========================================================================
+# Stage 2: Final Runtime
+#   Slim Python image with all dependencies and application code.
+#   Models are injected from Stage 1 — the runtime image itself never needs
+#   network access to Meta's CDN.
+# ==========================================================================
 FROM python:3.11-slim
 
 # --------------------------------------------------------------------------
@@ -43,12 +67,19 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # --------------------------------------------------------------------------
-# 4. Application code (copied last → fastest rebuild on code changes)
+# 4. Application code
 # --------------------------------------------------------------------------
 COPY --chown=appuser:appuser . .
 
 # --------------------------------------------------------------------------
-# 5. Runtime environment
+# 5. SAM2 model checkpoints (copied from Stage 1)
+#    Placed AFTER "COPY . ." so the downloaded weights always take precedence
+#    over any .pt files that may exist locally (e.g. in sam2/models/).
+# --------------------------------------------------------------------------
+COPY --chown=appuser:appuser --from=downloader /models/ ./sam2/models/
+
+# --------------------------------------------------------------------------
+# 6. Runtime environment
 # --------------------------------------------------------------------------
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -65,13 +96,13 @@ USER appuser
 EXPOSE 8000
 
 # --------------------------------------------------------------------------
-# 6. Health check (SAM2 loads at startup; give it 90 s to warm up)
+# 7. Health check (SAM2 loads at startup; give it 90 s to warm up)
 # --------------------------------------------------------------------------
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
     CMD curl -fs http://localhost:8000/health || exit 1
 
 # --------------------------------------------------------------------------
-# 7. Entrypoint — uvicorn in production mode (no reload, no debug)
+# 8. Entrypoint — uvicorn in production mode (no reload, no debug)
 # --------------------------------------------------------------------------
 CMD ["uvicorn", "server:app", \
      "--host", "0.0.0.0", \

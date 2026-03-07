@@ -54,12 +54,8 @@ docs/
 # ── Test files (avoid test textures and rooms photos) ─────────────────────────
 __tests__/
 
-# ── Model files (keep only the tiny one for a smaller image) ───────────────────
+# ── Model files (downloaded in Stage 1 of the multi-stage Dockerfile) ──────────
+# All .pt checkpoints are fetched from Meta's CDN by the downloader stage and
+# copied into the final image via COPY --from=downloader.  Excluding them here
+# keeps the build context small and avoids redundant file transfers.
 sam2/models/*.pt
-!sam2/models/sam2.1_hiera_tiny.pt
-
-
-# NOTE: sam2/models/*.pt ARE intentionally included so the image is
-# self-contained. If you want a smaller base image, add the line:
-#   sam2/models/*.pt
-# and volume-mount the models directory at runtime (see docker-compose.yml).
