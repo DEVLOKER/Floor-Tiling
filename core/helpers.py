@@ -1,6 +1,8 @@
 """Core helper functions"""
 import numpy as np
 import cv2
+from typing import Tuple
+from config.settings import DEPTH_MIN_CM, DEPTH_MAX_CM
 
 
 def hex_to_bgr(h: str) -> tuple:
@@ -274,67 +276,37 @@ def _extract_floor_quad_fallback(mask: np.ndarray) -> tuple:
 
 
 
+def estimate_floor_geometry(near_left: np.ndarray, near_right: np.ndarray,
+                             far_left: np.ndarray, far_right: np.ndarray,
+                             real_width_cm: float) -> tuple:
+    """Estimate VP, depth, and depth_ratio from floor quad corners.
 
+    Returns:
+        (vp_y, real_depth_cm, depth_ratio)
+        where depth_ratio = real_depth_cm / real_width_cm
+    """
+    x1,y1 = float(far_left[0]),   float(far_left[1])
+    x2,y2 = float(near_left[0]),  float(near_left[1])
+    x3,y3 = float(far_right[0]),  float(far_right[1])
+    x4,y4 = float(near_right[0]), float(near_right[1])
+    near_y = (y2 + y4) / 2.0
+    far_y  = (y1 + y3) / 2.0
 
-
-
-
-def estimate_real_depth_cm(near_left: np.ndarray,
-                           near_right: np.ndarray,
-                           far_left: np.ndarray,
-                           far_right: np.ndarray,
-                           real_width_cm: float = 400.0) -> float:
-    """Estimate real-world floor depth using vanishing-point geometry."""
-    from config.settings import DEPTH_MIN_CM, DEPTH_MAX_CM
-
-    # ── Compute vanishing point (intersection of left and right quad edges) ─
-    # Left  edge: far_left  → near_left
-    # Right edge: far_right → near_right
-    x1, y1 = float(far_left[0]),  float(far_left[1])
-    x2, y2 = float(near_left[0]), float(near_left[1])
-    x3, y3 = float(far_right[0]), float(far_right[1])
-    x4, y4 = float(near_right[0]),float(near_right[1])
-
-    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-
-    near_w = float(np.linalg.norm(near_right - near_left))
-    far_w  = float(np.linalg.norm(far_right  - far_left))
-    y_near = float((near_left[1] + near_right[1]) / 2.0)
-    y_far  = float((far_left[1]  + far_right[1])  / 2.0)
-
+    denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4)
     if abs(denom) > 1e-6:
-        # ── VP-based formula (geometrically exact) ──────────────────────────
-        t    = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
-        vp_x = x1 + t * (x2 - x1)
-        vp_y = y1 + t * (y2 - y1)
-
-        denom_y = y_far - vp_y
+        t    = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / denom
+        vp_y = float(y1 + t*(y2-y1))
+        denom_y = far_y - vp_y
         if abs(denom_y) > 1e-3:
-            # D/W = (y_near - y_far) / (y_far - vp_y)
-            depth_over_width = (y_near - y_far) / denom_y
-            real_depth = real_width_cm * abs(depth_over_width)
-            real_depth = float(np.clip(real_depth, DEPTH_MIN_CM, DEPTH_MAX_CM))
-            print(f"  VP=({vp_x:.1f},{vp_y:.1f})  "
-                  f"y_near={y_near:.1f}  y_far={y_far:.1f}  "
-                  f"D/W={depth_over_width:.3f}  depth={real_depth:.1f}cm")
-            return real_depth
+            depth_ratio   = (near_y - far_y) / denom_y
+            real_depth_cm = float(np.clip(real_width_cm * abs(depth_ratio), 50.0, 600.0))
+            print(f"  [geometry] vp_y={vp_y:.1f}  depth_ratio={depth_ratio:.3f}  "
+                  f"depth={real_depth_cm:.1f}cm")
+            return vp_y, real_depth_cm, depth_ratio
 
-    # ── Fallback: width-ratio formula (less accurate but always works) ──────
-    if near_w <= 0:
-        return real_width_cm
-
-    ratio = float(np.clip(far_w / near_w, 0.05, 0.99))
-    # From similar triangles: D/W = (1/ratio - 1) * ratio = 1 - ratio ... 
-    # Simpler fallback: assume camera is at 45° → D ≈ W
-    # Better: use the y-pixel delta directly
-    if y_near > y_far:
-        # rough estimate: depth proportional to y-span scaled by width
-        depth_over_width = (y_near - y_far) / max(near_w, 1.0) * 8.0  # empirical scale
-        real_depth = real_width_cm * depth_over_width
-    else:
-        real_depth = real_width_cm  # assume square floor
-
-    real_depth = float(np.clip(real_depth, DEPTH_MIN_CM, DEPTH_MAX_CM))
-    print(f"  Fallback depth: near_w={near_w:.1f} far_w={far_w:.1f} "
-          f"ratio={ratio:.3f} depth={real_depth:.1f}cm")
-    return real_depth
+    # Fallback
+    vp_y        = far_y - (near_y - far_y)
+    depth_ratio = 1.0
+    real_depth_cm = real_width_cm
+    print(f"  [geometry fallback] depth={real_depth_cm:.1f}cm")
+    return vp_y, real_depth_cm, depth_ratio
