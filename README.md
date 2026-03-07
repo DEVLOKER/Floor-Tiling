@@ -45,6 +45,19 @@ Click on any floor surface in a photo, let SAM 2 segment it automatically, then 
 
 ---
 
+## Getting Started
+
+There are two ways to run this application — choose the one that suits you best:
+
+| Method | Best for | Effort |
+|---|---|---|
+| **[Option A — Docker](#docker)** (recommended) | Quick setup, no Python environment needed | Low — pull & run one command |
+| **[Option B — Local install](#prerequisites)** | Development, customisation, GPU support | Higher — install Python deps manually |
+
+> Jump directly to [Option A (Docker)](#docker) if you just want to try the app quickly.
+
+---
+
 ## Prerequisites
 
 | Requirement | Version |
@@ -173,6 +186,48 @@ Then open your browser at **http://localhost:8000**.
 
 ---
 
+## Docker
+
+The pre-built image is available on DockerHub at [`berghout/ceramic`](https://hub.docker.com/r/berghout/ceramic).
+
+### Pull the image
+
+```bash
+docker pull berghout/ceramic:latest
+```
+
+### Run the container
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  --name floor-tile-visualizer \
+  berghout/ceramic:latest
+```
+
+### Or with Docker Compose (recommended)
+
+```bash
+docker compose up
+```
+
+### Open in browser
+
+| Page | URL |
+|---|---|
+| Application UI | http://localhost:8000 |
+| Health check | http://localhost:8000/health |
+| API info | http://localhost:8000/api |
+
+### Stop and remove the container
+
+```bash
+docker stop floor-tile-visualizer
+docker rm floor-tile-visualizer
+```
+
+---
+
 ## Usage
 
 1. **Upload a photo** of a room with a visible floor.
@@ -181,6 +236,16 @@ Then open your browser at **http://localhost:8000**.
 4. Optionally upload a **tile texture image** (JPEG/PNG) to replace the solid colour.
 5. For checker patterns, upload a **second texture** for the dark tiles.
 6. Click **Apply Tiles** to render the result.
+
+> **Test assets included** — the `__tests__/` folder contains sample images you can use right away:
+>
+> | Folder | Contents |
+> |---|---|
+> | `__tests__/rooms/` | Sample room photos (various empty room scenes) |
+> | `__tests__/rooms/large/` | Higher-resolution room photos |
+> | `__tests__/textures/` | Sample tile texture images (JPEG) |
+>
+> Simply upload any image from `__tests__/rooms/` as your room photo, and optionally use one from `__tests__/textures/` as a tile texture.
 
 ---
 
