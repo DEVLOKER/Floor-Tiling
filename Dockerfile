@@ -1,22 +1,41 @@
 # ── Floor Tile Visualizer — Production Dockerfile ──────────────────────────
 
+# ── Global build argument ─────────────────────────────────────────────────────
+# MODEL_SOURCE=download  → fetch SAM2 checkpoints from Meta CDN (default; CI/prod)
+# MODEL_SOURCE=local     → copy from ./sam2/models/ in the build context
+#                          (remove 'sam2/models/*.pt' from .dockerignore first)
+ARG MODEL_SOURCE=download
+
 # ==========================================================================
-# Stage 1: Model Downloader
-#   Uses a minimal Alpine image to fetch SAM2 checkpoints from Meta's CDN.
-#   This entire layer is cached by Docker — models are never re-downloaded
-#   unless the URLs (or this RUN command) change, regardless of how often
-#   the application code is rebuilt.
+# Stage 1: Model Provider
+#   download mode → wget from Meta CDN (layer is cached until URL changes)
+#   local mode    → COPY from build context (fast offline builds / air-gap)
 # ==========================================================================
 FROM alpine:latest AS downloader
+ARG MODEL_SOURCE
 
 RUN apk add --no-cache wget
 
 WORKDIR /models
 
-# RUN wget -q -O sam2.1_hiera_tiny.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt 
-# RUN wget -q -O sam2.1_hiera_small.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt \
-# RUN wget -q -O sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt \
-# RUN wget -q -O sam2.1_hiera_large.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+# Always attempt to copy local .pt files first.
+# In download mode these will be absent from the build context (.dockerignore
+# excludes them), so the COPY lands an empty directory — no error.
+# In local mode the files are present and used as-is.
+COPY sam2/models/ .
+
+# Only hit the CDN when MODEL_SOURCE=download
+RUN if [ "$MODEL_SOURCE" = "download" ]; then \
+        echo "▶ [downloader] Fetching SAM2 model from Meta CDN ..."; \
+        wget -q --show-progress -O sam2.1_hiera_tiny.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt; \
+        # wget -q --show-progress -O sam2.1_hiera_small.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt; \
+        # wget -q --show-progress -O sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt; \
+        # wget -q --show-progress -O sam2.1_hiera_large.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt; \
+    else \
+        echo "▶ [downloader] Using local model files:"; \
+        COPY sam2/models/ . > /dev/null 2>&1 || true; \
+        ls -lh /models; \
+    fi
 
 # ==========================================================================
 # Stage 2: Cython Builder
@@ -24,6 +43,7 @@ WORKDIR /models
 #   processors) to native .so extensions, then strips the .py source files.
 #   Only the compiled binaries (+ server.py entry-point) reach the final
 #   runtime image, making source recovery very difficult.
+#   Note: ARG MODEL_SOURCE is not needed here — this stage is model-agnostic.
 # ==========================================================================
 FROM python:3.11-slim AS builder
 

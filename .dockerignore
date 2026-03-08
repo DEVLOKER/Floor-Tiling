@@ -67,17 +67,15 @@ sam2/csrc/
 # Benchmark script — development tool only
 sam2/benchmark.py
 
-; # ── Local model checkpoints (builder stage fetches fresh ones from Meta CDN)
-; #    Excluding avoids copying large .pt files into the build context.
-; #    The Dockerfile downloader stage downloads them directly.
-; sam2/models/*.pt
-
-# ── Model files (keep only the tiny one for a smaller image) ───────────────────
+# ── Local model checkpoints ──────────────────────────────────────────────────
+# DEFAULT (download mode): keep .pt files EXCLUDED — Docker fetches them fresh
+#   from Meta CDN in the downloader stage.  Build context stays lightweight.
+#
+# LOCAL mode: comment out the line below so .pt files enter the build context,
+#   then build with:  ./build.sh latest local
 sam2/models/*.pt
 !sam2/models/sam2.1_hiera_tiny.pt
 
-
-# NOTE: sam2/models/*.pt ARE intentionally included so the image is
 # self-contained. If you want a smaller base image, add the line:
 #   sam2/models/*.pt
 # and volume-mount the models directory at runtime (see docker-compose.yml).

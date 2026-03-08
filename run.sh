@@ -1,10 +1,26 @@
 #!/usr/bin/env bash
 # ── Floor Tiling — Docker run script ────────────────────────────────────────
+# Usage: ./run.sh <version> [port]
+#   version   Required. Image tag to run, e.g. 1.0.0
+#   port      Optional. Host port to bind (default: 8000)
 set -euo pipefail
 
 IMAGE_NAME="floor-tiling"
-IMAGE_TAG="${1:-latest}"          # pass a tag as first arg, default: latest
-HOST_PORT="${2:-8000}"            # pass a port as second arg, default: 8000
+
+if [ -z "${1:-}" ]; then
+    echo "✖ Version is required."
+    echo ""
+    echo "Usage: ./run.sh <version> [port]"
+    echo "  e.g: ./run.sh 1.0.0"
+    echo "  e.g: ./run.sh 1.0.0 9000"
+    echo ""
+    echo "Available local images:"
+    docker images "${IMAGE_NAME}" --format "  {{.Tag}}\t{{.Size}}\t{{.CreatedSince}}" 2>/dev/null || true
+    exit 1
+fi
+
+IMAGE_TAG="${1:-latest}" # pass an image tag as first arg, default: latest
+HOST_PORT="${2:-8000}"   # pass a port as second arg, default: 8000
 URL="http://localhost:${HOST_PORT}"
 
 # ── Locate Chrome executable ─────────────────────────────────────────────────
@@ -44,8 +60,8 @@ docker run \
   -p "${HOST_PORT}:8000" \
   "${IMAGE_NAME}:${IMAGE_TAG}"
 
-# Stop container automatically when this script exits (Ctrl+C)
-trap 'echo ""; echo "▶ Stopping container ..."; docker stop floor-tiling-app 2>/dev/null || true' EXIT
+# Stop container automatically when this script exits (Ctrl+C or browser close)
+trap 'echo ""; echo "▶ Stopping container ..."; docker stop floor-tiling-app 2>/dev/null || true; [ -n "${CHROME_PROFILE:-}" ] && rm -rf "$CHROME_PROFILE"' EXIT
 
 # ── Wait for server to be ready ───────────────────────────────────────────────
 echo "⏳ Waiting for server at ${URL}/health ..."
@@ -71,11 +87,20 @@ done
 #    --disable-background-networking → no telemetry pings
 #    --no-first-run                  → skip welcome UI
 #    --no-default-browser-check      → skip "set as default" prompt
+CHROME_PID=""
 if [ -n "$CHROME" ]; then
     echo "▶ Opening ${URL} in Chrome (incognito, app mode) ..."
+
+    # A unique temp profile forces Chrome to launch as a standalone process
+    # instead of delegating to an already-running instance (which would make
+    # the PID we capture exit in < 1 s, collapsing the watch loop immediately).
+    CHROME_PROFILE="$(mktemp -d)"
+
     "$CHROME" \
         --incognito \
         --app="${URL}" \
+        --start-maximized \
+        --user-data-dir="${CHROME_PROFILE}" \
         --disable-logging \
         --log-level=3 \
         --silent-launch \
@@ -84,8 +109,23 @@ if [ -n "$CHROME" ]; then
         --no-first-run \
         --no-default-browser-check \
         &>/dev/null &
+    CHROME_PID=$!
+
+    # Give Chrome a moment to fully initialise before we start watching it
+    sleep 3
 fi
 
-# ── Keep running until Ctrl+C ─────────────────────────────────────────────────
-echo "  Press Ctrl+C to stop the container."
-docker logs -f floor-tiling-app
+# ── Keep running until browser closes or Ctrl+C ───────────────────────────────
+if [ -n "$CHROME_PID" ]; then
+    echo "  Close the browser window or press Ctrl+C to stop."
+    # Poll Chrome process; when the window is closed the PID disappears
+    while kill -0 "$CHROME_PID" 2>/dev/null; do
+        sleep 1
+    done
+    echo ""
+    echo "▶ Browser closed — shutting down ..."
+    # EXIT trap fires here automatically → stops the container
+else
+    echo "  Press Ctrl+C to stop the container."
+    docker logs -f floor-tiling-app
+fi
