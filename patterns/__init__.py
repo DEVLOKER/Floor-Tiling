@@ -6,22 +6,6 @@ import numpy as np
 
 def _grout_alpha(dist: np.ndarray, half_frac: np.ndarray,
                  step: np.ndarray = None) -> np.ndarray:
-    """
-    Return a float grout mask [0..1] with thin, solid, anti-aliased grout lines.
-
-    Strategy:
-      - Keep half_frac as-is (controls actual line width = grout_thickness_px)
-      - Use feather = max(half_frac * 0.3, step * 0.8) so the soft edge always
-        spans at least ~1 pixel → lines appear solid even at 45° without being thick.
-
-    At 45°, a line needs the feather to bleed into adjacent pixels to close gaps.
-    Using step-based feather achieves this without widening the opaque core.
-
-    Args:
-        dist:      per-pixel distance to nearest tile boundary [0..0.5]
-        half_frac: half grout width in UV units (= step * grout_thickness_px / 2)
-        step:      per-pixel UV advance (= 1/tile_size_in_pixels at this location)
-    """
     if step is not None:
         # Feather must span at least 0.8px so adjacent pixels get partial alpha
         # → no gaps in diagonal lines. DO NOT increase half_frac (keeps line thin).
@@ -35,17 +19,6 @@ def _grout_alpha(dist: np.ndarray, half_frac: np.ndarray,
     t2 = np.clip((half_frac - dist) / (feather + 1e-9), -1.0, 1.0)
     t2 = (t2 + 1.0) * 0.5   # map [-1,1] → [0,1]
     return t2 * t2 * (3.0 - 2.0 * t2)   # cubic smoothstep
-
-# def _grout_alpha(dist: np.ndarray, half_frac: np.ndarray,
-#                  step: np.ndarray = None) -> np.ndarray:
-#     if step is not None:
-#         feather = np.maximum(half_frac * 0.3, step * 0.8)
-#     else:
-#         feather = half_frac * 0.4
-#     feather = np.clip(feather, 1e-6, half_frac * 2.0)
-#     t2 = np.clip((half_frac - dist) / (feather + 1e-9), -1.0, 1.0)
-#     t2 = (t2 + 1.0) * 0.5
-#     return t2 * t2 * (3.0 - 2.0 * t2)
 
 
 def _combine_grout(alpha_u: np.ndarray, alpha_v: np.ndarray) -> np.ndarray:
@@ -88,7 +61,6 @@ def _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy,
 def pattern_grid(u: np.ndarray, v: np.ndarray,
                  grout_h_frac, grout_v_frac,
                  uv_step_u=None, uv_step_v=None, **_) -> tuple:
-    """Standard grid pattern."""
     frac_u = u - np.floor(u)
     frac_v = v - np.floor(v)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
@@ -104,7 +76,6 @@ def pattern_grid(u: np.ndarray, v: np.ndarray,
 def pattern_brick(u: np.ndarray, v: np.ndarray,
                   grout_h_frac, grout_v_frac,
                   uv_step_u=None, uv_step_v=None, **_) -> tuple:
-    """Brick (offset) pattern."""
     row = np.floor(v).astype(np.int32)
     u_shifted = u + (row % 2) * 0.5
     frac_u = u_shifted - np.floor(u_shifted)
@@ -124,7 +95,6 @@ def pattern_diagonal(u: np.ndarray, v: np.ndarray,
                      du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
                      grout_thickness_v=1, grout_thickness_h=1,
                      uv_step_u=None, uv_step_v=None, **_) -> tuple:
-    """Diagonal 45° pattern with correct anti-aliased grout lines."""
     SQRT2 = np.sqrt(2.0)
     u_rot = (u + v) / SQRT2
     v_rot = (-u + v) / SQRT2
@@ -153,7 +123,6 @@ def pattern_diagonal(u: np.ndarray, v: np.ndarray,
 def pattern_herringbone(u: np.ndarray, v: np.ndarray,
                         grout_h_frac, grout_v_frac,
                         aspect_ratio: float = 2.0, **_) -> tuple:
-    """Herringbone pattern."""
     L  = max(float(aspect_ratio), 1.01)
     S  = 1.5
     CW = L + S
@@ -187,7 +156,6 @@ def pattern_herringbone(u: np.ndarray, v: np.ndarray,
 def pattern_checkerboard(u: np.ndarray, v: np.ndarray,
                          grout_h_frac, grout_v_frac,
                          uv_step_u=None, uv_step_v=None, **_) -> tuple:
-    """Checkerboard pattern with alternating colors."""
     frac_u = u - np.floor(u)
     frac_v = v - np.floor(v)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
@@ -208,7 +176,6 @@ def pattern_diagonal_checkerboard(u: np.ndarray, v: np.ndarray,
                                    du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
                                    grout_thickness_v=1, grout_thickness_h=1,
                                    uv_step_u=None, uv_step_v=None, **_) -> tuple:
-    """Diagonal checkerboard — 45° grid with alternating colors and anti-aliased grout."""
     SQRT2 = np.sqrt(2.0)
     u_rot = (u + v) / SQRT2
     v_rot = (-u + v) / SQRT2
@@ -247,27 +214,6 @@ def pattern_chevron(u: np.ndarray, v: np.ndarray,
                     du_dx=None, du_dy=None,
                     dv_dx=None, dv_dy=None,
                     **_) -> tuple:
-    """
-    Chevron (V-parquet) pattern.
-
-    L = 1 always.  One arm = 1 u-unit wide × 1 v-unit tall.
-    Physical size and V angle are determined by tile_width_cm / tile_height_cm,
-    which is already encoded in the UV coordinates by the renderer.
-
-    Layout (UV space, one full period):
-    ┌──────────────────────────────┐
-    │   u: 0────────1────────2    │
-    │       ╲      ╱╲      ╱     │  v=0 (far)
-    │        ╲ R  ╱  ╲ R  ╱      │
-    │         ╲  ╱    ╲  ╱       │
-    │      L   ╲╱  L   ╲╱        │  v=1 (near)
-    └──────────────────────────────┘
-    L = left-leaning arm  (is_second=False → tile_color / tile_texture)
-    R = right-leaning arm (is_second=True  → tile_color2 / tile_texture2)
-
-    One full V = period_u=2, period_v=1.
-    """
-
     # ── Fold into one V cell (period 2 × 1) ──────────────────────────────
     u_mod     = u % 2.0          # ∈ [0, 2)
     v_mod     = v % 1.0          # ∈ [0, 1)
@@ -276,12 +222,6 @@ def pattern_chevron(u: np.ndarray, v: np.ndarray,
     u_arm     = np.where(right_arm, u_mod - 1.0, u_mod)  # ∈ [0, 1) for both arms
 
     # ── Shear: map parallelogram → unit square ────────────────────────────
-    # Left arm  (/): apex at top-left,  base at bottom-right
-    #   as u_arm goes 0→1, the V boundary shifts v by +1
-    #   → subtract u_arm from v to "un-shear"
-    # Right arm (\): mirror of left arm
-    #   as u_arm goes 0→1 (left to right within arm), boundary shifts v by -1
-    #   → subtract (1 - u_arm) from v to "un-shear"
     shear = np.where(right_arm, 1.0 - u_arm, u_arm)
 
     s_raw = (v_mod - shear) % 1.0   # across-plank position [0,1]
@@ -324,45 +264,6 @@ def pattern_basketweave(u: np.ndarray, v: np.ndarray,
                         du_dx=None, du_dy=None,
                         dv_dx=None, dv_dy=None,
                         **_) -> tuple:
-    """
-    2-plank basketweave pattern.
-
-    GEOMETRY (in tile-UV space, 1 unit = 1 tile):
-    ─────────────────────────────────────────────
-    Period = 4×4 tiles.
-
-    The floor is divided into 2×2 tile blocks. Blocks alternate H/V
-    like a large checkerboard of blocks:
-
-        H H | V V | H H | V V  ...
-        H H | V V | H H | V V
-        ────┼─────┼─────┼────
-        V V | H H | V V | H H  ...
-        V V | H H | V V | H H
-
-    H-bundle (2×2 tile block):
-        2 horizontal planks stacked in v
-        Each plank = 2 tiles wide × 1 tile tall
-        → Physical: (2 × tile_width_cm) long × tile_height_cm wide
-        → 2:1 ratio when tile_width ≈ tile_height ✓
-
-    V-bundle (2×2 tile block):
-        2 vertical planks side-by-side in u
-        Each plank = 1 tile wide × 2 tiles tall
-        → Physical: tile_width_cm wide × (2 × tile_height_cm) long
-        → 1:2 ratio ✓
-
-    Grout lines:
-        - Bundle edges: at every 2-tile boundary in both u and v
-        - Within H-bundle: horizontal line at lv=1 (between the 2 planks)
-        - Within V-bundle: vertical line at lu=1 (between the 2 planks)
-
-    PREVIOUS BUG HISTORY:
-        v1: bundle = N UV-units → 60×60cm with 30cm tiles → plain checkerboard
-        v2: bundle = 1 UV-unit  → 30×30cm but alternated every tile → still checkerboard
-        v3 (this): bundle = 2×2 tiles with block-level alternation → correct basketweave ✓
-    """
-
     # ── Bundle assignment ─────────────────────────────────────────────────
     # Group tiles into 2×2 blocks, then checkerboard the blocks
     block_u = np.floor(u / 2.0).astype(int)
@@ -418,15 +319,82 @@ def pattern_basketweave(u: np.ndarray, v: np.ndarray,
     )
 
     on_grout  = np.where(is_h, alpha_h, alpha_v)
-
-    # Color alternates at PLANK level within each bundle (not bundle level)
-    # H-bundle: top plank = color1, bottom plank = color2  (split in v)
-    # V-bundle: left plank = color1, right plank = color2  (split in u)
     plank_h   = np.floor(lv).astype(int) % 2   # 0=top, 1=bottom (within H-bundle)
     plank_v   = np.floor(lu).astype(int) % 2   # 0=left, 1=right  (within V-bundle)
     is_second = np.where(is_h, plank_h == 1, plank_v == 1)
 
     return is_second, on_grout
+
+
+def pattern_versailles(u: np.ndarray, v: np.ndarray,
+                       grout_h_frac,
+                       grout_v_frac,
+                       aspect_ratio: float = 1.0,
+                       uv_step_u=None,
+                       uv_step_v=None,
+                       grout_thickness_v: int = 1,
+                       grout_thickness_h: int = 1,
+                       du_dx=None, du_dy=None,
+                       dv_dx=None, dv_dy=None,
+                       **_) -> tuple:
+    """
+    Versailles (French) pattern — 4 tile sizes in a 3×3 unit repeating cell.
+    """
+
+    # ── Fold into 3×3 cell ────────────────────────────────────────────────
+    uc = u % 3.0
+    vc = v % 3.0
+
+    # ── Classify each pixel into one of 4 tile regions ───────────────────
+    in_large = (uc < 2.0) & (vc < 2.0)   # 2×2
+    in_tall  = (uc >= 2.0) & (vc < 2.0)  # 1×2
+    in_small = (uc < 1.0) & (vc >= 2.0)  # 1×1
+    in_wide  = (uc >= 1.0) & (vc >= 2.0) # 2×1
+
+    # ── Local coords within each tile, normalised to [0,1) ───────────────
+    fu = np.zeros_like(u)
+    fv = np.zeros_like(v)
+
+    fu = np.where(in_large, uc / 2.0,         fu)
+    fv = np.where(in_large, vc / 2.0,         fv)
+
+    fu = np.where(in_tall,  uc - 2.0,         fu)   # 1-unit wide: fu = uc-2
+    fv = np.where(in_tall,  vc / 2.0,         fv)
+
+    fu = np.where(in_small, uc,               fu)    # 1-unit wide: fu = uc
+    fv = np.where(in_small, vc - 2.0,         fv)
+
+    fu = np.where(in_wide,  (uc - 1.0) / 2.0, fu)
+    fv = np.where(in_wide,  vc - 2.0,         fv)
+
+    # ── Grout distances (distance to nearest tile edge in local [0,1]) ───
+    dist_u = np.minimum(fu, 1.0 - fu)
+    dist_v = np.minimum(fv, 1.0 - fv)
+
+    # ── Per-pixel UV step sizes ───────────────────────────────────────────
+    step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
+    step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
+
+    # The large/wide/tall tiles span 2 UV units in one direction.
+    # Their local coords [0,1) map to 2 UV units → step in local space = step*2.
+    # This keeps grout line thickness physically consistent across tile sizes.
+    step_u_eff = np.where(in_large | in_wide, step_u * 2.0, step_u)
+    step_v_eff = np.where(in_large | in_tall, step_v * 2.0, step_v)
+
+    gf_u = np.clip(step_u_eff * grout_thickness_v, 0.0005, 0.40)
+    gf_v = np.clip(step_v_eff * grout_thickness_h, 0.0005, 0.40)
+
+    alpha = np.maximum(
+        _grout_alpha(dist_u, gf_u / 2.0, step=step_u_eff),
+        _grout_alpha(dist_v, gf_v / 2.0, step=step_v_eff),
+    )
+
+    # ── Color assignment ──────────────────────────────────────────────────
+    # Classic two-tone: large+wide = color1,  tall+small = color2
+    # Both same color → single-tone Versailles
+    is_second = in_tall | in_small
+
+    return is_second, alpha
 
 # ── Pattern registry ──────────────────────────────────────────────────────────
 PATTERN_FUNCTIONS = {
@@ -437,7 +405,8 @@ PATTERN_FUNCTIONS = {
     "checkerboard":           pattern_checkerboard,
     "diagonal_checkerboard":  pattern_diagonal_checkerboard,
     "chevron":                pattern_chevron,
-    "basketweave":                pattern_basketweave
+    "basketweave":                pattern_basketweave,
+    "versailles":                pattern_versailles
 }
 
 
@@ -449,5 +418,6 @@ __all__ = [
     "pattern_grid", "pattern_brick", "pattern_diagonal",
     "pattern_herringbone", "pattern_checkerboard",
     "pattern_diagonal_checkerboard", "pattern_chevron", 
+    "pattern_basketweave", "pattern_versailles", 
     "PATTERN_FUNCTIONS", "get_pattern",
 ]
