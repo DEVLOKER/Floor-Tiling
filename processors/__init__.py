@@ -3,8 +3,9 @@ import numpy as np
 import cv2
 
 from config.settings import DEFAULT_REAL_WIDTH_CM
-from core import hex_to_bgr, extract_floor_quad, estimate_floor_geometry
+from core import hex_to_bgr, extract_floor_quad, rectify_quad, estimate_floor_geometry
 from patterns import get_pattern
+
 
 def apply_perspective_tiles(image: np.ndarray,
                             mask: np.ndarray,
@@ -36,6 +37,19 @@ def apply_perspective_tiles(image: np.ndarray,
     near_left, near_right, far_left, far_right = quad
     if np.linalg.norm(near_right - near_left) <= 0:
         return image
+
+    # ── Rectify quad so grid lines align with room axes ───────────────────
+    # Problem: extract_floor_quad can return a tilted near edge and wrong VP
+    # in non-standard rooms (corner views, side views, real photos).
+    # This causes grid lines to appear rotated relative to the walls.
+    #
+    # Fix: level the near edge (average y), then reproject far corners
+    # along VP rays. This guarantees:
+    #   U axis = horizontal (parallel to front wall)
+    #   V axis = converges to VP (perpendicular to front wall = depth direction)
+    near_left, near_right, far_left, far_right = rectify_quad(
+        near_left, near_right, far_left, far_right, mask
+    )
 
     # ── Geometry ──────────────────────────────────────────────────────────
     real_width_cm = DEFAULT_REAL_WIDTH_CM
