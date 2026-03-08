@@ -12,7 +12,7 @@ services:
       context: .
       dockerfile: Dockerfile
     # image: floor-tile-visualizer:latest
-    image: docker push berghout/ceramic:latest
+    image: berghout/ceramic:latest
     container_name: floor-tile-visualizer
 
     # ── Port mapping ─────────────────────────────────────────────────────────

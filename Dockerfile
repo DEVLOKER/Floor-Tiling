@@ -13,14 +13,49 @@ RUN apk add --no-cache wget
 
 WORKDIR /models
 
-RUN wget -q -O sam2.1_hiera_tiny.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt 
+# RUN wget -q -O sam2.1_hiera_tiny.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt 
 # RUN wget -q -O sam2.1_hiera_small.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt \
 # RUN wget -q -O sam2.1_hiera_base_plus.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt \
 # RUN wget -q -O sam2.1_hiera_large.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
 
 # ==========================================================================
-# Stage 2: Final Runtime
-#   Slim Python image with all dependencies and application code.
+# Stage 2: Cython Builder
+#   Compiles proprietary Python modules (config, core, ml_models, patterns,
+#   processors) to native .so extensions, then strips the .py source files.
+#   Only the compiled binaries (+ server.py entry-point) reach the final
+#   runtime image, making source recovery very difficult.
+# ==========================================================================
+FROM python:3.11-slim AS builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gcc \
+        python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Cython (only needed for compilation, not in runtime image)
+RUN pip install --no-cache-dir cython
+
+# Copy application source
+COPY . .
+
+# Compile custom modules to C extensions
+RUN python setup_cython.py build_ext --inplace
+
+# Strip .py source files from compiled packages (keep server.py + sam2/)
+RUN find config core ml_models patterns processors \
+        -name "*.py" -delete \
+    && find . -name "*.c" -delete \
+    && find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+
+# Remove the build script itself — no reason to ship it
+RUN rm -f setup_cython.py
+
+# ==========================================================================
+# Stage 3: Final Runtime
+#   Slim Python image with all dependencies and compiled application code.
 #   Models are injected from Stage 1 — the runtime image itself never needs
 #   network access to Meta's CDN.
 # ==========================================================================
@@ -67,9 +102,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # --------------------------------------------------------------------------
-# 4. Application code
+# 4. Application code (compiled artifacts from builder — no .py sources
+#    for business-logic packages; only server.py + sam2/ are plain Python)
 # --------------------------------------------------------------------------
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser --from=builder /app .
 
 # --------------------------------------------------------------------------
 # 5. SAM2 model checkpoints (copied from Stage 1)

@@ -1,6 +1,7 @@
 # ── Version control ─────────────────────────────────────────────────────────
 .git/
 .gitignore
+.github/
 
 # ── Python bytecode ──────────────────────────────────────────────────────────
 __pycache__/
@@ -33,6 +34,7 @@ Thumbs.db
 # ── Secrets / local config ───────────────────────────────────────────────────
 .env
 .env.*
+.env.example
 secrets/
 
 # ── Test & CI artefacts ──────────────────────────────────────────────────────
@@ -46,13 +48,29 @@ Dockerfile*
 docker-compose*.yml
 .dockerignore
 
+# ── Shell scripts (only used on host, not inside the image) ─────────────────
+*.sh
+*.bat
+*.ps1
+
 # ── Documentation (not needed at runtime) ────────────────────────────────────
 README.md
 ARCHITECTURE.md
 docs/
 
-# ── Test files (avoid test textures and rooms photos) ─────────────────────────
+# ── Test files (not needed inside the image) ────────────────────────────────
 __tests__/
+
+# ── SAM2 non-runtime files ───────────────────────────────────────────────────
+# CUDA kernel sources (CPU-only build, never compiled inside the image)
+sam2/csrc/
+# Benchmark script — development tool only
+sam2/benchmark.py
+
+; # ── Local model checkpoints (builder stage fetches fresh ones from Meta CDN)
+; #    Excluding avoids copying large .pt files into the build context.
+; #    The Dockerfile downloader stage downloads them directly.
+; sam2/models/*.pt
 
 # ── Model files (keep only the tiny one for a smaller image) ───────────────────
 sam2/models/*.pt
