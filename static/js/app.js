@@ -748,8 +748,8 @@ function updateTilePreview() {
   // ── All patterns including chevron ───────────────────────────────────
   const patterns = [
     { id: "grid", name: "Grid" },
-    { id: "brick", name: "Brick" },
     { id: "diagonal", name: "Diagonal" },
+    { id: "brick", name: "Brick" },
     { id: "herringbone", name: "Herringbone" },
     { id: "chevron", name: "Chevron ∧" },
     { id: "basketweave", name: "Basketweave" },

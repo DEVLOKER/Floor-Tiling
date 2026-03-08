@@ -72,24 +72,6 @@ def pattern_grid(u: np.ndarray, v: np.ndarray,
     )
     return np.zeros(u.shape, dtype=bool), alpha
 
-
-def pattern_brick(u: np.ndarray, v: np.ndarray,
-                  grout_h_frac, grout_v_frac,
-                  uv_step_u=None, uv_step_v=None, **_) -> tuple:
-    row = np.floor(v).astype(np.int32)
-    u_shifted = u + (row % 2) * 0.5
-    frac_u = u_shifted - np.floor(u_shifted)
-    frac_v = v - np.floor(v)
-    dist_u = np.minimum(frac_u, 1.0 - frac_u)
-    dist_v = np.minimum(frac_v, 1.0 - frac_v)
-
-    alpha = _combine_grout(
-        _grout_alpha(dist_u, grout_v_frac / 2.0, step=uv_step_u),
-        _grout_alpha(dist_v, grout_h_frac / 2.0, step=uv_step_v),
-    )
-    return np.zeros(u.shape, dtype=bool), alpha
-
-
 def pattern_diagonal(u: np.ndarray, v: np.ndarray,
                      grout_h_frac, grout_v_frac,
                      du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
@@ -116,6 +98,23 @@ def pattern_diagonal(u: np.ndarray, v: np.ndarray,
     alpha = _combine_grout(
         _grout_alpha(dist_u, gv / 2.0, step=step_u_rot),
         _grout_alpha(dist_v, gh / 2.0, step=step_v_rot),
+    )
+    return np.zeros(u.shape, dtype=bool), alpha
+
+
+def pattern_brick(u: np.ndarray, v: np.ndarray,
+                  grout_h_frac, grout_v_frac,
+                  uv_step_u=None, uv_step_v=None, **_) -> tuple:
+    row = np.floor(v).astype(np.int32)
+    u_shifted = u + (row % 2) * 0.5
+    frac_u = u_shifted - np.floor(u_shifted)
+    frac_v = v - np.floor(v)
+    dist_u = np.minimum(frac_u, 1.0 - frac_u)
+    dist_v = np.minimum(frac_v, 1.0 - frac_v)
+
+    alpha = _combine_grout(
+        _grout_alpha(dist_u, grout_v_frac / 2.0, step=uv_step_u),
+        _grout_alpha(dist_v, grout_h_frac / 2.0, step=uv_step_v),
     )
     return np.zeros(u.shape, dtype=bool), alpha
 
@@ -399,14 +398,14 @@ def pattern_versailles(u: np.ndarray, v: np.ndarray,
 # ── Pattern registry ──────────────────────────────────────────────────────────
 PATTERN_FUNCTIONS = {
     "grid":                   pattern_grid,
-    "brick":                  pattern_brick,
     "diagonal":               pattern_diagonal,
+    "brick":                  pattern_brick,
     "herringbone":            pattern_herringbone,
     "checkerboard":           pattern_checkerboard,
     "diagonal_checkerboard":  pattern_diagonal_checkerboard,
     "chevron":                pattern_chevron,
-    "basketweave":                pattern_basketweave,
-    "versailles":                pattern_versailles
+    "basketweave":            pattern_basketweave,
+    "versailles":             pattern_versailles
 }
 
 
