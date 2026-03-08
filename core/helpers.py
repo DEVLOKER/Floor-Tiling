@@ -274,8 +274,6 @@ def _extract_floor_quad_fallback(mask: np.ndarray) -> tuple:
     return near_left, near_right, far_left, far_right
 
 
-
-
 def estimate_floor_geometry(near_left: np.ndarray, near_right: np.ndarray,
                              far_left: np.ndarray, far_right: np.ndarray,
                              real_width_cm: float) -> tuple:

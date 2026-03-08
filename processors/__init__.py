@@ -100,7 +100,12 @@ def apply_perspective_tiles(image: np.ndarray,
         u_all, v_all,
         grout_h_frac=grout_h_frac_map,
         grout_v_frac=grout_v_frac_map,
-        aspect_ratio=tile_width_cm / tile_height_cm if tile_height_cm > 0 else 1.0
+        aspect_ratio=tile_width_cm / tile_height_cm if tile_height_cm > 0 else 1.0,
+        du_dx=du_dx, du_dy=du_dy, dv_dx=dv_dx, dv_dy=dv_dy,
+        grout_thickness_v=grout_v_thickness,
+        grout_thickness_h=grout_h_thickness,
+        uv_step_u=uv_step_u,   # per-pixel UV advance — used to enforce min grout width
+        uv_step_v=uv_step_v,
     )
 
     # ── Lighting ──────────────────────────────────────────────────────────
@@ -119,10 +124,21 @@ def apply_perspective_tiles(image: np.ndarray,
     mb    = max(float(np.mean(light_smooth[mask > 0])) if mask.any() else 0.5, 0.01)
     light = np.clip(light_smooth / mb, 0.2, 2.0)
 
+    # ── Grout fade: suppress lines on tiles too small to render cleanly ─────
+    # When tiles shrink below ~2px (step > 0.5), grout aliases into noise.
+    # Fade smoothly: full grout at step<=0.25 (4px tile), zero at step>=0.5 (2px tile).
+    step_max = np.maximum(uv_step_u, uv_step_v)
+    fade_raw = 1.0 - np.clip((step_max - 0.25) / (0.50 - 0.25), 0.0, 1.0)
+    grout_fade = fade_raw * fade_raw * (3.0 - 2.0 * fade_raw)   # smoothstep
+
     # ── Color / texture fill ──────────────────────────────────────────────
+    # on_grout is now a float alpha [0..1] for smooth anti-aliased grout edges
+    grout_alpha = np.clip(on_grout * grout_fade, 0.0, 1.0)[:, :, None]  # (H,W,1)
+
+    u_frac = u_all - np.floor(u_all)
+    v_frac = v_all - np.floor(v_all)
+
     if tile_texture is not None:
-        u_frac = u_all - np.floor(u_all)
-        v_frac = v_all - np.floor(v_all)
         th, tw = tile_texture.shape[:2]
         tx = np.clip((u_frac * tw).astype(np.int32), 0, tw-1)
         ty = np.clip((v_frac * th).astype(np.int32), 0, th-1)
@@ -132,19 +148,18 @@ def apply_perspective_tiles(image: np.ndarray,
             th2, tw2 = tile_texture2.shape[:2]
             tx2 = np.clip((u_frac * tw2).astype(np.int32), 0, tw2-1)
             ty2 = np.clip((v_frac * th2).astype(np.int32), 0, th2-1)
-            tex2     = tile_texture2[ty2, tx2].astype(np.float32)
+            tex2 = tile_texture2[ty2, tx2].astype(np.float32)
             tile_fill = np.where(is_second[:,:,None], tex2, tex1)
         else:
             tile_fill = tex1
-
-        colour_img = np.where(on_grout[:,:,None],
-                              grout_bgr[None,None,:], tile_fill).astype(np.float32)
     else:
-        colour_img = np.where(
-            on_grout[:,:,None], grout_bgr[None,None,:],
-            np.where(is_second[:,:,None],
-                     tile2_bgr[None,None,:], tile_bgr[None,None,:])
-        ).astype(np.float32)
+        tile_fill = np.where(is_second[:,:,None],
+                             tile2_bgr[None,None,:],
+                             tile_bgr [None,None,:]).astype(np.float32)
+
+    # Blend: grout_alpha=1 → grout color, grout_alpha=0 → tile color
+    grout_f = grout_bgr[None, None, :].astype(np.float32)
+    colour_img = grout_alpha * grout_f + (1.0 - grout_alpha) * tile_fill
 
     colour_img = np.clip(colour_img * light[:,:,None], 0, 255).astype(np.uint8)
 
