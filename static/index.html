@@ -108,6 +108,8 @@
                     <option value="brick">Brick (Offset)</option>
                     <option value="diagonal">Diagonal</option>
                     <option value="herringbone">Herringbone</option>
+                    <option value="chevron">Chevron ∧</option>
+                    <option value="basketweave">Basketweave</option>
                     <option value="checkerboard">Checkerboard (Chess)</option>
                     <option value="diagonal_checkerboard">Diagonal Chess ◇</option>
                 </select>
@@ -190,13 +192,14 @@
                             <input type="color" id="groutColor" value="#A9A9A9" />
                         </div>
                     </div>
+                    <!-- Dual-colour row: used by checkerboard AND chevron -->
                     <div class="checker-row" id="checkerColorRow">
                         <div class="color-swatch-group">
-                            <label>Light</label>
+                            <label id="dualColorLabel1">Light</label>
                             <input type="color" id="tileColorLight" value="#F5F5F0" />
                         </div>
                         <div class="color-swatch-group">
-                            <label>Dark</label>
+                            <label id="dualColorLabel2">Dark</label>
                             <input type="color" id="tileColorDark" value="#2C2C2C" />
                         </div>
                         <div class="color-swatch-group">
@@ -226,9 +229,9 @@
                                 <input type="file" id="textureFileInput" accept="image/*" style="display:none" />
                             </div>
                         </div>
-                        <!-- Secondary / dark texture (checker only) -->
+                        <!-- Secondary / dark texture (dual patterns: checker, chevron) -->
                         <div id="textureDarkGroup" style="display:none">
-                            <div class="texture-slot-label">Dark Texture</div>
+                            <div class="texture-slot-label" id="textureDarkLabel">Dark Texture</div>
                             <div class="texture-upload-area" id="textureDarkUploadArea">
                                 <div id="textureDarkEmpty">
                                     <div class="tex-icon">🖼️</div>
@@ -290,7 +293,8 @@
     <!-- ── Toast notifications ───────────────────────────────── -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="/static/js/app.js"></script>
+    <!-- v2: cache-busted to force browser to load the updated app.js -->
+    <script src="/static/js/app.js?v=4"></script>
 </body>
 
 </html>
