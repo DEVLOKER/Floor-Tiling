@@ -104,10 +104,20 @@ def apply_perspective_tiles(image: np.ndarray,
     )
 
     # ── Lighting ──────────────────────────────────────────────────────────
+    # We want to preserve the room's lighting (bright near windows, dark corners)
+    # but NOT the original floor texture/grain.
+    # Fix: heavily blur the grayscale before using it as a light map,
+    # so only large-scale illumination gradients survive — not wood grain.
     orig_f    = image.astype(np.float32)
     orig_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
-    mb        = max(float(np.mean(orig_gray[mask > 0])) if mask.any() else 0.5, 0.01)
-    light     = np.clip(orig_gray / mb, 0.2, 3.0)
+
+    # Blur radius: large enough to kill tile/grain texture (~50px), but small
+    # enough to keep room-scale lighting gradients.
+    blur_k = max(3, (min(h_img, w_img) // 20) | 1)   # odd, ~5% of image size
+    light_smooth = cv2.GaussianBlur(orig_gray, (blur_k, blur_k), 0)
+
+    mb    = max(float(np.mean(light_smooth[mask > 0])) if mask.any() else 0.5, 0.01)
+    light = np.clip(light_smooth / mb, 0.2, 2.0)
 
     # ── Color / texture fill ──────────────────────────────────────────────
     if tile_texture is not None:
@@ -136,8 +146,7 @@ def apply_perspective_tiles(image: np.ndarray,
                      tile2_bgr[None,None,:], tile_bgr[None,None,:])
         ).astype(np.float32)
 
-    colour_img = np.clip(colour_img * light[:,:,None] * 0.999
-                         + orig_f * 0.001, 0, 255).astype(np.uint8)
+    colour_img = np.clip(colour_img * light[:,:,None], 0, 255).astype(np.uint8)
 
     result = image.copy()
     result[mask > 0] = colour_img[mask > 0]
