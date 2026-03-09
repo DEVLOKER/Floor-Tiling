@@ -320,7 +320,8 @@ def pattern_basketweave(u: np.ndarray, v: np.ndarray,
     on_grout  = np.where(is_h, alpha_h, alpha_v)
     plank_h   = np.floor(lv).astype(int) % 2   # 0=top, 1=bottom (within H-bundle)
     plank_v   = np.floor(lu).astype(int) % 2   # 0=left, 1=right  (within V-bundle)
-    is_second = np.where(is_h, plank_h == 1, plank_v == 1)
+    # is_second = np.where(is_h, plank_h == 1, plank_v == 1)
+    is_second = ~is_h
 
     return is_second, on_grout
 
@@ -337,61 +338,53 @@ def pattern_versailles(u: np.ndarray, v: np.ndarray,
                        dv_dx=None, dv_dy=None,
                        **_) -> tuple:
     """
-    Versailles (French) pattern — 4 tile sizes in a 3×3 unit repeating cell.
+    Versailles (French parquet) pattern — 4x4 unit repeating cell.
+
+    Cell layout (each unit = 1 tile width):
+      x:  0   1       3   4
+      y=0 +---+-------+---+
+          |TL |  Top  |TR |   1x1  |  2x1  |  1x1
+      y=1 +---+-------+---+
+          | L | Large | R |   1x2  |  2x2  |  1x2
+      y=3 +---+-------+---+
+          |BL |Bottom |BR |   1x1  |  2x1  |  1x1
+      y=4 +---+-------+---+
+
+    Grout lines at UV boundaries: x in {0,1,3,4}, y in {0,1,3,4} (mod 4).
+    Colors: large center + 4 corner squares = color1
+            4 border rectangles             = color2
     """
+    CELL = 4.0
+    ar = float(aspect_ratio) if aspect_ratio and aspect_ratio > 0 else 1.0
+    uc = (u * 2.0) % CELL
+    vc = (v * 2.0 * ar) % CELL
 
-    # ── Fold into 3×3 cell ────────────────────────────────────────────────
-    uc = u % 3.0
-    vc = v % 3.0
+    # ── Grout: distance to nearest boundary in {0, 1, 3} within [0,4) ────
+    def dist_to_boundaries(c):
+        d0 = np.minimum(c, CELL - c)   # distance to 0 (wraps from 4)
+        d1 = np.abs(c - 1.0)           # distance to 1
+        d3 = np.abs(c - 3.0)           # distance to 3
+        return np.minimum(d0, np.minimum(d1, d3))
 
-    # ── Classify each pixel into one of 4 tile regions ───────────────────
-    in_large = (uc < 2.0) & (vc < 2.0)   # 2×2
-    in_tall  = (uc >= 2.0) & (vc < 2.0)  # 1×2
-    in_small = (uc < 1.0) & (vc >= 2.0)  # 1×1
-    in_wide  = (uc >= 1.0) & (vc >= 2.0) # 2×1
+    dist_u = dist_to_boundaries(uc)
+    dist_v = dist_to_boundaries(vc)
 
-    # ── Local coords within each tile, normalised to [0,1) ───────────────
-    fu = np.zeros_like(u)
-    fv = np.zeros_like(v)
+    # UV step size scaled to match the 2× UV scaling above
+    step_u = (uv_step_u * 2.0) if uv_step_u is not None else grout_v_frac
+    step_v = (uv_step_v * 2.0 * ar) if uv_step_v is not None else grout_h_frac
 
-    fu = np.where(in_large, uc / 2.0,         fu)
-    fv = np.where(in_large, vc / 2.0,         fv)
-
-    fu = np.where(in_tall,  uc - 2.0,         fu)   # 1-unit wide: fu = uc-2
-    fv = np.where(in_tall,  vc / 2.0,         fv)
-
-    fu = np.where(in_small, uc,               fu)    # 1-unit wide: fu = uc
-    fv = np.where(in_small, vc - 2.0,         fv)
-
-    fu = np.where(in_wide,  (uc - 1.0) / 2.0, fu)
-    fv = np.where(in_wide,  vc - 2.0,         fv)
-
-    # ── Grout distances (distance to nearest tile edge in local [0,1]) ───
-    dist_u = np.minimum(fu, 1.0 - fu)
-    dist_v = np.minimum(fv, 1.0 - fv)
-
-    # ── Per-pixel UV step sizes ───────────────────────────────────────────
-    step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
-    step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
-
-    # The large/wide/tall tiles span 2 UV units in one direction.
-    # Their local coords [0,1) map to 2 UV units → step in local space = step*2.
-    # This keeps grout line thickness physically consistent across tile sizes.
-    step_u_eff = np.where(in_large | in_wide, step_u * 2.0, step_u)
-    step_v_eff = np.where(in_large | in_tall, step_v * 2.0, step_v)
-
-    gf_u = np.clip(step_u_eff * grout_thickness_v, 0.0005, 0.40)
-    gf_v = np.clip(step_v_eff * grout_thickness_h, 0.0005, 0.40)
+    # Grout half-width: divide by 2 to compensate for the 2× UV scaling above
+    gf_u = np.clip(step_u * grout_thickness_v / 2.0, 0.0005, 0.40)
+    gf_v = np.clip(step_v * grout_thickness_h / 2.0, 0.0005, 0.40)
 
     alpha = np.maximum(
-        _grout_alpha(dist_u, gf_u / 2.0, step=step_u_eff),
-        _grout_alpha(dist_v, gf_v / 2.0, step=step_v_eff),
+        _grout_alpha(dist_u, gf_u / 2.0, step=step_u),
+        _grout_alpha(dist_v, gf_v / 2.0, step=step_v),
     )
 
     # ── Color assignment ──────────────────────────────────────────────────
-    # Classic two-tone: large+wide = color1,  tall+small = color2
-    # Both same color → single-tone Versailles
-    is_second = in_tall | in_small
+    in_center = (uc >= 1.0) & (uc < 3.0) & (vc >= 1.0) & (vc < 3.0)
+    is_second = ~in_center   # all surrounding tiles = color2
 
     return is_second, alpha
 

@@ -61,7 +61,12 @@ docker run \
   "${IMAGE_NAME}:${IMAGE_TAG}"
 
 # Stop container automatically when this script exits (Ctrl+C or browser close)
-trap 'echo ""; echo "▶ Stopping container ..."; docker stop floor-tiling-app 2>/dev/null || true; [ -n "${CHROME_PROFILE:-}" ] && rm -rf "$CHROME_PROFILE"' EXIT
+trap '
+    echo ""
+    echo "▶ Stopping container ..."
+    docker stop floor-tiling-app 2>/dev/null || true
+    [ -n "${CHROME_PROFILE:-}" ] && rm -rf "$CHROME_PROFILE"
+' EXIT
 
 # ── Wait for server to be ready ───────────────────────────────────────────────
 echo "⏳ Waiting for server at ${URL}/health ..."
@@ -77,35 +82,47 @@ for i in $(seq 1 60); do
     fi
 done
 
-# ── Open Chrome: incognito + app window (no frame/address bar) ───────────────
-#    --app              → removes all browser chrome (frame bar, tabs, address bar)
-#    --incognito        → private session, no history/cache saved
-#    --disable-logging  → suppress browser-side log files
-#    --log-level=3      → only fatal messages reach stderr (3 = FATAL)
-#    --silent-launch    → no startup sound / splash
-#    --disable-extensions            → no extensions in the window
-#    --disable-background-networking → no telemetry pings
-#    --no-first-run                  → skip welcome UI
-#    --no-default-browser-check      → skip "set as default" prompt
+# ── Open Chrome: kiosk mode ───────────────────────────────────────────────────
+#    --kiosk                        → full-screen, ALL DevTools shortcuts
+#                                     (F12, Ctrl+Shift+I/J/C, Ctrl+U) are
+#                                     hard-disabled by Chrome — no admin needed.
+#    --incognito                    → private session, no history/cache
+#    --disable-logging              → suppress browser log files
+#    --log-level=3                  → only fatal messages to stderr
+#    --disable-extensions           → no extensions loaded
+#    --disable-background-networking→ no telemetry pings
+#    --no-first-run                 → skip welcome UI
+#    --disable-extensions           → no extensions loaded
+#    --disable-background-networking→ no telemetry pings
+#    --no-first-run                 → skip welcome UI
+#    --no-default-browser-check     → skip "set as default" prompt
+#    --remote-debugging-port=0      → block CDP remote debugging
 CHROME_PID=""
 if [ -n "$CHROME" ]; then
-    echo "▶ Opening ${URL} in Chrome (incognito, app mode) ..."
+    echo "▶ Opening ${URL} in Chrome (kiosk mode) ..."
+    echo "  ℹ  To close: Alt+F4 (Windows)  |  Cmd+Q (macOS)  |  Ctrl+W (Linux)"
 
-    # A unique temp profile forces Chrome to launch as a standalone process
-    # instead of delegating to an already-running instance (which would make
-    # the PID we capture exit in < 1 s, collapsing the watch loop immediately).
+    # Kill any existing Chrome so the kiosk instance starts fresh
+    case "$(uname -s)" in
+        Linux*)          pkill -f "chrome|chromium" 2>/dev/null || true ;;
+        Darwin*)         pkill -f "Google Chrome"   2>/dev/null || true ;;
+        CYGWIN*|MINGW*|MSYS*) taskkill /F /IM chrome.exe /T &>/dev/null || true ;;
+    esac
+    sleep 1
+
+    # Unique temp profile — forces a standalone process (no hand-off to an
+    # existing Chrome instance which would make the PID die in < 1 s).
     CHROME_PROFILE="$(mktemp -d)"
 
     "$CHROME" \
+        --kiosk "${URL}" \
         --incognito \
-        --app="${URL}" \
-        --start-maximized \
         --user-data-dir="${CHROME_PROFILE}" \
         --disable-logging \
         --log-level=3 \
-        --silent-launch \
         --disable-extensions \
         --disable-background-networking \
+        --remote-debugging-port=0 \
         --no-first-run \
         --no-default-browser-check \
         &>/dev/null &

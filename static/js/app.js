@@ -1,6 +1,40 @@
-// Base URL for all API calls. Empty string = same origin (served by uvicorn).
-// Change to "http://127.0.0.1:8000" if you open index.html directly from disk.
-const API_URL = "/api";
+// ── Configuration & Defaults ─────────────────────────────────────────────────
+// Edit values here to customise behaviour — no need to touch the rest of the code.
+const CONFIG = {
+  // ── API ──────────────────────────────────────────────────────────────────────
+  apiUrl: "/api", // change to "http://127.0.0.1:8000" when opening index.html from disk
+
+  // ── Image processing ─────────────────────────────────────────────────────────
+  imageMaxWidth: 1000, // px — images wider than this are scaled down before display
+  imageJpegQuality: 0.95, // 0.0–1.0 — JPEG quality when sending image to the API
+
+  // ── Tile defaults ─────────────────────────────────────────────────────────────
+  defaultTileWidth: 30, // cm
+  defaultTileHeight: 30, // cm
+  defaultGroutH: 1, // px — horizontal grout thickness
+  defaultGroutV: 1, // px — vertical grout thickness
+  defaultPattern: "grid", // grid | diagonal | brick | herringbone | chevron |
+  //   basketweave | versailles | checkerboard | diagonal_checkerboard
+
+  // ── Colour defaults ───────────────────────────────────────────────────────────
+  defaultTileColor: "#E8D1B5", // single-colour tile fill
+  defaultGroutColor: "#A9A9A9", // grout colour (single-colour mode)
+  defaultTileColorLight: "#F5F5F0", // primary / light tile (dual-colour patterns)
+  defaultTileColorDark: "#2C2C2C", // secondary / dark tile (dual-colour patterns)
+  defaultGroutColorChecker: "#888888", // grout colour (dual-colour patterns)
+  defaultGroutColorTexture: "#A9A9A9", // grout colour (texture mode)
+  previewColorFallback: "#cccccc", // secondary preview colour for single-colour patterns
+  textureFallbackDark: "#666666", // fallback dark fill when texture image isn't loaded yet
+  textureFallbackLight: "#d4b896", // fallback light fill when texture image isn't loaded yet
+
+  // ── Floor selection overlay ───────────────────────────────────────────────────
+  floorHighlightColor: "#00FF00", // floor outline & badge dot colour
+
+  // ── UI / UX ───────────────────────────────────────────────────────────────────
+  textureDragBorderColor: "#667eea", // border accent when dragging a texture file over the drop zone
+  toastDurationError: 6000, // ms — how long error toasts stay visible
+  toastDurationDefault: 3500, // ms — how long success / info toasts stay visible
+};
 
 // ── App state ─────────────────────────────────────────────────────────────────
 let state = {
@@ -21,11 +55,68 @@ let state = {
 document.addEventListener("DOMContentLoaded", () => {
   state.canvas = document.getElementById("mainCanvas");
   state.ctx = state.canvas.getContext("2d");
+  applyDefaults();
   initEventListeners();
   initTextureUpload();
-  updateTilePreview();
   syncPatternUI();
+  updateTilePreview();
+  initFullscreenDetection();
 });
+
+// ── Apply CONFIG defaults to all form controls ──────────────────────────────────
+function applyDefaults() {
+  const set = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.value = v;
+  };
+
+  // Tile dimensions
+  set("tileWidth", CONFIG.defaultTileWidth);
+  set("tileHeight", CONFIG.defaultTileHeight);
+  badge("tileWidthValue", CONFIG.defaultTileWidth + " cm");
+  badge("tileHeightValue", CONFIG.defaultTileHeight + " cm");
+
+  // Grout thickness
+  set("groutHThickness", CONFIG.defaultGroutH);
+  set("groutVThickness", CONFIG.defaultGroutV);
+  badge("groutHValue", CONFIG.defaultGroutH + " px");
+  badge("groutVValue", CONFIG.defaultGroutV + " px");
+  document
+    .getElementById("hintH")
+    ?.style.setProperty("--th", CONFIG.defaultGroutH + "px");
+  document
+    .getElementById("hintV")
+    ?.style.setProperty("--tv", CONFIG.defaultGroutV + "px");
+
+  // Pattern
+  set("tilePattern", CONFIG.defaultPattern);
+
+  // Colours
+  set("tileColor", CONFIG.defaultTileColor);
+  set("groutColor", CONFIG.defaultGroutColor);
+  set("tileColorLight", CONFIG.defaultTileColorLight);
+  set("tileColorDark", CONFIG.defaultTileColorDark);
+  set("groutColorChecker", CONFIG.defaultGroutColorChecker);
+  set("groutColorTexture", CONFIG.defaultGroutColorTexture);
+}
+
+// ── Fullscreen / kiosk detection ──────────────────────────────────────────────
+function initFullscreenDetection() {
+  function updateFullscreenClass() {
+    const isFullscreen =
+      // Fullscreen API (F11 or programmatic)
+      !!document.fullscreenElement ||
+      !!document.webkitFullscreenElement ||
+      // Kiosk / maximised-to-screen-edge (no chrome visible)
+      (window.innerWidth === screen.width &&
+        window.innerHeight === screen.height);
+    document.body.classList.toggle("fullscreen-mode", isFullscreen);
+  }
+  document.addEventListener("fullscreenchange", updateFullscreenClass);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenClass);
+  window.addEventListener("resize", updateFullscreenClass);
+  updateFullscreenClass();
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function val(id) {
@@ -56,7 +147,8 @@ function _showToast(msg, type) {
   toast.innerHTML = msg;
   container.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add("show"));
-  const dur = type === "error" ? 6000 : 3500;
+  const dur =
+    type === "error" ? CONFIG.toastDurationError : CONFIG.toastDurationDefault;
   setTimeout(() => {
     toast.classList.remove("show");
     setTimeout(() => toast.remove(), 320);
@@ -101,17 +193,17 @@ function syncPatternUI() {
   const lbl2 = document.getElementById("dualColorLabel2");
   if (lbl1 && lbl2) {
     if (isChevron) {
-      lbl1.textContent = "Left Arm";
-      lbl2.textContent = "Right Arm";
+      lbl1.textContent = "Bras gauche";
+      lbl2.textContent = "Bras droit";
     } else if (isBasketweave) {
       lbl1.textContent = "Horizontal";
       lbl2.textContent = "Vertical";
     } else if (isVersionailles) {
-      lbl1.textContent = "Large / Wide";
-      lbl2.textContent = "Tall / Small";
+      lbl1.textContent = "Grand / Large";
+      lbl2.textContent = "Haut / Petit";
     } else {
-      lbl1.textContent = "Light";
-      lbl2.textContent = "Dark";
+      lbl1.textContent = "Clair";
+      lbl2.textContent = "Foncé";
     }
   }
 
@@ -126,19 +218,19 @@ function syncPatternUI() {
 
   if (lightLbl) {
     lightLbl.textContent = isChevron
-      ? "Left Arm Texture"
+      ? "Texture bras gauche"
       : isBasketweave
-        ? "H Bundle Texture"
+        ? "Texture bundle H"
         : isChecker
-          ? "Light Texture"
-          : "Tile Texture";
+          ? "Texture claire"
+          : "Texture du carrelage";
   }
   if (darkLbl) {
     darkLbl.textContent = isChevron
-      ? "Right Arm Texture"
+      ? "Texture bras droit"
       : isBasketweave
-        ? "V Bundle Texture"
-        : "Dark Texture";
+        ? "Texture bundle V"
+        : "Texture foncée";
   }
 }
 
@@ -188,7 +280,7 @@ function _bindTextureSlot(area, input, which) {
   area.addEventListener("click", () => input.click());
   area.addEventListener("dragover", (e) => {
     e.preventDefault();
-    area.style.borderColor = "#667eea";
+    area.style.borderColor = CONFIG.textureDragBorderColor;
   });
   area.addEventListener("dragleave", () => {
     area.style.borderColor = "";
@@ -237,7 +329,9 @@ function originalImageToBlob() {
   tmp
     .getContext("2d")
     .drawImage(state.originalImage, 0, 0, tmp.width, tmp.height);
-  return new Promise((resolve) => tmp.toBlob(resolve, "image/jpeg", 0.95));
+  return new Promise((resolve) =>
+    tmp.toBlob(resolve, "image/jpeg", CONFIG.imageJpegQuality),
+  );
 }
 
 async function dataUrlToBlob(dataUrl) {
@@ -345,12 +439,12 @@ function initEventListeners() {
 
 // ── Image upload ──────────────────────────────────────────────────────────────
 async function handleImageUpload(file) {
-  showStatus("Loading image...", "info");
+  showStatus("Chargement de l'image…", "info");
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      const maxW = 1000;
+      const maxW = CONFIG.imageMaxWidth;
       let w = img.width,
         h = img.height;
       if (w > maxW) {
@@ -365,9 +459,12 @@ async function handleImageUpload(file) {
       state.floorMask = null;
       document.getElementById("welcomeOverlay").classList.add("hidden");
       updateFloorList();
-      showStatus("Image loaded! Click on the floor to select it.", "success");
+      showStatus(
+        "Image chargée ! Cliquez sur le sol pour le sélectionner.",
+        "success",
+      );
       document.getElementById("coordsInfo").textContent =
-        "Click on the floor to select it";
+        "Cliquez sur le sol pour le sélectionner";
     };
     img.src = e.target.result;
   };
@@ -377,11 +474,7 @@ async function handleImageUpload(file) {
 // ── Canvas click → floor segmentation ────────────────────────────────────────
 async function handleCanvasClick(event) {
   if (!state.originalImage) {
-    showStatus("Please upload an image first", "error");
-    return;
-  }
-  if (state.isLoading) {
-    showStatus("Processing… please wait", "info");
+    showStatus("Veuillez d'abord importer une image", "error");
     return;
   }
 
@@ -392,9 +485,9 @@ async function handleCanvasClick(event) {
   const clickY = Math.round((event.clientY - rect.top) * scaleY);
 
   document.getElementById("coordsInfo").textContent =
-    `Selected (${clickX}, ${clickY}) — Processing…`;
+    `Sélectionné (${clickX}, ${clickY}) — Traitement…`;
   state.isLoading = true;
-  showStatus("🎯 Detecting floor…", "info");
+  showStatus("🎯 Détection du sol…", "info");
 
   try {
     const blob = await originalImageToBlob();
@@ -403,11 +496,11 @@ async function handleCanvasClick(event) {
     fd.append("click_x", clickX);
     fd.append("click_y", clickY);
 
-    const res = await fetch(`${API_URL}/segment-floor`, {
+    const res = await fetch(`${CONFIG.apiUrl}/segment-floor`, {
       method: "POST",
       body: fd,
     });
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    if (!res.ok) throw new Error(`Erreur API : ${res.status}`);
     const result = await res.json();
 
     state.floorMask = result.mask;
@@ -415,13 +508,16 @@ async function handleCanvasClick(event) {
     redrawWithFloorHighlight();
     updateFloorList();
     document.getElementById("coordsInfo").textContent =
-      `✅ Floor selected! (confidence: ${(result.score * 100).toFixed(1)}%)`;
-    showStatus("Floor selected! Adjust settings and apply tiles.", "success");
+      `✅ Sol sélectionné ! (confiance : ${(result.score * 100).toFixed(1)}%)`;
+    showStatus(
+      "Sol sélectionné ! Ajustez les paramètres et appliquez le carrelage.",
+      "success",
+    );
   } catch (err) {
     console.error(err);
-    showStatus(`Error: ${err.message}`, "error");
+    showStatus(`Erreur : ${err.message}`, "error");
     document.getElementById("coordsInfo").textContent =
-      "❌ Failed — try clicking another area.";
+      "❌ Échec — essayez de cliquer sur une autre zone.";
   } finally {
     state.isLoading = false;
   }
@@ -430,25 +526,25 @@ async function handleCanvasClick(event) {
 // ── Apply tiles ───────────────────────────────────────────────────────────────
 async function applyTilesToFloor() {
   if (!state.originalImage) {
-    showStatus("Please upload an image first", "error");
+    showStatus("Veuillez d'abord importer une image", "error");
     return;
   }
   if (!state.floorMask) {
-    showStatus("Please select a floor first", "error");
+    showStatus("Veuillez d'abord sélectionner un sol", "error");
     return;
   }
   if (state.tileMode === "texture" && !state.tileTextureDataUrl) {
-    showStatus("Please upload a texture image first", "error");
+    showStatus("Veuillez d'abord importer une image de texture", "error");
     return;
   }
 
   const isDual = isDualColorPattern();
   if (state.tileMode === "texture" && isDual && !state.tileTextureDarkDataUrl) {
-    showStatus("Please upload a second texture for this pattern", "error");
+    showStatus("Veuillez importer une deuxième texture pour ce motif", "error");
     return;
   }
 
-  showStatus("🎨 Applying tiles to floor…", "info");
+  showStatus("🎨 Application du carrelage…", "info");
   state.isLoading = true;
 
   const tileColor = isDual ? val("tileColorLight") : val("tileColor");
@@ -491,11 +587,12 @@ async function applyTilesToFloor() {
         );
     }
 
-    const res = await fetch(`${API_URL}/apply-tiles`, {
+    const res = await fetch(`${CONFIG.apiUrl}/apply-tiles`, {
       method: "POST",
       body: fd,
     });
-    if (!res.ok) throw new Error(`Tile application failed: ${res.status}`);
+    if (!res.ok)
+      throw new Error(`Échec de l'application du carrelage : ${res.status}`);
 
     const resultBlob = await res.blob();
     if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
@@ -505,13 +602,16 @@ async function applyTilesToFloor() {
     img.onload = () => {
       state.ctx.drawImage(img, 0, 0, state.canvas.width, state.canvas.height);
       document.getElementById("downloadFabWrap").style.display = "";
-      showStatus("✅ Tiles applied! Click ⬇️ to download.", "success");
+      showStatus(
+        "✅ Carrelage appliqué ! Cliquez sur l'icône ⬇ pour télécharger.",
+        "success",
+      );
       state.isLoading = false;
     };
     img.src = state.resultUrl;
   } catch (err) {
     console.error(err);
-    showStatus(`Error: ${err.message}`, "error");
+    showStatus(`Erreur : ${err.message}`, "error");
     state.isLoading = false;
   }
 }
@@ -549,7 +649,7 @@ function redrawWithFloorHighlight() {
 }
 
 function drawFloorOutline() {
-  state.ctx.fillStyle = "#00FF00";
+  state.ctx.fillStyle = CONFIG.floorHighlightColor;
   for (let y = 1; y < state.canvas.height - 1; y++) {
     for (let x = 1; x < state.canvas.width - 1; x++) {
       if (state.floorMask[y]?.[x] > 0) {
@@ -576,16 +676,16 @@ function clearFloorSelection() {
     state.canvas.height,
   );
   updateFloorList();
-  showStatus("Floor selection cleared", "success");
+  showStatus("Sélection du sol effacée", "success");
   document.getElementById("coordsInfo").textContent =
-    "Click on the floor to select it";
+    "Cliquez sur le sol pour le sélectionner";
 }
 
 function updateFloorList() {
   const list = document.getElementById("floorList");
   const bdg = document.getElementById("floorBadge");
   if (!state.floorMask) {
-    list.innerHTML = '<div class="no-floor-msg">No floor selected yet.</div>';
+    list.innerHTML = '<div class="no-floor-msg">Aucun sol sélectionné.</div>';
     bdg.style.display = "none";
     return;
   }
@@ -593,9 +693,9 @@ function updateFloorList() {
   list.innerHTML = `
     <div class="wall-item">
       <span style="display:flex;align-items:center">
-        <span class="wall-color" style="background:#00FF00"></span>Floor Selected
+        <span class="wall-color" style="background:${CONFIG.floorHighlightColor}"></span>Sol sélectionné
       </span>
-      <span>${confText} confidence</span>
+      <span>${confText} de confiance</span>
     </div>`;
   document.getElementById("floorBadgeConf").textContent = confText;
   bdg.style.display = "flex";
@@ -731,11 +831,11 @@ function drawChevronPreview(
 // ── Tile pattern preview grid ─────────────────────────────────────────────────
 function updateTilePreview() {
   const preview = document.getElementById("tilePreview");
-  const tw = parseInt(val("tileWidth") || 30);
-  const th = parseInt(val("tileHeight") || 30);
+  const tw = parseInt(val("tileWidth") || CONFIG.defaultTileWidth);
+  const th = parseInt(val("tileHeight") || CONFIG.defaultTileHeight);
   const isDual = isDualColorPattern();
   const color1 = isDual ? val("tileColorLight") : val("tileColor");
-  const color2 = isDual ? val("tileColorDark") : "#cccccc";
+  const color2 = isDual ? val("tileColorDark") : CONFIG.previewColorFallback;
   const grout =
     state.tileMode === "texture"
       ? val("groutColorTexture")
@@ -747,15 +847,15 @@ function updateTilePreview() {
 
   // ── All patterns including chevron ───────────────────────────────────
   const patterns = [
-    { id: "grid", name: "Grid" },
-    { id: "diagonal", name: "Diagonal" },
-    { id: "brick", name: "Brick" },
-    { id: "herringbone", name: "Herringbone" },
+    { id: "grid", name: "Grille" },
+    { id: "diagonal", name: "Diagonale" },
+    { id: "brick", name: "Brique" },
+    { id: "herringbone", name: "Chevrons classiques" },
     { id: "chevron", name: "Chevron ∧" },
-    { id: "basketweave", name: "Basketweave" },
+    { id: "basketweave", name: "Natte" },
     { id: "versailles", name: "Versailles" },
-    { id: "checkerboard", name: "Checkerboard" },
-    { id: "diagonal_checkerboard", name: "Diagonal Chess ◇" },
+    { id: "checkerboard", name: "Damier" },
+    { id: "diagonal_checkerboard", name: "Damier diagonal ◇" },
   ];
 
   preview.innerHTML = "";
@@ -880,88 +980,91 @@ function updateTilePreview() {
       }
 
       // ── Basketweave ──────────────────────────────────────────────────
-      case "basketweave": {
-        // N=2 plank bundles alternating H and V in a checkerboard of 2×2 blocks.
-        // Bundle size in px: bW wide × bH tall (= N planks per bundle).
-        const N = 2;
-        const bW = Math.max(8, Math.round(pW));
-        const bH = Math.max(8, Math.round(pH));
+case "basketweave": {
+  // Block size: each block = 2 planks, so block is square (2×2 tile units)
+  const bW = Math.max(14, Math.round(pW));   // block width in px
+  const bH = Math.max(14, Math.round(pH));   // block height in px
 
-        // Helper: draw one N-plank bundle
-        const drawBundle = (ox, oy, horiz, fill) => {
-          ctx.fillStyle = fill;
-          if (horiz) {
-            for (let p = 0; p < N; p++)
-              ctx.fillRect(ox, oy + p * (bH / N), bW, bH / N);
-          } else {
-            for (let p = 0; p < N; p++)
-              ctx.fillRect(ox + p * (bW / N), oy, bW / N, bH);
-          }
-        };
-        const strokeBundle = (ox, oy, horiz) => {
-          ctx.strokeRect(ox, oy, bW, bH);
-          if (horiz) {
-            for (let p = 1; p < N; p++) {
-              ctx.beginPath();
-              ctx.moveTo(ox, oy + p * (bH / N));
-              ctx.lineTo(ox + bW, oy + p * (bH / N));
-              ctx.stroke();
-            }
-          } else {
-            for (let p = 1; p < N; p++) {
-              ctx.beginPath();
-              ctx.moveTo(ox + p * (bW / N), oy);
-              ctx.lineTo(ox + p * (bW / N), oy + bH);
-              ctx.stroke();
-            }
-          }
-        };
+  const colsB = Math.ceil(90 / bW) + 2;
+  const rowsB = Math.ceil(55 / bH) + 2;
 
-        // Fill pass
-        for (let row = -1; row < Math.ceil(55 / bH) + 2; row++) {
-          for (let col = -1; col < Math.ceil(90 / bW) + 2; col++) {
-            const horiz = (((row + col) % 2) + 2) % 2 === 0;
-            const fill = useTexture
-              ? horiz
-                ? texPatLight || color1
-                : texPatDark || color2
-              : horiz
-                ? color1
-                : color2;
-            drawBundle(col * bW, row * bH, horiz, fill);
-          }
-        }
-        // Grout pass
-        ctx.strokeStyle = grout;
-        ctx.lineWidth = 1.2;
-        for (let row = -1; row < Math.ceil(55 / bH) + 2; row++) {
-          for (let col = -1; col < Math.ceil(90 / bW) + 2; col++) {
-            strokeBundle(col * bW, row * bH, (((row + col) % 2) + 2) % 2 === 0);
-          }
-        }
-        break;
+  // ── Fill pass ──────────────────────────────────────────────────────
+  for (let row = -1; row < rowsB; row++) {
+    for (let col = -1; col < colsB; col++) {
+      const isH = ((row + col) % 2 + 2) % 2 === 0;
+      const ox = col * bW, oy = row * bH;
+      ctx.fillStyle = useTexture
+        ? (isH ? texPatLight || color1 : texPatDark || color2)
+        : (isH ? color1 : color2);
+      ctx.fillRect(ox, oy, bW, bH);
+    }
+  }
+
+  // ── Grout pass ─────────────────────────────────────────────────────
+  ctx.strokeStyle = grout;
+  ctx.lineWidth = 1.0;
+  for (let row = -1; row < rowsB; row++) {
+    for (let col = -1; col < colsB; col++) {
+      const isH = ((row + col) % 2 + 2) % 2 === 0;
+      const ox = col * bW, oy = row * bH;
+      ctx.strokeRect(ox, oy, bW, bH);
+      // Internal plank divider line
+      ctx.beginPath();
+      if (isH) {
+        // H-block: horizontal divider at midpoint
+        ctx.moveTo(ox, oy + bH / 2);
+        ctx.lineTo(ox + bW, oy + bH / 2);
+      } else {
+        // V-block: vertical divider at midpoint
+        ctx.moveTo(ox + bW / 2, oy);
+        ctx.lineTo(ox + bW / 2, oy + bH);
       }
+      ctx.stroke();
+    }
+  }
+  break;
+}
 
       // ── Versailles ───────────────────────────────────────────────────
       case "versailles": {
-        // Cell = 3×3 units. Scale so ~2 full cells fit in 90×55 thumbnail.
-        const cellW = Math.round(90 / 2.5); // ~36px per cell
-        const cellH = Math.round(55 / 1.8); // ~30px per cell
-        const u1 = cellW / 3; // 1 unit in x
-        const v1 = cellH / 3; // 1 unit in y
+        // 4×4 unit cell matching the Python renderer exactly:
+        //   x: 0   1       3   4
+        //   y=0 ┌───┬───────┬───┐
+        //       │TL │  Top  │TR │   corner(1×1) | top rect(2×1) | corner(1×1)
+        //   y=1 ├───┼───────┼───┤
+        //       │ L │ Large │ R │   left(1×2)   | center(2×2)   | right(1×2)
+        //   y=3 ├───┼───────┼───┤
+        //       │BL │Bottom │BR │   corner(1×1) | bottom(2×1)   | corner(1×1)
+        //   y=4 └───┴───────┴───┘
+        //
+        // Color: ONLY large center = color1, ALL surrounding tiles = color2
 
-        // Draw 3×3 grid of cells
-        for (let row = -1; row < 3; row++) {
-          for (let col = -1; col < 4; col++) {
-            const ox = col * cellW;
-            const oy = row * cellH;
+        const CELL = 90 / 2.5; // ~2.5 cells across the 90px thumbnail
+        const u1 = CELL / 4; // 1 unit in x
+        const v1 = CELL / 4; // 1 unit in y (square cell)
 
-            // 4 tile shapes within each cell
+        const cols = Math.ceil(90 / CELL) + 2;
+        const rows = Math.ceil(55 / CELL) + 2;
+
+        for (let row = -1; row < rows; row++) {
+          for (let col = -1; col < cols; col++) {
+            const ox = col * CELL;
+            const oy = row * CELL;
+
+            // Define all 9 tiles in the 4×4 cell
             const tiles = [
-              { x: ox, y: oy, w: u1 * 2, h: v1 * 2, second: false }, // large
-              { x: ox + u1 * 2, y: oy, w: u1, h: v1 * 2, second: true }, // tall
-              { x: ox, y: oy + v1 * 2, w: u1, h: v1, second: true }, // small
-              { x: ox + u1, y: oy + v1 * 2, w: u1 * 2, h: v1, second: false }, // wide
+              // Large center — color1
+              { x: ox + u1, y: oy + v1, w: u1 * 2, h: v1 * 2, second: false },
+              // 4 border rectangles — color2
+              { x: ox + u1, y: oy, w: u1 * 2, h: v1, second: true }, // top
+              { x: ox + u1, y: oy + v1 * 3, w: u1 * 2, h: v1, second: true }, // bottom
+              { x: ox, y: oy + v1, w: u1, h: v1 * 2, second: true }, // left
+              { x: ox + u1 * 3, y: oy + v1, w: u1, h: v1 * 2, second: true }, // right
+              // 4 corner squares — color2
+              { x: ox, y: oy, w: u1, h: v1, second: true }, // TL
+              { x: ox + u1 * 3, y: oy, w: u1, h: v1, second: true }, // TR
+              { x: ox, y: oy + v1 * 3, w: u1, h: v1, second: true }, // BL
+              { x: ox + u1 * 3, y: oy + v1 * 3, w: u1, h: v1, second: true }, // BR
             ];
 
             tiles.forEach(({ x, y, w, h, second }) => {
@@ -973,10 +1076,29 @@ function updateTilePreview() {
                   ? color2
                   : color1;
               ctx.fillRect(x, y, w, h);
-              ctx.strokeStyle = grout;
-              ctx.lineWidth = 1.2;
-              ctx.strokeRect(x, y, w, h);
             });
+          }
+        }
+
+        // Grout pass (on top of all fills)
+        ctx.strokeStyle = grout;
+        ctx.lineWidth = 1.0;
+        for (let row = -1; row < rows; row++) {
+          for (let col = -1; col < cols; col++) {
+            const ox = col * CELL;
+            const oy = row * CELL;
+            const tiles = [
+              { x: ox + u1, y: oy + v1, w: u1 * 2, h: v1 * 2 },
+              { x: ox + u1, y: oy, w: u1 * 2, h: v1 },
+              { x: ox + u1, y: oy + v1 * 3, w: u1 * 2, h: v1 },
+              { x: ox, y: oy + v1, w: u1, h: v1 * 2 },
+              { x: ox + u1 * 3, y: oy + v1, w: u1, h: v1 * 2 },
+              { x: ox, y: oy, w: u1, h: v1 },
+              { x: ox + u1 * 3, y: oy, w: u1, h: v1 },
+              { x: ox, y: oy + v1 * 3, w: u1, h: v1 },
+              { x: ox + u1 * 3, y: oy + v1 * 3, w: u1, h: v1 },
+            ];
+            tiles.forEach(({ x, y, w, h }) => ctx.strokeRect(x, y, w, h));
           }
         }
         break;
@@ -988,8 +1110,8 @@ function updateTilePreview() {
             const isSecond = (row + col) % 2 === 1;
             ctx.fillStyle = useTexture
               ? isSecond
-                ? texPatDark || "#666666"
-                : texPatLight || "#d4b896"
+                ? texPatDark || CONFIG.textureFallbackDark
+                : texPatLight || CONFIG.textureFallbackLight
               : isSecond
                 ? color2
                 : color1;
@@ -1009,8 +1131,8 @@ function updateTilePreview() {
             const isSecond = (row + col) % 2 === 1;
             ctx.fillStyle = useTexture
               ? isSecond
-                ? texPatDark || "#666666"
-                : texPatLight || "#d4b896"
+                ? texPatDark || CONFIG.textureFallbackDark
+                : texPatLight || CONFIG.textureFallbackLight
               : isSecond
                 ? color2
                 : color1;

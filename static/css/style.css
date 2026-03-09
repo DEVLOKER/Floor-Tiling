@@ -2,6 +2,19 @@
    Floor Tile Visualizer  Full-page immersive UI
     */
 
+/* ── SVG icon helpers ───────────────────────────── */
+.app-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.app-icon-sm  { width: 13px; height: 13px; }
+.app-icon-lg  { width: 20px; height: 20px; }
+.app-icon-xl  { width: 40px; height: 40px; }
+
 *,
 *::before,
 *::after {
@@ -87,8 +100,10 @@ body {
   }
 }
 .welcome-icon {
-  font-size: 56px;
   margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+  color: var(--accent);
 }
 .welcome-card h2 {
   font-size: 1.75rem;
@@ -153,8 +168,10 @@ body {
   color: #fff;
 }
 .drop-icon {
-  font-size: 72px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 16px;
+  color: #fff;
 }
 .drop-text {
   font-size: 1.4rem;
@@ -185,8 +202,9 @@ body {
   gap: 12px;
 }
 .app-logo {
-  font-size: 28px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  color: var(--accent);
 }
 .app-title {
   font-size: 1rem;
@@ -219,6 +237,17 @@ body {
 .top-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
+}
+.top-btn-close {
+  background: linear-gradient(135deg, #e05555, #c0392b);
+  box-shadow: 0 2px 12px rgba(192, 57, 43, 0.35);
+  display: none; /* hidden until fullscreen is detected */
+}
+.top-btn-close:hover {
+  box-shadow: 0 4px 16px rgba(192, 57, 43, 0.55);
+}
+body.fullscreen-mode .top-btn-close {
+  display: inline-flex; /* visible only in fullscreen / kiosk */
 }
 
 /*  HUD pill (bottom-centre)  */
@@ -377,7 +406,6 @@ body {
 .fab-sm {
   width: 50px;
   height: 50px;
-  font-size: 20px;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -759,8 +787,10 @@ input[type="range"] {
   padding: 8px;
 }
 .tex-icon {
-  font-size: 22px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 4px;
+  color: #94a3b8;
 }
 .texture-thumb {
   width: 100%;
