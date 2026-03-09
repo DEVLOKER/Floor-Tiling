@@ -1,5 +1,5 @@
 from starlette.formparsers import MultiPartParser
-MultiPartParser.max_part_size = 100 * 1024 * 1024  # 100 MB
+MultiPartParser.max_part_size = 10 * 1024 * 1024  # 10 MB
 """Floor Tile Visualizer API
 
 A FastAPI application for interactive floor tile visualization using SAM 2
@@ -117,8 +117,7 @@ async def segment_floor(
 @app.post("/api/apply-tiles")
 async def apply_tiles(
     image: UploadFile = File(...),
-    # mask: str = Form(...), # Changed to UploadFile for binary data
-    mask: UploadFile = File(...), # Changed from Form to File
+    mask: UploadFile = File(...),
     tile_width: float = Form(30),
     tile_height: float = Form(30),
     tile_size: float = Form(None),
@@ -283,16 +282,6 @@ async def api_info():
 if __name__ == "__main__":
     import uvicorn
     # python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload --h11-max-incomplete-event-size 10485760
-    # uvicorn.run(
-    #     app,
-    #     host="0.0.0.0",
-    #     port=8000,
-    #     log_level="info",
-    #     limit_max_requests=MAX_SIZE,
-    #     limit_max_requests_jitter=MAX_SIZE,
-    #     # This handles the large 'mask' string event size
-    #     h11_max_incomplete_event_size=MAX_SIZE, 
-    # )
     uvicorn.run(
         "server:app",       # Must be a string path "filename:app" for reload to work
         host="0.0.0.0",
