@@ -4,6 +4,9 @@ uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9
 aiofiles>=23.2.0
 
+# License verification
+cryptography>=42.0.0
+
 # Image processing
 numpy>=1.26.0
 opencv-python>=4.9.0

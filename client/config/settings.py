@@ -1,4 +1,11 @@
 """Application settings and configuration"""
+import os
+
+# Licensing
+# LICENSE_USB_PATH — directory where the USB is mounted (default: /license)
+#   Docker:  docker run -v /path/to/usb:/license:ro ...
+#   Compose: volumes: [ "/path/to/usb:/license:ro" ]
+LICENSE_USB_PATH = os.environ.get("LICENSE_USB_PATH", "/license")
 
 # Upload size limit
 MAX_SIZE = 1024 * 1024 * 10  # 10 MB
@@ -9,6 +16,8 @@ CORS_ORIGINS = [
     "http://localhost:5500",
     "http://127.0.0.1:8000",
     "http://localhost:8000",
+    "https://127.0.0.1:8000",
+    "https://localhost:8000",
 ]
 
 # SAM2 Model configuration

@@ -7,10 +7,20 @@ for floor segmentation and perspective-correct homography-based tile rendering.
 """
 import json
 import io
+import logging
 import os
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Add repo root to sys.path so `shared` package is importable
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 import numpy as np
 import cv2
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.responses import JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,19 +39,65 @@ from config.settings import (
     GROUT_THICKNESS_MAX,
     JPEG_QUALITY,
 )
+from config import verify_license, LicenseError
 from ml_models import get_sam2_predictor
 from processors import apply_perspective_tiles
 from patterns import PATTERN_FUNCTIONS
+
+logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# License dependency — runs on EVERY request
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def require_license():
+    """FastAPI dependency: re-verify USB license on every API call."""
+    try:
+        verify_license()
+    except LicenseError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Application Setup
 # ─────────────────────────────────────────────────────────────────────────────
 
+# SAM2 predictor — populated after license check passes
+predictor = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup / shutdown lifecycle.
+
+    Order:
+      1. Verify USB license (signature + expiry + machine fingerprint).
+         → sys.exit(1) immediately if any check fails.
+      2. Load the SAM2 model.
+    """
+    global predictor
+
+    # ── 1. License check ──────────────────────────────────────────────────────
+    try:
+        verify_license()
+    except LicenseError as exc:
+        logger.critical("License check failed: %s", exc)
+        sys.exit(1)
+
+    # ── 2. Load SAM2 ──────────────────────────────────────────────────────────
+    logger.info("Loading SAM2 model ...")
+    predictor = get_sam2_predictor()
+    logger.info("SAM2 model ready.")
+
+    yield  # ── server is running ─────────────────────────────────────────────
+
 
 app = FastAPI(
     title="Floor Tile Visualizer",
     description="SAM 2 powered floor segmentation and tile visualization",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
+    dependencies=[Depends(require_license)],
 )
 
 # Configure upload size limit
@@ -55,9 +111,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Initialize SAM2 model
-predictor = get_sam2_predictor()
 
 # Serve static assets (CSS, JS, images) under /static
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -281,15 +334,25 @@ async def api_info():
 
 if __name__ == "__main__":
     import uvicorn
-    # python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload --h11-max-incomplete-event-size 10485760
+    from shared.ssl_cert import ensure_ssl_cert
+
+    _frozen = getattr(sys, "frozen", False)  # True when running as PyInstaller exe
+
+    ssl_certfile, ssl_keyfile = ensure_ssl_cert()
+
     uvicorn.run(
-        "server:app",       # Must be a string path "filename:app" for reload to work
+        app if _frozen else "server:app",  # string form required for reload; app object for frozen
         host="0.0.0.0",
         port=8000,
         log_level="info",
-        reload=True,        # Enables auto-reload on code changes
+        reload=not _frozen,     # reload=True dev only; breaks frozen exe (spawn loop)
+        ssl_certfile=ssl_certfile,
+        ssl_keyfile=ssl_keyfile,
         limit_max_requests=MAX_SIZE,
         limit_max_requests_jitter=MAX_SIZE,
         # This handles the large 'mask' string event size
-        h11_max_incomplete_event_size=100 * 1024 * 1024 
+        h11_max_incomplete_event_size=100 * 1024 * 1024
     )
+
+# run from command line:
+# python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload --h11-max-incomplete-event-size 10485760

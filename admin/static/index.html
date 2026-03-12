@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floor Tiling - Admin Panel</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <header>
+        <h1>Floor Tiling &mdash; Admin Panel</h1>
+        <p class="subtitle">License Management Dashboard</p>
+    </header>
+
+    <main>
+        <!-- Status Banner -->
+        <section id="status-banner" class="card status-card">
+            <div id="status-text">Checking status...</div>
+        </section>
+
+        <!-- Keygen -->
+        <section class="card">
+            <h2>1. Key Generation</h2>
+            <p>Generate an Ed25519 key pair for signing licenses. The private key stays on this machine; the public key
+                is baked into the client build.</p>
+            <div class="actions">
+                <button id="btn-keygen" class="btn btn-primary">Generate Key Pair</button>
+                <button id="btn-keygen-force" class="btn btn-danger" title="Overwrite existing keys">Force
+                    Regenerate</button>
+            </div>
+            <div id="keypair-ui" class="keypair-ui hidden">
+                <div class="keypair-row">
+                    <label>Public Key:</label>
+                    <code><pre id="public-key"></pre></code>
+                    <div class="btn-actions">
+                        <button id="btn-copy-public" class="btn btn-secondary">Copy</button>
+                        <a id="btn-download-public" href="/keys/public_key.pem" download
+                            class="btn btn-secondary">Download</a>
+                    </div>
+                </div>
+                <div class="keypair-row">
+                    <label>Private Key:</label>
+                    <code><pre id="private-key"></pre></code>
+                    <div class="btn-actions">
+                        <button id="btn-copy-private" class="btn btn-secondary">Copy</button>
+                        <a id="btn-download-private" href="/keys/private_key.pem" download
+                            class="btn btn-secondary">Download</a>
+                    </div>
+                </div>
+            </div>
+            </div>
+            <pre id="keygen-output" class="output hidden"></pre>
+        </section>
+
+        <!-- Fingerprint -->
+        <section class="card">
+            <h2>2. Hardware Fingerprint</h2>
+            <p>
+                Collect the hardware fingerprint of this machine.<br>
+                <strong>Disk or USB serial is required</strong> for licensing.<br>
+                Optional hardware info (CPU, board, MAC) is included for extra uniqueness.<br>
+                Select a USB or disk device below, or enter a custom path.
+            </p>
+            <div class="form-row">
+                <label for="device-select">Storage Device</label>
+                <select id="device-select">
+                    <option value="">-- Select storage device --</option>
+                </select>
+            </div>
+            <!-- Custom Path input removed for clarity -->
+            <div class="form-row hardware-options">
+                <label>Include Optional Hardware:</label>
+                <label><input type="checkbox" id="opt-cpu"> <span>CPU ID</span></label>
+                <label><input type="checkbox" id="opt-board"> <span>Board UUID</span></label>
+                <label><input type="checkbox" id="opt-mac"> <span>MAC Address</span></label>
+            </div>
+            <div class="actions">
+                <button id="btn-fingerprint" class="btn btn-primary">Collect Fingerprint</button>
+            </div>
+            <div id="fingerprint-output" class="output hidden">
+                <div id="fp-loading" class="fp-loading hidden">
+                    <span class="spinner"></span> <span id="fp-loading-msg">Loading...</span>
+                </div>
+                <table id="fp-components">
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div class="fp-hash">
+                    <label>Fingerprint (SHA-256):</label>
+                    <code id="fp-hash-value"></code>
+                    <button id="btn-copy-fp" class="btn btn-secondary">Copy</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Issue License -->
+        <section class="card">
+            <h2>3. Issue License</h2>
+            <p>Sign and write a license file for a customer. Requires a key pair (step 1) and the customer's machine
+                fingerprint (step 2).</p>
+            <div class="form-row">
+                <label for="customer">Customer Name</label>
+                <input type="text" id="customer" value="Acme Corp" placeholder="Acme Corp">
+            </div>
+            <div class="form-row">
+                <label for="fp-value">Fingerprint Hex</label>
+                <input type="text" id="fp-value" placeholder="64-char hex from step 2" maxlength="64">
+            </div>
+            <div class="form-row">
+                <label for="expires">Expires (optional)</label>
+                <input type="date" id="expires">
+            </div>
+            <div class="actions">
+                <button id="btn-issue" class="btn btn-primary">Issue License</button>
+            </div>
+            <div id="issue-output" class="output hidden"></div>
+        </section>
+
+        <!-- Build Client App -->
+        <section class="card">
+            <h2>4. Build Client App</h2>
+            <p>Build the client application using the issued license. Select a storage device partition to copy the
+                license file to (USB or disk).</p>
+            <div class="form-row">
+                <label for="build-device-select">Target Storage Partition</label>
+                <select id="build-device-select">
+                    <option value="">-- Select partition --</option>
+                </select>
+            </div>
+            <div class="actions">
+                <button id="btn-build-client" class="btn btn-primary">Build & Copy License</button>
+            </div>
+            <div id="build-output" class="output hidden"></div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Floor Tiling Admin &mdash; For internal use only</p>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
