@@ -39,7 +39,8 @@ from config.settings import (
     GROUT_THICKNESS_MAX,
     JPEG_QUALITY,
 )
-from config import verify_license, LicenseError
+# from config import verify_license, LicenseError
+from utils import verify_license, LicenseError
 from ml_models import get_sam2_predictor
 from processors import apply_perspective_tiles
 from patterns import PATTERN_FUNCTIONS

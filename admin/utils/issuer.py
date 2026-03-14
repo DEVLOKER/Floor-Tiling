@@ -7,15 +7,14 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from .keygen import PRIVATE_KEY_PATH
-
 
 def issue_license(
     customer: str,
     fingerprint: str,
     expires: str | None = None,
     out: str | Path = "",
-) -> dict:
+    private_key: str | None = None,
+    ) -> dict:
     """Sign and write a license file.
 
     Args:
@@ -31,11 +30,6 @@ def issue_license(
         FileNotFoundError: Private key not generated yet.
         ValueError:        Invalid expires format.
     """
-    if not PRIVATE_KEY_PATH.exists():
-        raise FileNotFoundError(
-            f"Private key not found at {PRIVATE_KEY_PATH}. Run keygen first."
-        )
-
     # Validate expiry
     if expires:
         try:
@@ -43,7 +37,10 @@ def issue_license(
         except ValueError:
             raise ValueError(f"Invalid expires format: {expires!r}. Use YYYY-MM-DD.")
 
-    private_key = load_pem_private_key(PRIVATE_KEY_PATH.read_bytes(), password=None)
+    # Load private key only from param
+    if private_key is None:
+        raise FileNotFoundError("Private key must be provided as a parameter.")
+    key_obj = load_pem_private_key(private_key.encode(), password=None)
 
     payload = {
         "version": 1,
@@ -54,7 +51,7 @@ def issue_license(
     }
 
     payload_bytes = json.dumps(payload, separators=(",", ":")).encode()
-    signature = private_key.sign(payload_bytes)
+    signature = key_obj.sign(payload_bytes)
 
     envelope = {
         "payload": base64.urlsafe_b64encode(payload_bytes).decode(),

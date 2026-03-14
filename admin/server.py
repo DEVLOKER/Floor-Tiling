@@ -12,23 +12,27 @@ Run:
 
 import os
 import sys
+import shutil
 from pathlib import Path
 from schemas.hardware import FingerprintRequest
 from schemas.license import IssueRequest
+from schemas.key import KeyRequest
+from schemas.build import BuildClientRequest
 from fastapi import Body
-import shutil
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from services import (
+from typing import Optional
+from utils import (
     generate_keypair,
     get_public_key_pem,
-    get_fingerprint,
-    get_fingerprint_components,
+    get_private_key_pem,
+    has_private_key,
     issue_license,
+    list_devices
 )
-from services.keygen import has_private_key
-from services.fingerprint import list_devices
+from shared.utils.fingerprint import _cpu_id, _board_uuid, _mac_address, generate_fingerprint
+from shared.config.settings import LICENSE_DIR, LICENSE_FILE, KEYS_DIR, PUBLIC_KEY_FILE, PRIVATE_KEY_FILE
 
 # ─────────────────────────────────────────────────────────────────────────────
 # App
@@ -45,37 +49,16 @@ _REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-BASE_DIR = Path(__file__).resolve().parent
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+LOCAL_BASE_DIR = Path(__file__).resolve().parent
+app.mount("/static", StaticFiles(directory=str(LOCAL_BASE_DIR / "static")), name="static")
 
 # Mount license directory for downloads
-LICENSES_DIR = BASE_DIR / "license"
-app.mount("/license", StaticFiles(directory=str(LICENSES_DIR)), name="license")
+LOCAL_LICENSE_DIR = LOCAL_BASE_DIR / LICENSE_DIR
+app.mount("/license", StaticFiles(directory=str(LOCAL_LICENSE_DIR)), name="license")
 
 # Mount keys directory for downloads
-KEYS_DIR = BASE_DIR / "keys"
-app.mount("/keys", StaticFiles(directory=str(KEYS_DIR)), name="keys")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Hardware Info Endpoint (for UI)
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.get("/api/hardware/info")
-async def hardware_info():
-    """Return available hardware info for UI (no fingerprint)."""
-    try:
-        from services.fingerprint import list_devices
-        from shared.fingerprint import _cpu_id, _board_uuid, _mac_address
-        devices = list_devices()
-        return {
-            "devices": devices,
-            "cpu_id": _cpu_id() or None,
-            "board_uuid": _board_uuid() or None,
-            "mac_address": _mac_address() or None,
-        }
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-
+LOCAL_KEYS_DIR = LOCAL_BASE_DIR / KEYS_DIR
+app.mount("/keys", StaticFiles(directory=str(LOCAL_KEYS_DIR)), name="keys")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # API Routes
@@ -84,46 +67,69 @@ async def hardware_info():
 @app.get("/")
 async def root():
     """Serve the admin dashboard."""
-    return FileResponse(str(BASE_DIR / "static" / "index.html"))
+    return FileResponse(str(LOCAL_BASE_DIR / "static" / "index.html"))
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 
 
-@app.get("/api/status")
+#############################################################################
+# 1. Key Generation
+#############################################################################
+
+@app.get("/api/keys-status")
 async def status():
     """Return current status: whether keys exist, etc."""
-    from services.keygen import get_private_key_pem
-    pub = get_public_key_pem()
-    priv = get_private_key_pem()
     return {
         "has_private_key": has_private_key(),
-        "public_key_pem": pub,
-        "private_key_pem": priv,
+        "public_key_pem": get_public_key_pem(),
+        "private_key_pem": get_private_key_pem(),
     }
 
-@app.get("/api/storage-devices")
-def storage_devices():
-    """Return list of available USB devices and hard disks."""
-    devices = list_devices()
-    return devices
-
 @app.post("/api/keygen")
-async def keygen():
-    """Generate a new Ed25519 key pair."""
+async def keygen(req: KeyRequest):
+    """Generate or force a new Ed25519 key pair."""
     try:
-        result = generate_keypair()
+        result = generate_keypair(force=req.force or False)
+        # save result to disk is handled by generate_keypair, just return the info here
+        KEYS_PATH = Path(__file__).resolve().parent / KEYS_DIR
+        KEYS_PATH.mkdir(parents=True, exist_ok=True)
+        pubkey_path = KEYS_PATH / PUBLIC_KEY_FILE
+        private_key_path = KEYS_PATH / PRIVATE_KEY_FILE
+        pubkey_path.write_text(result.public_key_pem)
+        private_key_path.write_text(result.private_key_pem)
         return result
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
 
-@app.post("/api/keygen/force")
-async def keygen_force():
-    """Regenerate key pair (overwrites existing)."""
-    result = generate_keypair(force=True)
-    return result
+#############################################################################
+# 2. Hardware Fingerprint
+#############################################################################
+
+@app.get("/api/storage-devices")
+def storage_devices():
+    """Return list of available USB devices and hard disks."""
+    return {
+        "devices": list_devices()
+    }
+
+@app.get("/api/hardware-info")
+async def hardware_info():
+    """Return available hardware info for UI (no fingerprint)."""
+    try:
+        return {
+            "devices": list_devices() or [],
+            "cpu_id": _cpu_id() or None,
+            "board_uuid": _board_uuid() or None,
+            "mac_address": _mac_address() or None,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))    
 
 
-
-@app.post("/api/hardware/fingerprint")
+@app.post("/api/hardware-fingerprint")
 async def hardware_fingerprint(req: FingerprintRequest):
     """Return only the fingerprint string for selected hardware, using provided serials."""
     try:
@@ -137,30 +143,30 @@ async def hardware_fingerprint(req: FingerprintRequest):
         if req.mac_serial:
             parts.append(req.mac_serial)
         if parts:
-            import hashlib
-            combined = "|".join(parts)
-            fingerprint = hashlib.sha256(combined.encode()).hexdigest()
+            fingerprint = generate_fingerprint(parts)
         else:
             fingerprint = None
         return fingerprint
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
+#############################################################################
+# 3. Issue License
+#############################################################################
 
-@app.post("/api/issue")
+@app.post("/api/license-issue")
 async def issue(req: IssueRequest):
     """Issue a signed license file."""
     if not req.customer:
         raise HTTPException(status_code=400, detail="Customer name is required.")
     if not req.fingerprint:
         raise HTTPException(status_code=400, detail="Fingerprint is required.")
+    if not hasattr(req, "private_key") or not req.private_key:
+        raise HTTPException(status_code=400, detail="Private key is required.")
 
-    # Use default license folder for output
-    LICENSES_DIR = Path(__file__).resolve().parent / "license"
-    LICENSES_DIR.mkdir(parents=True, exist_ok=True)
-    # filename = f"{req.customer.replace(' ', '_')}_floor_tiling.lic"
-    filename = "floor_tiling.lic"
-    out_path = LICENSES_DIR / filename
+    LICENSES_PATH = Path(__file__).resolve().parent / LICENSE_DIR
+    LICENSES_PATH.mkdir(parents=True, exist_ok=True)
+    out_path = LICENSES_PATH / LICENSE_FILE
 
     try:
         result = issue_license(
@@ -168,10 +174,9 @@ async def issue(req: IssueRequest):
             fingerprint=req.fingerprint,
             expires=req.expires or None,
             out=str(out_path),
+            private_key=req.private_key,
         )
-        # Read license file content
         lic_content = Path(result["path"]).read_text()
-        # Provide download URL for license file
         rel_path = Path(result["path"]).relative_to(Path(__file__).resolve().parent)
         download_url = f"/license/{rel_path.name}"
         return {"license_content": lic_content, "download_url": download_url, **result}
@@ -180,30 +185,31 @@ async def issue(req: IssueRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
+#############################################################################
+# 4. Build Client App
+#############################################################################
 
 @app.post("/api/build-client")
-async def build_client(partition: str = Body(..., embed=True)):
+async def build_client(req: BuildClientRequest):
     """Build client app and copy license file to selected partition."""
-    LICENSES_DIR = Path(__file__).resolve().parent / "license"
-    license_file = LICENSES_DIR / "floor_tiling.lic"
-    if not license_file.exists():
-        raise HTTPException(status_code=404, detail="License file not found. Issue license first.")
-    # Partition is expected to be a path (e.g., 'E:\' or '/mnt/usb')
-    target_path = Path(partition) / "license/floor_tiling.lic"
-    # Ensure the target directory exists
-    target_dir = target_path.parent
+    # Partition is expected to be a path
+    root_dir = Path(req.partition)
+    license_path = root_dir / LICENSE_DIR / LICENSE_FILE
+    pubkey_path = root_dir / KEYS_DIR / PUBLIC_KEY_FILE
+
     try:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(str(license_file), str(target_path))
-        return {"detail": f"License copied to {target_path}"}
+        license_path.parent.mkdir(parents=True, exist_ok=True)
+        pubkey_path.parent.mkdir(parents=True, exist_ok=True)
+        # Write license data to target
+        if not req.license_data:
+            raise HTTPException(status_code=400, detail="License data is required.")
+        license_path.write_text(req.license_data)
+        # Optionally, save public key if provided
+        if req.public_key:
+            pubkey_path.write_text(req.public_key)
+        return {"detail": f"License copied to {license_path}, public key copied to {pubkey_path}", "license_path": str(license_path), "public_key_path": str(pubkey_path), "root_dir": str(root_dir)}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to copy license: {exc}")
-
-
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
+        raise HTTPException(status_code=500, detail=f"Failed to copy license/public key: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

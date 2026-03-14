@@ -29,7 +29,7 @@ datas = [
     # Shared package (fingerprint.py, ssl_cert.py)
     (str(REPO_ROOT / "shared"), "shared"),
     # Services package
-    (str(ROOT / "services"), "services"),
+    (str(ROOT / "utils"), "utils"),
 ]
 
 # ── Hidden imports ────────────────────────────────────────────────────────────

@@ -18,7 +18,7 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-
+from shared.config import SSL_DIR, SSL_CERT_FILE, SSL_KEY_FILE
 
 # Where to store the cert files
 def _cert_dir() -> str:
@@ -29,20 +29,16 @@ def _cert_dir() -> str:
     else:
         # Dev — store relative to this file (shared/)
         base = os.path.dirname(os.path.abspath(__file__))
-    ssl_dir = os.path.join(base, "ssl")
+    ssl_dir = os.path.join(base, SSL_DIR)
     os.makedirs(ssl_dir, exist_ok=True)
     return ssl_dir
-
-
-_CERT_FILE = "server.crt"
-_KEY_FILE = "server.key"
 
 
 def ensure_ssl_cert() -> tuple[str, str]:
     """Return (certfile, keyfile) paths, generating them if missing."""
     cert_dir = _cert_dir()
-    cert_path = os.path.join(cert_dir, _CERT_FILE)
-    key_path = os.path.join(cert_dir, _KEY_FILE)
+    cert_path = os.path.join(cert_dir, SSL_CERT_FILE)
+    key_path = os.path.join(cert_dir, SSL_KEY_FILE)
 
     if os.path.exists(cert_path) and os.path.exists(key_path):
         return cert_path, key_path

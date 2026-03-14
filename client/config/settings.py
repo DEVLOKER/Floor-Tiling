@@ -1,11 +1,4 @@
 """Application settings and configuration"""
-import os
-
-# Licensing
-# LICENSE_USB_PATH — directory where the USB is mounted (default: /license)
-#   Docker:  docker run -v /path/to/usb:/license:ro ...
-#   Compose: volumes: [ "/path/to/usb:/license:ro" ]
-LICENSE_USB_PATH = os.environ.get("LICENSE_USB_PATH", "/license")
 
 # Upload size limit
 MAX_SIZE = 1024 * 1024 * 10  # 10 MB

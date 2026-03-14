@@ -44,8 +44,8 @@
     const selectedDeviceId = deviceSelect.value;
     if (!selectedDeviceId) return;
     try {
-      const devices = await api("/api/storage-devices");
-      const dev = devices.find(
+      const data = await api("/api/storage-devices");
+      const dev = data.devices.find(
         (d) => String(d.id) === String(selectedDeviceId),
       );
       if (
@@ -82,7 +82,22 @@
       return;
     }
     try {
-      const result = await api("/api/build-client", { partition });
+      // Get license data and public key from UI
+      var licenseData = "";
+      var publicKey = "";
+      const licenseContentEl = document.querySelector("#issue-output pre");
+      if (licenseContentEl) {
+        licenseData = licenseContentEl.textContent.trim();
+      }
+      const pubKeyEl = document.getElementById("public-key");
+      if (pubKeyEl) {
+        publicKey = pubKeyEl.textContent.trim();
+      }
+      const result = await api("/api/build-client", {
+        partition,
+        license_data: licenseData,
+        public_key: publicKey,
+      });
       buildOutput.textContent = result.detail || JSON.stringify(result);
     } catch (err) {
       buildOutput.textContent = "Error: " + err.message;
@@ -170,7 +185,7 @@
 
   async function refreshStatus() {
     try {
-      const data = await api("/api/status");
+      const data = await api("/api/keys-status");
       const keypairUI = document.getElementById("keypair-ui");
       const pubKey = document.getElementById("public-key");
       const privKey = document.getElementById("private-key");
@@ -217,11 +232,10 @@
   // ── Keygen ───────────────────────────────────────────────────────────────
 
   async function handleKeygen(force) {
-    const url = force ? "/api/keygen/force" : "/api/keygen";
     btnKeygen.disabled = true;
     btnKeygenForce.disabled = true;
     try {
-      const data = await api(url, {});
+      const data = await api("/api/keygen", { force });
       // Show paths in keygen-output
       keygenOutput.textContent = `Public Key Path: ${data.public_key_path}\nPrivate Key Path: ${data.private_key_path}`;
       show(keygenOutput);
@@ -350,7 +364,7 @@
       if (optCpu.checked) cpu_serial = _hardwareInfo.cpu_id || "";
       if (optBoard.checked) board_serial = _hardwareInfo.board_uuid || "";
       if (optMac.checked) mac_serial = _hardwareInfo.mac_address || "";
-      const fingerprint = await api("/api/hardware/fingerprint", {
+      const fingerprint = await api("/api/hardware-fingerprint", {
         storage_serial,
         cpu_serial,
         board_serial,
@@ -392,15 +406,16 @@
   btnIssue.addEventListener("click", async function () {
     btnIssue.disabled = true;
     try {
+      var privKey = document.getElementById("private-key").textContent.trim();
       var body = {
         customer: customerInput.value.trim(),
         fingerprint: fpValueInput.value.trim(),
         expires: expiresInput.value || null,
+        private_key: privKey,
       };
-      var data = await api("/api/issue", body);
+      var data = await api("/api/license-issue", body);
       // Show license file content if available
       if (data.license_content) {
-        // Show license content and download link
         let html = `<pre style="margin-bottom:0;">${data.license_content}</pre>`;
         if (data.download_url) {
           html += `<a href="${data.download_url}" download class="btn btn-secondary" style="position: absolute; top: 8px; right: 8px;">Download</a>`;
@@ -423,7 +438,7 @@
   async function fetchHardwareInfo() {
     try {
       // Use new endpoint for hardware info only (no fingerprint)
-      const data = await api("/api/hardware/info");
+      const data = await api("/api/hardware-info");
       // New API returns { devices, cpu_id, board_uuid, mac_address }
       _hardwareInfo = {
         cpu_id: data.cpu_id,
@@ -473,11 +488,11 @@
 
   async function populateDevices() {
     try {
-      const devices = await api("/api/storage-devices");
-      _storageDevices = devices;
+      const data = await api("/api/storage-devices");
+      _storageDevices = data.devices;
       deviceSelect.innerHTML =
         '<option value="">-- Select storage device --</option>';
-      devices.forEach(function (dev) {
+      data.devices.forEach(function (dev) {
         let label = dev.type.toUpperCase() + ": ";
         if (dev.type === "disk" || dev.type === "usb") {
           label += dev.id + " ";

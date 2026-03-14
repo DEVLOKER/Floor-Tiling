@@ -6,3 +6,4 @@ class IssueRequest(BaseModel):
     fingerprint: str
     expires: Optional[str] = None
     out: str = ""
+    private_key: Optional[str] = None

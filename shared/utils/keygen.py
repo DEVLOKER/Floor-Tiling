@@ -1,12 +1,4 @@
-def get_private_key_pem() -> str | None:
-    """Return the private key PEM string, or None if not generated yet."""
-    if PRIVATE_KEY_PATH.exists():
-        return PRIVATE_KEY_PATH.read_text()
-    return None
-"""Ed25519 key pair generation service."""
-
 from pathlib import Path
-
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
@@ -14,11 +6,21 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
     NoEncryption,
 )
+from shared.config.settings import KEYS_DIR, PRIVATE_KEY_FILE, PUBLIC_KEY_FILE
+
 
 # Keys are stored in admin/keys/
-KEYS_DIR = Path(__file__).resolve().parent.parent / "keys"
-PRIVATE_KEY_PATH = KEYS_DIR / "private_key.pem"
-PUBLIC_KEY_PATH = KEYS_DIR / "public_key.pem"
+KEYS_PATH = Path(__file__).resolve().parent.parent / KEYS_DIR
+PRIVATE_KEY_PATH = KEYS_PATH / PRIVATE_KEY_FILE
+PUBLIC_KEY_PATH = KEYS_PATH / PUBLIC_KEY_FILE
+
+
+def get_private_key_pem() -> str | None:
+    """Return the private key PEM string, or None if not generated yet."""
+    if PRIVATE_KEY_PATH.exists():
+        return PRIVATE_KEY_PATH.read_text()
+    return None
+"""Ed25519 key pair generation service."""
 
 
 def generate_keypair(force: bool = False) -> dict:
@@ -33,7 +35,7 @@ def generate_keypair(force: bool = False) -> dict:
             "Delete it manually or pass force=True to regenerate."
         )
 
-    KEYS_DIR.mkdir(parents=True, exist_ok=True)
+    KEYS_PATH.mkdir(parents=True, exist_ok=True)
 
     private_key = Ed25519PrivateKey.generate()
     pem_private = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
