@@ -5,7 +5,11 @@ from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.exceptions import InvalidSignature
-from shared.fingerprint import collect as collect_fingerprint
+
+from config import PUBLIC_KEY_PEM
+from shared.config.settings import LICENSE_DIR, LICENSE_FILE
+from shared.utils.storage_devices import list_devices
+from shared.utils.fingerprint import generate_fingerprint
 
 class LicenseError(RuntimeError):
     """Raised when license verification fails for any reason."""
@@ -19,24 +23,7 @@ def public_key_from_pem(pem: bytes) -> Ed25519PublicKey:
         )
     return load_pem_public_key(pem)  # type: ignore[return-value]
 
-def find_license_file(usb_path_env, default_usb, license_file) -> Path:
-    import os
-    usb_root = Path(os.environ.get(usb_path_env, default_usb))
-    lic_path = usb_root / license_file
-    if not lic_path.exists():
-        raise LicenseError(
-            f"License file not found at {lic_path}. "
-            "Make sure the USB drive is plugged in and mounted at "
-            f"{usb_root} (override with {usb_path_env!r} env var). "
-            "Docker: use  -v /path/to/usb:/license:ro"
-        )
-    return lic_path
-
-def verify_signature(lic_path: Path, public_key: Ed25519PublicKey) -> dict:
-    try:
-        envelope = json.loads(lic_path.read_text())
-    except (json.JSONDecodeError, OSError) as exc:
-        raise LicenseError(f"Cannot read license file: {exc}") from exc
+def verify_signature(envelope: dict, public_key: Ed25519PublicKey) -> dict:
     try:
         payload_bytes = base64.urlsafe_b64decode(envelope["payload"])
         sig_bytes     = base64.urlsafe_b64decode(envelope["signature"])
@@ -62,34 +49,52 @@ def check_expiry(payload: dict) -> None:
     if date.today() > expires:
         raise LicenseError(f"License expired on {expires_raw}.")
 
-def check_fingerprint(payload: dict) -> None:
+def check_fingerprint(payload: dict, parts: list) -> None:
     licensed_fp = payload.get("fingerprint", "")
     if not licensed_fp:
         raise LicenseError("License file is missing hardware fingerprint.")
+    isValid = False
     try:
-        actual_fp = collect_fingerprint()
+        actual_fp = generate_fingerprint(parts)
+        if actual_fp == licensed_fp:
+            isValid = True
     except RuntimeError as exc:
         raise LicenseError(f"Cannot collect machine fingerprint: {exc}") from exc
-    if actual_fp != licensed_fp:
+    if not isValid:
         raise LicenseError(
             "This license is locked to a different machine. "
             "Contact support to transfer your license."
         )
 
-def verify_license(lic_file: Path, pubkey: Ed25519PublicKey) -> None:
+def verify_license() -> bool:
     """Verify the USB license.  Raises LicenseError on any failure.
 
     Call once at application startup (inside FastAPI lifespan).
     """
-
-    lic_path = find_license_file(lic_file)
-    pubkey = public_key_from_pem(PUBLIC_KEY_PEM)
-    payload = verify_signature(lic_path, pubkey)
-    check_expiry(payload)
-    check_fingerprint(payload)
-
-    print(
-        "License verified — customer: %s  expires: %s",
-        payload.get("customer", "—"),
-        payload.get("expires_at") or "never",
-    )
+    """
+    Search for the license file on all available devices and verify it.
+    """
+    devices = list_devices()
+    found = False
+    for device in devices:
+        partitions = device.get("partitions", [])
+        for part in partitions:
+            mount = part.get("mount")
+            if not mount:
+                continue
+            license_path = Path(mount) / LICENSE_DIR / LICENSE_FILE
+            if license_path.exists():
+                found = True
+                try:
+                    envelope = json.loads(license_path.read_text())
+                    pubkey = public_key_from_pem(PUBLIC_KEY_PEM)
+                    payload = verify_signature(envelope, pubkey)
+                    check_expiry(payload)
+                    parts = [device.get("serial", "")]
+                    check_fingerprint(payload, parts)
+                    print(f"License verified — customer: {payload.get('customer', '-')}  expires: {payload.get('expires_at') or 'never'}")
+                    return True
+                except Exception as e:
+                    raise LicenseError(f"License file found at {license_path}, but verification failed: {e}")
+    if not found:
+        raise LicenseError(f"No license file '{LICENSE_FILE}' found on any connected device.")

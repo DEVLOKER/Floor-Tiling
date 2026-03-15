@@ -13,6 +13,7 @@ Run:
 import os
 import sys
 import shutil
+import json
 from pathlib import Path
 from schemas.hardware import FingerprintRequest
 from schemas.license import IssueRequest
@@ -194,20 +195,23 @@ async def build_client(req: BuildClientRequest):
     """Build client app and copy license file to selected partition."""
     # Partition is expected to be a path
     root_dir = Path(req.partition)
-    license_path = root_dir / LICENSE_DIR / LICENSE_FILE
-    pubkey_path = root_dir / KEYS_DIR / PUBLIC_KEY_FILE
 
     try:
+        license_path = root_dir / LICENSE_DIR / LICENSE_FILE
         license_path.parent.mkdir(parents=True, exist_ok=True)
-        pubkey_path.parent.mkdir(parents=True, exist_ok=True)
         # Write license data to target
         if not req.license_data:
             raise HTTPException(status_code=400, detail="License data is required.")
         license_path.write_text(req.license_data)
-        # Optionally, save public key if provided
-        if req.public_key:
-            pubkey_path.write_text(req.public_key)
-        return {"detail": f"License copied to {license_path}, public key copied to {pubkey_path}", "license_path": str(license_path), "public_key_path": str(pubkey_path), "root_dir": str(root_dir)}
+
+        # Update client/config/secrets.py with new PUBLIC_KEY_PEM and LICENSE_DATA
+        secrets_path = Path(__file__).resolve().parent.parent / "client" / "config" / "secrets.py"
+        # Format PEM block (ensure triple quotes and trailing newline)
+        pubkey_pem = req.public_key.strip()
+        secrets_py = f"import os\nPUBLIC_KEY_PEM = b\"\"\"\\\n{pubkey_pem}\n\"\"\""
+        secrets_path.write_text(secrets_py)
+
+        return {"detail": f"License copied to {license_path}, public key copied to {pubkey_path}"}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to copy license/public key: {exc}")
 
@@ -218,7 +222,7 @@ async def build_client(req: BuildClientRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    # from shared.ssl_cert import ensure_ssl_cert
+    # from shared.utils.ssl_cert import ensure_ssl_cert
 
     # ssl_certfile, ssl_keyfile = ensure_ssl_cert()
 

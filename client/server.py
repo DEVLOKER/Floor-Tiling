@@ -39,7 +39,6 @@ from config.settings import (
     GROUT_THICKNESS_MAX,
     JPEG_QUALITY,
 )
-# from config import verify_license, LicenseError
 from utils import verify_license, LicenseError
 from ml_models import get_sam2_predictor
 from processors import apply_perspective_tiles
@@ -335,7 +334,7 @@ async def api_info():
 
 if __name__ == "__main__":
     import uvicorn
-    from shared.ssl_cert import ensure_ssl_cert
+    from shared.utils.ssl_cert import ensure_ssl_cert
 
     _frozen = getattr(sys, "frozen", False)  # True when running as PyInstaller exe
 

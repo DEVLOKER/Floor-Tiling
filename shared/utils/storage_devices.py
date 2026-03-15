@@ -1,11 +1,3 @@
-def find_device_by_serial(serial: str) -> dict | None:
-    """Return the device dict for the given serial number, or None if not found."""
-    for device in list_devices():
-        if device.get("serial") == serial:
-            return device
-    return None
-"""Device listing helper for Windows and cross-platform."""
-
 def list_devices() -> list:
     import platform
     import os
