@@ -334,11 +334,10 @@ async def api_info():
 
 if __name__ == "__main__":
     import uvicorn
-    from shared.utils.ssl_cert import ensure_ssl_cert
+    # from shared.utils.ssl_cert import ensure_ssl_cert
 
+    # ssl_certfile, ssl_keyfile = ensure_ssl_cert()
     _frozen = getattr(sys, "frozen", False)  # True when running as PyInstaller exe
-
-    ssl_certfile, ssl_keyfile = ensure_ssl_cert()
 
     uvicorn.run(
         app if _frozen else "server:app",  # string form required for reload; app object for frozen
@@ -346,8 +345,8 @@ if __name__ == "__main__":
         port=8000,
         log_level="info",
         reload=not _frozen,     # reload=True dev only; breaks frozen exe (spawn loop)
-        ssl_certfile=ssl_certfile,
-        ssl_keyfile=ssl_keyfile,
+        # ssl_certfile=ssl_certfile,
+        # ssl_keyfile=ssl_keyfile,
         limit_max_requests=MAX_SIZE,
         limit_max_requests_jitter=MAX_SIZE,
         # This handles the large 'mask' string event size
