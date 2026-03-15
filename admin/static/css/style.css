@@ -206,7 +206,12 @@ a:active {
   white-space: pre-wrap;
   word-break: break-all;
   overflow-x: auto;
+  overflow-y: auto;
   position: relative;
+  max-height: 320px;
+  min-height: 120px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border: 1px solid #e0e0e0;
 }
 
 .hidden {

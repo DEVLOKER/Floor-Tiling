@@ -1,14 +1,22 @@
+
+# Ensure asyncio subprocess support on Windows (must be first)
+import sys
+if sys.platform == "win32":
+        import asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 """Floor Tiling — Admin Panel
 
 FastAPI web application for managing licenses:
-  - Generate Ed25519 key pairs
-  - Collect hardware fingerprints
-  - Issue signed license files
+    - Generate Ed25519 key pairs
+    - Collect hardware fingerprints
+    - Issue signed license files
 
 Run:
-    cd admin && python server.py
-    # opens at https://localhost:9000
+        cd admin && python server.py
+        # opens at https://localhost:9000
 """
+
 
 import os
 import sys
@@ -22,6 +30,9 @@ from schemas.build import BuildClientRequest
 from fastapi import Body
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi import WebSocket, WebSocketDisconnect
+import asyncio
+import subprocess
 from fastapi.staticfiles import StaticFiles
 from typing import Optional
 from utils import (
@@ -34,6 +45,10 @@ from utils import (
 )
 from shared.utils.fingerprint import _cpu_id, _board_uuid, _mac_address, generate_fingerprint
 from shared.config.settings import LICENSE_DIR, LICENSE_FILE, KEYS_DIR, PUBLIC_KEY_FILE, PRIVATE_KEY_FILE
+
+# Ensure asyncio subprocess support on Windows
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # ─────────────────────────────────────────────────────────────────────────────
 # App
@@ -74,6 +89,58 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WebSocket endpoint for build output
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@app.websocket("/ws/build-output")
+async def websocket_build_output(websocket: WebSocket):
+    await websocket.accept()
+    process = None
+    try:
+        # Wait for build parameters from client
+        data = await websocket.receive_json()
+        model = "tiny"  # or data.get("model", "tiny")
+        bat_path = Path(__file__).parent.parent / "client" / "scripts" / "build_exe.bat"
+        bat_path_str = str(bat_path.resolve())
+        cmd = f'cmd /c "{bat_path_str}" {model}'
+        await websocket.send_text(f"[DEBUG] Batch path: {bat_path_str}")
+        await websocket.send_text(f"[DEBUG] Command: {cmd}")
+
+        process = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(bat_path.parent),
+        )
+
+        async def stream_output(stream, prefix=""):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                await websocket.send_text(prefix + line.decode(errors="replace"))
+
+        # Stream both stdout and stderr concurrently
+        await asyncio.gather(
+            stream_output(process.stdout),
+            stream_output(process.stderr, prefix="[STDERR] "),
+        )
+
+        await process.wait()
+        await websocket.send_text("[BUILD END]")
+    except WebSocketDisconnect:
+        if process and process.returncode is None:
+            process.terminate()
+    except Exception as exc:
+        import traceback
+        tb = traceback.format_exc()
+        await websocket.send_text(f"[ERROR] {exc}\n{tb}")
+    if not websocket.client_state.name == "DISCONNECTED":
+        await websocket.close()
 
 #############################################################################
 # 1. Key Generation
@@ -190,28 +257,26 @@ async def issue(req: IssueRequest):
 # 4. Build Client App
 #############################################################################
 
+
 @app.post("/api/build-client")
 async def build_client(req: BuildClientRequest):
-    """Build client app and copy license file to selected partition."""
-    # Partition is expected to be a path
+    """Build client app and copy license file to selected partition. Triggers build process, output streamed via WebSocket."""
     root_dir = Path(req.partition)
-
     try:
         license_path = root_dir / LICENSE_DIR / LICENSE_FILE
         license_path.parent.mkdir(parents=True, exist_ok=True)
-        # Write license data to target
         if not req.license_data:
             raise HTTPException(status_code=400, detail="License data is required.")
         license_path.write_text(req.license_data)
 
         # Update client/config/secrets.py with new PUBLIC_KEY_PEM and LICENSE_DATA
         secrets_path = Path(__file__).resolve().parent.parent / "client" / "config" / "secrets.py"
-        # Format PEM block (ensure triple quotes and trailing newline)
         pubkey_pem = req.public_key.strip()
         secrets_py = f"import os\nPUBLIC_KEY_PEM = b\"\"\"\\\n{pubkey_pem}\n\"\"\""
         secrets_path.write_text(secrets_py)
 
-        return {"detail": f"License copied to {license_path}, public key copied to {pubkey_path}"}
+        # Instead of running the build here, return a message to connect to WebSocket for build output
+        return {"detail": f"License copied to {license_path}. Connect to /ws/build-output for build log.", "build_ws": "/ws/build-output"}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to copy license/public key: {exc}")
 
@@ -233,7 +298,7 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=9000,
         log_level="info",
-        reload=not is_frozen,
+        # reload=not is_frozen,
         # ssl_certfile=ssl_certfile,
         # ssl_keyfile=ssl_keyfile,
     )

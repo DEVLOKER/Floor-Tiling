@@ -93,15 +93,46 @@
       if (pubKeyEl) {
         publicKey = pubKeyEl.textContent.trim();
       }
+      // Step 1: Call API to copy license and update secrets
       const result = await api("/api/build-client", {
         partition,
         license_data: licenseData,
         public_key: publicKey,
       });
       buildOutput.textContent = result.detail || JSON.stringify(result);
+      // Step 2: Connect to WebSocket for build output
+      if (result.build_ws) {
+        buildOutput.textContent += "\n\n[Build log follows...]\n";
+        const wsProto = location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = wsProto + "://" + location.host + result.build_ws;
+        const ws = new WebSocket(wsUrl);
+        ws.onopen = function () {
+          // Send build parameters (e.g., model)
+          ws.send(JSON.stringify({ model: "tiny" })); // TODO: allow user to select model
+        };
+        ws.onmessage = function (event) {
+          if (event.data === "[BUILD END]") {
+            buildOutput.textContent += "\n[Build complete]\n";
+            btnBuildClient.disabled = false;
+            ws.close();
+            return;
+          }
+          buildOutput.textContent += event.data;
+          // Auto-scroll to bottom for every new log
+          buildOutput.scrollTop = buildOutput.scrollHeight;
+        };
+        ws.onerror = function (event) {
+          buildOutput.textContent += "\n[WebSocket error]\n";
+          btnBuildClient.disabled = false;
+        };
+        ws.onclose = function () {
+          btnBuildClient.disabled = false;
+        };
+      } else {
+        btnBuildClient.disabled = false;
+      }
     } catch (err) {
       buildOutput.textContent = "Error: " + err.message;
-    } finally {
       btnBuildClient.disabled = false;
     }
   });
