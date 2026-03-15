@@ -49,6 +49,18 @@ Write-Host "========================================================"
 Write-Host " Floor Tiling -- EXE build"
 Write-Host "========================================================"
 
+# ── Step 0: Generate self-signed certificate if missing ──────────────────────
+$SignToolDir = Join-Path $PSScriptRoot "..\..\SignTool"
+$CertPath = Join-Path $SignToolDir "certificate.pfx"
+$CertPass = "C53c9e7f-8a1b-4d2b-9c3a-9f0e5d6a7b8c"
+if (!(Test-Path $CertPath)) {
+    Write-Host "[0/5] Generating self-signed certificate.pfx in SignTool folder ..."
+    $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=FloorTiling Dev" -CertStoreLocation "Cert:\CurrentUser\My"
+    $pwd = ConvertTo-SecureString -String $CertPass -Force -AsPlainText
+    Export-PfxCertificate -Cert $cert -FilePath $CertPath -Password $pwd | Out-Null
+    Write-Host "certificate.pfx created at $CertPath"
+}
+
 # ── Step 1: Cython compile ───────────────────────────────────────────────────
 Write-Host ""
 Write-Host "[1/5] Compiling Cython extensions (.pyd) ..."
@@ -140,7 +152,7 @@ Write-Host "OK  Clean."
 
 # ── Step 5: Copy customer launcher ───────────────────────────────────────────
 Write-Host ""
-Write-Host "[5/5] Copying launch.ps1 -> $DistDir\ ..."
+Write-Host "[5/5] Copying launchers -> $DistDir\ ..."
 $LaunchSrc = if (Test-Path (Join-Path $PSScriptRoot "launch.ps1")) {
     Join-Path $PSScriptRoot "launch.ps1"
 } elseif (Test-Path "launch.ps1") {
@@ -153,29 +165,36 @@ if ($LaunchSrc) {
 } else {
     Write-Warning "launch.ps1 not found -- customers will need to run floor-tiling.exe manually."
 }
+# Always copy launch.bat (prod only)
+$LaunchBat = Join-Path $PSScriptRoot "launch.bat"
+if (Test-Path $LaunchBat) {
+    Copy-Item $LaunchBat (Join-Path $DistDir "launch.bat") -Force
+    Write-Host "OK  launch.bat copied."
+} else {
+    Write-Warning "launch.bat not found -- customers will need to run floor-tiling.exe manually."
+}
 
 # ── Step 5.5: Sign the EXE (optional, requires signtool) ───────────────
 $ExePath = Join-Path $DistDir "floor-tiling.exe"
 if (Test-Path $ExePath) {
     Write-Host ""
     Write-Host "[5.5/5] Signing EXE ..."
-    $SignTool = "C:\Program Files (x86)\Windows Kits\10\bin\x64\signtool.exe"
+    $SignTool = Join-Path $PSScriptRoot "..\..\SignTool\SignTool.exe"
+    $CertPath = Join-Path $PSScriptRoot "..\..\SignTool\certificate.pfx"
+    $CertPass = "your-cert-password"  # <-- EDIT THIS
     if (Test-Path $SignTool) {
-        # Update the following with your actual certificate path and password
-        $CertPath = "C:\path\to\your\certificate.pfx"  # <-- EDIT THIS
-        $CertPass = "your-cert-password"                  # <-- EDIT THIS
         if (Test-Path $CertPath) {
             & $SignTool sign /f $CertPath /p $CertPass /tr http://timestamp.digicert.com /td sha256 /fd sha256 $ExePath
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "OK  EXE signed."
             } else {
-                Write-Warning "signtool failed to sign the EXE."
+                Write-Warning "SignTool failed to sign the EXE."
             }
         } else {
-            Write-Warning "Certificate file not found: $CertPath. Skipping signing."
+            Write-Warning "certificate.pfx not found in SignTool folder. Skipping signing."
         }
     } else {
-        Write-Warning "signtool.exe not found. Skipping code signing."
+        Write-Warning "SignTool.exe not found in SignTool folder. Skipping code signing."
     }
 }
 
