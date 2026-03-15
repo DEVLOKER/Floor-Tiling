@@ -51,11 +51,10 @@ Write-Host "========================================================"
 
 # ── Step 1: Cython compile ───────────────────────────────────────────────────
 Write-Host ""
-# winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --quiet --wait"
-# Write-Host "[1/5] Compiling Cython extensions (.pyd) ..."
-# python setup_cython.py build_ext --inplace
-# if ($LASTEXITCODE -ne 0) { throw "Cython compilation failed." }
-# Write-Host "OK  Cython done."
+Write-Host "[1/5] Compiling Cython extensions (.pyd) ..."
+python setup_cython.py build_ext --inplace
+if ($LASTEXITCODE -ne 0) { throw "Cython compilation failed." }
+Write-Host "OK  Cython done."
 
 # ── Step 2: Patch settings.py, run PyInstaller, restore ──────────────────────
 Write-Host ""
@@ -80,6 +79,21 @@ try {
     Write-Host "   settings.py restored."
 }
 Write-Host "OK  PyInstaller done."
+
+# ── Step 2.5: Obfuscate dist output with PyArmor ─────────────────────────────
+Write-Host ""
+Write-Host "[2.5/5] Obfuscating dist output with PyArmor ..."
+$DistServer = Join-Path $DistDir "server.py"
+if (Test-Path $DistServer) {
+    pyarmor gen $DistServer -O $DistDir
+    if ($LASTEXITCODE -ne 0) { throw "PyArmor obfuscation failed for dist/server.py." }
+    # Copy PyArmor runtime if present
+    $runtime = Join-Path $DistDir "pyarmor_runtime_000000"
+    if (Test-Path $runtime) {
+        Copy-Item $runtime $DistDir -Recurse -Force
+    }
+}
+Write-Host "OK  PyArmor dist obfuscation done."
 
 # ── Step 3: Copy SAM2 model(s) ───────────────────────────────────────────────
 Write-Host ""
@@ -108,11 +122,18 @@ Get-ChildItem $ModelsOut | Format-Table Name, @{N="Size";E={"{0:N1} MB" -f ($_.L
 # ── Step 4: Clean Cython artefacts ───────────────────────────────────────────
 Write-Host ""
 Write-Host "[4/5] Cleaning Cython build artefacts ..."
-$CythonDirs = @("config","core","ml_models","patterns","processors")
+$CythonDirs = @("config","core","ml_models","patterns","processors","utils")
 foreach ($dir in $CythonDirs) {
     if (Test-Path $dir) {
         Get-ChildItem $dir -Recurse -Include "*.pyd","*.c" | Remove-Item -Force
         Get-ChildItem $dir -Recurse -Directory -Filter "build" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+# Also clean shared modules .c files
+$SharedDirs = @("..\shared\utils", "..\shared\config")
+foreach ($dir in $SharedDirs) {
+    if (Test-Path $dir) {
+        Get-ChildItem $dir -Recurse -Include "*.c" | Remove-Item -Force
     }
 }
 Write-Host "OK  Clean."
@@ -131,6 +152,31 @@ if ($LaunchSrc) {
     Write-Host "OK  launch.ps1 copied."
 } else {
     Write-Warning "launch.ps1 not found -- customers will need to run floor-tiling.exe manually."
+}
+
+# ── Step 5.5: Sign the EXE (optional, requires signtool) ───────────────
+$ExePath = Join-Path $DistDir "floor-tiling.exe"
+if (Test-Path $ExePath) {
+    Write-Host ""
+    Write-Host "[5.5/5] Signing EXE ..."
+    $SignTool = "C:\Program Files (x86)\Windows Kits\10\bin\x64\signtool.exe"
+    if (Test-Path $SignTool) {
+        # Update the following with your actual certificate path and password
+        $CertPath = "C:\path\to\your\certificate.pfx"  # <-- EDIT THIS
+        $CertPass = "your-cert-password"                  # <-- EDIT THIS
+        if (Test-Path $CertPath) {
+            & $SignTool sign /f $CertPath /p $CertPass /tr http://timestamp.digicert.com /td sha256 /fd sha256 $ExePath
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "OK  EXE signed."
+            } else {
+                Write-Warning "signtool failed to sign the EXE."
+            }
+        } else {
+            Write-Warning "Certificate file not found: $CertPath. Skipping signing."
+        }
+    } else {
+        Write-Warning "signtool.exe not found. Skipping code signing."
+    }
 }
 
 # ── Summary ───────────────────────────────────────────────────────────────────

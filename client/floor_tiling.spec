@@ -35,16 +35,44 @@ for pyd in glob.glob(str(REPO_ROOT / "shared" / "*.pyd")):
     pyd_binaries.append((pyd, "shared"))
 
 # ── Data files ────────────────────────────────────────────────────────────────
+# Only include .py sources from shared/ if no .pyd exists for that module
+def shared_datas():
+    shared_dir = REPO_ROOT / "shared"
+    datas = []
+    # Add all non-.py files (e.g., data, certs, etc.)
+    for root, dirs, files in os.walk(shared_dir):
+        for f in files:
+            if not f.endswith(".py"):
+                rel = os.path.relpath(os.path.join(root, f), shared_dir)
+                datas.append((str(shared_dir / rel), str(Path("shared") / Path(rel).parent)))
+    # Only add .py if no .pyd exists for that module
+    for root, dirs, files in os.walk(shared_dir):
+        for f in files:
+            if f.endswith(".py"):
+                pyd_name = f[:-3] + ".pyd"
+                if not os.path.exists(os.path.join(root, pyd_name)):
+                    rel = os.path.relpath(os.path.join(root, f), shared_dir)
+                    datas.append((str(shared_dir / rel), str(Path("shared") / Path(rel).parent)))
+    return datas
+
+# Exclude dev files/folders from datas
+def filter_dev_files(datas):
+    exclude_patterns = [
+        "Dockerfile", ".git", "scripts", "build_exe.ps1", "build_docker.ps1", "install_deps.ps1", "run_docker.ps1"
+    ]
+    filtered = []
+    for src, dest in datas:
+        if not any(pat in src or pat in dest for pat in exclude_patterns):
+            filtered.append((src, dest))
+    return filtered
+
 datas = [
-    # Frontend UI
     (str(ROOT / "static"),       "static"),
-    # SAM2 YAML configs
     (str(ROOT / "sam2" / "configs"), os.path.join("sam2", "configs")),
-    # Shared package .py sources (fallback if not Cython-compiled)
-    (str(REPO_ROOT / "shared"), "shared"),
-    # SAM2 model checkpoints (large — uncomment if you want to bundle them)
-    # (str(ROOT / "sam2" / "models"), os.path.join("sam2", "models")),
-]
+] + shared_datas()
+datas = filter_dev_files(datas)
+#    # SAM2 model checkpoints (large — uncomment if you want to bundle them)
+#    # (str(ROOT / "sam2" / "models"), os.path.join("sam2", "models")),
 
 # ── Hidden imports ────────────────────────────────────────────────────────────
 # PyInstaller's static analysis misses these because they are loaded
