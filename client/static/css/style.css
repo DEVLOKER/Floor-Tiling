@@ -1,3 +1,24 @@
+/*  Panel footer (fixed)  */
+.panel-footer {
+  background: #fafafa;
+  border-top: 1px solid #f0f0f0;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  width: 100%;
+  position: static;
+  z-index: auto;
+}
+
+@media (max-width: 480px) {
+  .panel-footer {
+    width: 100vw;
+    padding: 14px 10px;
+  }
+}
 /* 
    Floor Tile Visualizer  Full-page immersive UI
     */
@@ -11,9 +32,18 @@
   vertical-align: middle;
   flex-shrink: 0;
 }
-.app-icon-sm  { width: 13px; height: 13px; }
-.app-icon-lg  { width: 20px; height: 20px; }
-.app-icon-xl  { width: 40px; height: 40px; }
+.app-icon-sm {
+  width: 13px;
+  height: 13px;
+}
+.app-icon-lg {
+  width: 20px;
+  height: 20px;
+}
+.app-icon-xl {
+  width: 40px;
+  height: 40px;
+}
 
 *,
 *::before,
@@ -608,8 +638,12 @@ body.fullscreen-mode .top-btn-close {
 }
 .tile-option.selected {
   border-color: var(--accent);
+  border-width: 2px;
   background: #eff3ff;
   color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 2px 8px rgba(60, 100, 200, 0.06);
 }
 .tile-pattern-preview {
   width: 100%;

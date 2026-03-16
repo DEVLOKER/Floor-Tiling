@@ -1,3 +1,107 @@
+/* ────────────── Multistep Form Styles ────────────── */
+.multistep-form {
+  max-width: 720px;
+  margin: 0 auto 32px auto;
+  background: none;
+  position: relative;
+}
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  position: relative;
+}
+.step-indicator .step {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--code-bg);
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  border: 2px solid var(--primary);
+  transition:
+    background 0.3s,
+    color 0.3s,
+    border 0.3s;
+}
+.step-indicator .step.active {
+  background: var(--primary);
+  color: #fff;
+}
+.step-indicator .step.completed {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+}
+.step-indicator .progress-bar {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  height: 4px;
+  background: #e0e0e0;
+}
+.step-indicator.completed .progress-bar {
+  background: var(--success);
+}
+  z-index: 1;
+  border-radius: 2px;
+}
+.step-indicator .progress {
+  height: 100%;
+  background: var(--primary);
+}
+.step-indicator.completed .progress {
+  background: var(--success);
+}
+  border-radius: 2px;
+  transition: width 0.4s cubic-bezier(0.4, 1.4, 0.6, 1);
+}
+.steps-container {
+  position: relative;
+  min-height: 340px;
+}
+.step-card {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  transform: translateX(40px) scale(0.98);
+  transition:
+    opacity 0.4s,
+    transform 0.4s;
+  z-index: 0;
+}
+.step-card.active {
+  opacity: 1;
+  pointer-events: auto;
+  position: relative;
+  transform: translateX(0) scale(1);
+  z-index: 2;
+}
+.step-card.prev {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-40px) scale(0.98);
+  z-index: 1;
+}
+.step-nav {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 32px;
+}
+.step-nav .btn {
+  min-width: 90px;
+}
 /* Floor Tiling — Admin Panel Styles */
 
 :root {
@@ -210,7 +314,7 @@ a:active {
   position: relative;
   max-height: 320px;
   min-height: 120px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   border: 1px solid #e0e0e0;
 }
 

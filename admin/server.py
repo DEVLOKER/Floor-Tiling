@@ -298,7 +298,7 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=9000,
         log_level="info",
-        # reload=not is_frozen,
+        reload=not is_frozen,
         # ssl_certfile=ssl_certfile,
         # ssl_keyfile=ssl_keyfile,
     )

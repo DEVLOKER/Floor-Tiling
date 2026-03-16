@@ -150,11 +150,7 @@
 <div class="hud-pill" id="coordsInfo">Cliquez sur le sol pour le sélectionner</div>
 
 <!-- ── Floor selection badge ──────────────────────────────── -->
-<div class="floor-badge" id="floorBadge" style="display:none">
-    <span class="badge-dot"></span>
-    <span id="floorBadgeText">Sol sélectionné</span>
-    <span class="badge-conf" id="floorBadgeConf"></span>
-</div>
+<!-- ── Info sidebar (fixed left) ───────────────────────────── -->
 
 <!-- ── Loading overlay ───────────────────────────────────── -->
 <div class="loading-overlay" id="loadingOverlay" style="display:none">
@@ -300,12 +296,12 @@
         <div class="panel-section">
             <div class="section-label">Style de remplissage</div>
             <div class="tile-source-toggle">
-                <button class="tile-source-btn active" id="btnModeColor" onclick="setTileMode('color')">
+                <button class="tile-source-btn active" id="btnModeColor">
                     <svg class="app-icon app-icon-sm">
                         <use href="#ico-palette" />
                     </svg> Couleur
                 </button>
-                <button class="tile-source-btn" id="btnModeTexture" onclick="setTileMode('texture')">
+                <button class="tile-source-btn" id="btnModeTexture">
                     <svg class="app-icon app-icon-sm">
                         <use href="#ico-image" />
                     </svg> Texture
@@ -398,26 +394,7 @@
         <div class="panel-divider"></div>
 
         <!-- Apply button (inside panel) -->
-        <div class="panel-section">
-            <button class="btn-apply-panel" onclick="applyTilesToFloor()">
-                <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
-                    <use href="#ico-paint" />
-                </svg> Appliquer le carrelage
-            </button>
-        </div>
 
-        <!-- Floor selection status -->
-        <div class="panel-section">
-            <div class="section-label">Sélection du sol</div>
-            <div class="walls-list" id="floorList">
-                <div class="no-floor-msg">Aucun sol sélectionné.</div>
-            </div>
-            <button class="btn-clear-sm" onclick="clearFloorSelection()">
-                <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
-                    <use href="#ico-trash" />
-                </svg> Effacer la sélection
-            </button>
-        </div>
 
         <!-- How to use -->
         <div class="panel-section">
@@ -438,12 +415,21 @@
         </div>
 
     </div><!-- /panel-body -->
+
+    <div class="panel-footer" id="panelFooter">
+        <button class="btn-apply-panel" id="applyTilesPanelBtn">
+            <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
+                <use href="#ico-paint" />
+            </svg> Appliquer le carrelage
+        </button>
+    </div>
 </aside>
 
 <!-- ── Toast notifications ───────────────────────────────── -->
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="/static/js/app.js?v=7"></script>
+<script type="module" src="/static/js/modules/main.js"></script>
+<!-- <script src="/static/js/app.js?v=7"></script> -->
 </body>
 
 </html>

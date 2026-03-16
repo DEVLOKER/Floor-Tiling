@@ -1,4 +1,197 @@
-(function () {
+document.addEventListener("DOMContentLoaded", function () {
+  // ── Multistep Form Logic ──────────────────────────────────────────────
+  const steps = Array.from(document.querySelectorAll(".step-card"));
+  // Add a summary step dynamically if not present
+  let summaryStep = document.getElementById("step-summary");
+  if (!summaryStep) {
+    summaryStep = document.createElement("section");
+    summaryStep.className = "card step-card";
+    summaryStep.id = "step-summary";
+    summaryStep.innerHTML = `
+      <h2>5. Summary</h2>
+      <div id="summary-content">
+        <!-- Populated dynamically -->
+      </div>
+      <div style="margin-top:2em;">
+        <button id="btn-finish" class="btn btn-primary">Finish</button>
+      </div>
+    `;
+    document.querySelector(".multistep-form").appendChild(summaryStep);
+    steps.push(summaryStep);
+  }
+  const stepIndicators = Array.from(
+    document.querySelectorAll(".step-indicator .step"),
+  );
+  const progressBar = document.querySelector(".step-indicator .progress");
+  const btnNext = document.getElementById("step-next");
+  const btnBack = document.getElementById("step-back");
+  let currentStep = 0;
+  function showStep(idx) {
+    steps.forEach((card, i) => {
+      card.classList.remove("active", "prev");
+      if (i === idx) card.classList.add("active");
+      else if (i < idx) card.classList.add("prev");
+    });
+    stepIndicators.forEach((el, i) => {
+      el.classList.remove("active", "completed");
+      if (i < idx) el.classList.add("completed");
+      else if (i === idx) el.classList.add("active");
+    });
+    // Progress bar width
+    if (progressBar)
+      progressBar.style.width = (idx / (steps.length - 1)) * 100 + "%";
+    // Nav button state
+    btnBack.style.display = idx === 0 ? "none" : "inline-block";
+    btnNext.textContent =
+      idx === steps.length - 2
+        ? "Next"
+        : idx === steps.length - 1
+          ? "Finish"
+          : "Next";
+    // If summary step, populate summary
+    if (idx === steps.length - 1) {
+      populateSummary();
+      btnNext.style.display = "none";
+    } else {
+      btnNext.style.display = "inline-block";
+    }
+  }
+  btnNext.addEventListener("click", function () {
+    // Step validation logic
+    let valid = true;
+    let warnMsg = "";
+    if (currentStep === 0) {
+      // Step 1: Key Generation
+      const pubKey = document.getElementById("public-key");
+      if (!pubKey || !pubKey.textContent.trim()) {
+        valid = false;
+        warnMsg = "Please generate a key pair before continuing.";
+      }
+    } else if (currentStep === 1) {
+      // Step 2: Hardware Fingerprint
+      const deviceSelect = document.getElementById("device-select");
+      const fpValueInput = document.getElementById("fp-value");
+      if (deviceSelect.value === "") {
+        valid = false;
+        warnMsg = "Please select a storage device.";
+      } else if (!fpValueInput || !fpValueInput.value.trim()) {
+        valid = false;
+        warnMsg = "Please collect the hardware fingerprint before continuing.";
+      }
+    } else if (currentStep === 2) {
+      // Step 3: Issue License
+      const customerInput = document.getElementById("customer");
+      const fpValueInput = document.getElementById("fp-value");
+      const expiresInput = document.getElementById("expires");
+      const issueOutput = document.getElementById("issue-output");
+      if (!customerInput.value.trim()) {
+        valid = false;
+        warnMsg = "Please enter a customer name.";
+      } else if (!fpValueInput.value.trim()) {
+        valid = false;
+        warnMsg = "Please provide a hardware fingerprint.";
+      } else if (!issueOutput.textContent.trim()) {
+        valid = false;
+        warnMsg = "Please issue a license before continuing.";
+      }
+    } else if (currentStep === 3) {
+      // Step 4: Build Client App
+      const buildDeviceSelect = document.getElementById("build-device-select");
+      const buildOutput = document.getElementById("build-output");
+      // Only allow next if buildOutput contains '[Build complete]'
+      if (!buildDeviceSelect || !buildDeviceSelect.value) {
+        valid = false;
+        warnMsg =
+          "Please select a target partition before building the client app.";
+      } else if (!buildOutput.textContent.includes("[Build complete]")) {
+        valid = false;
+        warnMsg =
+          "Please wait for the build and license copy to finish before continuing.";
+      }
+    }
+    if (!valid) {
+      // Show warning in status banner (always in step 1 for now)
+      const statusBanner = document.getElementById("status-banner");
+      const statusText = document.getElementById("status-text");
+      if (statusBanner && statusText) {
+        statusBanner.className = "card status-card error";
+        statusText.textContent = warnMsg;
+        statusBanner.classList.remove("hidden");
+      } else {
+        alert(warnMsg);
+      }
+      return;
+    }
+    // Hide warning if any
+    const statusBanner = document.getElementById("status-banner");
+    if (statusBanner) statusBanner.classList.add("hidden");
+    if (currentStep < steps.length - 1) {
+      currentStep++;
+      showStep(currentStep);
+    }
+    // Populate summary content
+    function populateSummary() {
+      const summaryContent = document.getElementById("summary-content");
+      if (!summaryContent) return;
+      // Gather info from previous steps
+      const pubKey =
+        document.getElementById("public-key")?.textContent.trim() || "";
+      const deviceSelect = document.getElementById("device-select");
+      const deviceLabel =
+        deviceSelect?.options[deviceSelect.selectedIndex]?.text || "";
+      const fpValue = document.getElementById("fp-value")?.value || "";
+      const customer = document.getElementById("customer")?.value || "";
+      const expires = document.getElementById("expires")?.value || "";
+      const licenseContent =
+        document.querySelector("#issue-output pre")?.textContent || "";
+      const buildDeviceSelect = document.getElementById("build-device-select");
+      const partitionLabel =
+        buildDeviceSelect?.options[buildDeviceSelect.selectedIndex]?.text || "";
+      summaryContent.innerHTML = `
+        <h3>Key Generation</h3>
+        <pre>${pubKey}</pre>
+        <h3>Hardware Fingerprint</h3>
+        <div>Device: <b>${deviceLabel}</b></div>
+        <div>Fingerprint: <b>${fpValue}</b></div>
+        <h3>License</h3>
+        <div>Customer: <b>${customer}</b></div>
+        <div>Expires: <b>${expires}</b></div>
+        <pre>${licenseContent}</pre>
+        <h3>Build Target</h3>
+        <div>Partition: <b>${partitionLabel}</b></div>
+      `;
+    }
+    // Handle finish button
+    document.addEventListener("click", function (e) {
+      if (e.target && e.target.id === "btn-finish") {
+        // Optionally, reset form or redirect
+        alert(
+          "All steps completed! You may now close the admin panel or start a new operation.",
+        );
+        // location.reload(); // Uncomment to reset
+      }
+    });
+  });
+  btnBack.addEventListener("click", function () {
+    if (currentStep > 0) {
+      currentStep--;
+      showStep(currentStep);
+    }
+  });
+  showStep(currentStep);
+  // Optionally, scroll to top on step change
+  steps.forEach((card) => {
+    card.addEventListener("transitionend", function () {
+      if (card.classList.contains("active"))
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  // ── Hardware Info Cache ────────────────────────────────────────────────
+  let _hardwareInfo = {};
+  let _storageDevices = [];
+  ("use strict");
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   /**
@@ -37,6 +230,7 @@
   const buildDeviceSelect = document.getElementById("build-device-select");
   const btnBuildClient = document.getElementById("btn-build-client");
   const buildOutput = document.getElementById("build-output");
+  btnBuildClient.disabled = true; // Disabled by default
 
   async function populateBuildDevices() {
     buildDeviceSelect.innerHTML =
@@ -56,6 +250,7 @@
       ) {
         buildDeviceSelect.innerHTML =
           '<option value="">(No partitions found)</option>';
+        btnBuildClient.disabled = true;
         return;
       }
       dev.partitions.forEach(function (part) {
@@ -64,23 +259,45 @@
           : part.mount || part.id;
         buildDeviceSelect.innerHTML += `<option value="${part.mount || part.id}">${label}</option>`;
       });
+      // Enable if a partition is already selected
+      btnBuildClient.disabled = !buildDeviceSelect.value;
     } catch (err) {
       buildDeviceSelect.innerHTML =
         '<option value="">(Error loading partitions)</option>';
+      btnBuildClient.disabled = true;
       console.error("Error loading partitions:", err);
     }
   }
 
+  buildDeviceSelect.addEventListener("change", function () {
+    // Enable build button only if a partition is selected
+    btnBuildClient.disabled = !buildDeviceSelect.value;
+  });
   btnBuildClient.addEventListener("click", async function () {
-    btnBuildClient.disabled = true;
-    buildOutput.classList.remove("hidden");
-    buildOutput.textContent = "Building client and copying license...";
     const partition = buildDeviceSelect.value;
     if (!partition) {
-      buildOutput.textContent = "Please select a target partition.";
+      // Show error in status banner (step 4)
+      const statusBanner = document.getElementById("status-banner");
+      const statusText = document.getElementById("status-text");
+      if (statusBanner && statusText) {
+        statusBanner.className = "card status-card error";
+        statusText.textContent =
+          "Please select a target partition before building the client app.";
+        statusBanner.classList.remove("hidden");
+      } else {
+        alert(
+          "Please select a target partition before building the client app.",
+        );
+      }
       btnBuildClient.disabled = false;
       return;
     }
+    // Hide warning if any
+    const statusBanner = document.getElementById("status-banner");
+    if (statusBanner) statusBanner.classList.add("hidden");
+    btnBuildClient.disabled = true;
+    buildOutput.classList.remove("hidden");
+    buildOutput.textContent = "Building client and copying license...";
     try {
       // Get license data and public key from UI
       var licenseData = "";
@@ -142,7 +359,7 @@
   });
 
   populateBuildDevices();
-})();
+});
 
 // ── Build Client App ──────────────────────────────────────────────────
 // Place all logic inside the main IIFE
@@ -555,3 +772,4 @@
 
   refreshStatus();
 })();
+// );

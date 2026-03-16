@@ -1,0 +1,66 @@
+import { state } from "./state.js";
+import { updateTilePreview } from "./ui.js";
+
+// Texture upload and handling (to be filled in next steps)
+// This will handle texture uploads and previews
+
+export function initTextureUpload() {
+  _bindTextureSlot(
+    document.getElementById("textureUploadArea"),
+    document.getElementById("textureFileInput"),
+    "light",
+  );
+  _bindTextureSlot(
+    document.getElementById("textureDarkUploadArea"),
+    document.getElementById("textureDarkFileInput"),
+    "dark",
+  );
+}
+
+function _bindTextureSlot(area, input, which) {
+  area.addEventListener("click", () => input.click());
+  area.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    area.style.borderColor = "#667eea";
+  });
+  area.addEventListener("dragleave", () => {
+    area.style.borderColor = "";
+  });
+  area.addEventListener("drop", (e) => {
+    e.preventDefault();
+    area.style.borderColor = "";
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith("image/")) loadTextureFile(f, which);
+  });
+  input.addEventListener("change", (e) => {
+    if (e.target.files[0]) loadTextureFile(e.target.files[0], which);
+  });
+}
+
+function loadTextureFile(file, which = "light") {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    if (which === "dark") {
+      state.tileTextureDarkDataUrl = e.target.result;
+      state.tileTextureDarkName = file.name;
+      document.getElementById("textureDarkThumb").src = e.target.result;
+      document.getElementById("textureDarkName").textContent = file.name;
+      document.getElementById("textureDarkEmpty").style.display = "none";
+      document.getElementById("textureDarkPreview").style.display = "block";
+      document
+        .getElementById("textureDarkUploadArea")
+        .classList.add("has-texture");
+    } else {
+      state.tileTextureDataUrl = e.target.result;
+      document.getElementById("textureThumb").src = e.target.result;
+      document.getElementById("textureName").textContent = file.name;
+      document.getElementById("textureEmpty").style.display = "none";
+      document.getElementById("texturePreview").style.display = "block";
+      document.getElementById("textureUploadArea").classList.add("has-texture");
+    }
+    updateTilePreview();
+    // Save preferences after texture upload
+    if (window.saveTilePreferences) window.saveTilePreferences();
+  };
+  reader.readAsDataURL(file);
+}
