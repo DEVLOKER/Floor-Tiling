@@ -22,7 +22,7 @@ WORKDIR /models
 # In download mode these will be absent from the build context (.dockerignore
 # excludes them), so the COPY lands an empty directory — no error.
 # In local mode the files are present and used as-is.
-COPY sam2/models/ .
+COPY client/sam2/models/ .
 
 # Only hit the CDN when MODEL_SOURCE=download
 RUN if [ "$MODEL_SOURCE" = "download" ]; then \
@@ -55,11 +55,14 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# Copy shared folder from build context root
+COPY shared ./shared
+
 # Install Cython (only needed for compilation, not in runtime image)
 RUN pip install --no-cache-dir cython
 
 # Copy application source
-COPY . .
+COPY client/. .
 
 # Compile custom modules to C extensions
 RUN python setup_cython.py build_ext --inplace
@@ -103,6 +106,9 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
+# Copy shared folder from build context root
+COPY shared ./shared
+
 # --------------------------------------------------------------------------
 # 3. Python dependencies — ordered for maximum layer-cache reuse
 #
@@ -116,7 +122,7 @@ RUN pip install --no-cache-dir \
         --index-url https://download.pytorch.org/whl/cpu
 
 # Copy requirements separately so the layer is only rebuilt when it changes.
-COPY requirements.txt .
+COPY client/requirements.txt .
 
 # torch/torchvision already satisfy the >=2.3.0 constraint — pip will skip them.
 RUN pip install --no-cache-dir -r requirements.txt

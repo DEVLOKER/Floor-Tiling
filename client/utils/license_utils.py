@@ -2,6 +2,8 @@ import base64
 import json
 from datetime import date
 from pathlib import Path
+import platform
+import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.exceptions import InvalidSignature
@@ -74,6 +76,13 @@ def verify_license() -> bool:
     """
     Search for the license file on all available devices and verify it.
     """
+
+    # Skip license check if running inside Docker on non-Windows platforms, 
+    # since we won't have access to USB devices there.
+    # python3 -c "import platform; print(platform.system())"
+    if _is_docker() and platform.system() != "Windows":
+        return True # skip license check on non-Windows platforms for now
+
     devices = list_devices()
     found = False
     for device in devices:
@@ -98,3 +107,20 @@ def verify_license() -> bool:
                     raise LicenseError(f"License file found at {license_path}, but verification failed: {e}")
     if not found:
         raise LicenseError(f"No license file '{LICENSE_FILE}' found on any connected device.")
+
+
+def _is_docker() -> bool:
+    # Check 1: /.dockerenv file (present in almost all Docker containers)
+    if os.path.exists("/.dockerenv"):
+        return True
+    # Check 2: 'docker' string in cgroup (works on older Docker/Linux kernels)
+    try:
+        with open("/proc/1/cgroup", "r") as f:
+            if "docker" in f.read():
+                return True
+    except Exception:
+        pass
+    # Check 3: DOCKER environment variable (if you set it yourself in docker-compose/Dockerfile)
+    if os.environ.get("DOCKER") or os.environ.get("DOCKER_CONTAINER"):
+        return True
+    return False

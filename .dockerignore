@@ -35,7 +35,8 @@ Thumbs.db
 .env
 .env.*
 .env.example
-secrets/
+client/secrets/
+admin/secrets/
 
 # ── Test & CI artefacts ──────────────────────────────────────────────────────
 .pytest_cache/
@@ -63,9 +64,8 @@ __tests__/
 
 # ── SAM2 non-runtime files ───────────────────────────────────────────────────
 # CUDA kernel sources (CPU-only build, never compiled inside the image)
-sam2/csrc/
-# Benchmark script — development tool only
-sam2/benchmark.py
+client/sam2/csrc/
+client/sam2/benchmark.py
 
 # ── Local model checkpoints ──────────────────────────────────────────────────
 # DEFAULT (download mode): keep .pt files EXCLUDED — Docker fetches them fresh
@@ -73,9 +73,19 @@ sam2/benchmark.py
 #
 # LOCAL mode: comment out the line below so .pt files enter the build context,
 #   then build with:  ./build.sh latest local
-sam2/models/*.pt
-!sam2/models/sam2.1_hiera_tiny.pt
+client/sam2/models/*.pt
+!client/sam2/models/sam2.1_hiera_tiny.pt
 
 # self-contained. If you want a smaller base image, add the line:
-#   sam2/models/*.pt
+#   client/sam2/models/*.pt
 # and volume-mount the models directory at runtime (see docker-compose.yml).
+
+
+# ── Other client files ───────────────────────────────────────────────────────────
+client/scripts/
+client/build/
+client/dist/
+client/.gitignore
+client/Dockerfile
+client/docker-compose.yml
+client/floor_tiling.spec

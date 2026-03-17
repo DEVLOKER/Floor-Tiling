@@ -12,12 +12,6 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-
-# Add repo root to sys.path so `shared` package is importable
-_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-
 import numpy as np
 import cv2
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, Form
@@ -43,6 +37,12 @@ from utils import verify_license, LicenseError
 from ml_models import get_sam2_predictor
 from processors import apply_perspective_tiles
 from patterns import PATTERN_FUNCTIONS
+
+# Add repo root to sys.path so `shared` package is importable
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 
 logger = logging.getLogger(__name__)
 
