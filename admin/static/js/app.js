@@ -1,4 +1,14 @@
 document.addEventListener("DOMContentLoaded", function () {
+  // Add skip button logic for step 2 (bind once on DOMContentLoaded)
+  const btnSkipFingerprint = document.getElementById("btn-skip-fingerprint");
+  if (btnSkipFingerprint) {
+    btnSkipFingerprint.addEventListener("click", function () {
+      fingerprintSkipped = true;
+      currentStep = 2;
+      showStep(currentStep);
+    });
+  }
+
   // ── Multistep Form Logic ──────────────────────────────────────────────
   const steps = Array.from(document.querySelectorAll(".step-card"));
   // Add a summary step dynamically if not present
@@ -71,12 +81,15 @@ document.addEventListener("DOMContentLoaded", function () {
       // Step 2: Hardware Fingerprint
       const deviceSelect = document.getElementById("device-select");
       const fpValueInput = document.getElementById("fp-value");
-      if (deviceSelect.value === "") {
-        valid = false;
-        warnMsg = "Please select a storage device.";
-      } else if (!fpValueInput || !fpValueInput.value.trim()) {
-        valid = false;
-        warnMsg = "Please collect the hardware fingerprint before continuing.";
+      if (!fingerprintSkipped) {
+        if (deviceSelect.value === "") {
+          valid = false;
+          warnMsg = "Please select a storage device.";
+        } else if (!fpValueInput || !fpValueInput.value.trim()) {
+          valid = false;
+          warnMsg =
+            "Please collect the hardware fingerprint before continuing.";
+        }
       }
     } else if (currentStep === 2) {
       // Step 3: Issue License

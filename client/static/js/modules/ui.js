@@ -1,6 +1,7 @@
 import { state } from "./state.js";
 import { CONFIG } from "./config.js";
 import { val } from "./helpers.js";
+import { hexToRgbArray } from "./utils.js";
 import { isCheckerPattern, isDualColorPattern } from "./patterns.js";
 
 // UI-related functions (to be filled in next steps)
@@ -444,13 +445,16 @@ export function redrawWithFloorHighlight() {
     state.canvas.height,
   );
   const d = imageData.data;
+  // Use helper to parse CONFIG.floorHighlightColor
+  const highlightRGB = hexToRgbArray(CONFIG.floorHighlightColor);
+  const opacity = 0.8;
   for (let y = 0; y < state.canvas.height; y++) {
     for (let x = 0; x < state.canvas.width; x++) {
       if (state.floorMask[y]?.[x] > 0) {
         const i = (y * state.canvas.width + x) * 4;
-        d[i] = d[i] * 0.7 + 100;
-        d[i + 1] = d[i + 1] * 0.7 + 150;
-        d[i + 2] = d[i + 2] * 0.7 + 100;
+        d[i] = d[i] * opacity + highlightRGB[0];
+        d[i + 1] = d[i + 1] * opacity + highlightRGB[1];
+        d[i + 2] = d[i + 2] * opacity + highlightRGB[2];
       }
     }
   }

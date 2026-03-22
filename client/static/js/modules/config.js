@@ -17,7 +17,7 @@ export const CONFIG = {
   previewColorFallback: "#cccccc",
   textureFallbackDark: "#666666",
   textureFallbackLight: "#d4b896",
-  floorHighlightColor: "#00FF00",
+  floorHighlightColor: "#667eea", // "#00FF00",
   textureDragBorderColor: "#667eea",
   toastDurationError: 6000,
   toastDurationDefault: 3500,

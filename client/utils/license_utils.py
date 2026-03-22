@@ -1,7 +1,13 @@
+import sys
+from pathlib import Path
+# Add repo root to sys.path so `shared` package is importable
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 import base64
 import json
 from datetime import date
-from pathlib import Path
 import platform
 import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
