@@ -107,7 +107,6 @@ def verify_license() -> bool:
                     check_expiry(payload)
                     parts = [device.get("serial", "")]
                     check_fingerprint(payload, parts)
-                    print(f"License verified — customer: {payload.get('customer', '-')}  expires: {payload.get('expires_at') or 'never'}")
                     return True
                 except Exception as e:
                     raise LicenseError(f"License file found at {license_path}, but verification failed: {e}")

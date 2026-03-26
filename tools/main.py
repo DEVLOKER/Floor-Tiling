@@ -68,9 +68,17 @@ def copy_to_clipboard():
 
 
 
+
 root = tk.Tk()
 root.title("Machine Fingerprint Generator")
-root.geometry("600x400")
+# Center the window
+window_width = 600
+window_height = 400
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+x = int((screen_width / 2) - (window_width / 2))
+y = int((screen_height / 2) - (window_height / 2))
+root.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
 frame = tk.Frame(root, padx=20, pady=20)
 frame.pack(expand=True, fill=tk.BOTH)

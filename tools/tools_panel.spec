@@ -1,34 +1,33 @@
 # -*- mode: python ; coding: utf-8 -*-
-# ── Floor Tiling Admin — PyInstaller spec ────────────────────────────────────
-#
-# This file MUST stay in admin/ — PyInstaller sets SPECPATH to its location
+# ── Floor Tiling Tools — PyInstaller spec ────────────────────────────────────
+# This file MUST stay in tools/ — PyInstaller sets SPECPATH to its location
 # and all paths below are resolved relative to it.
 #
 # Normal build (from anywhere):
-#   .\admin\scripts\build_exe.ps1     # Windows PowerShell
+#   .\tools\scripts\build_exe.ps1     # Windows PowerShell
 #
-# Manual build (from admin/):
-#   pyinstaller admin_panel.spec
+# Manual build (from tools/):
+#   pyinstaller tools_panel.spec
 # ─────────────────────────────────────────────────────────────────────────────
 
 import os
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
-ROOT = Path(SPECPATH)         # = admin/
+ROOT = Path(SPECPATH)         # = tools/
 REPO_ROOT = ROOT.parent       # = Floor Tiling/
 
 # ── Collect full setuptools / pkg_resources ───────────────────────────────────
 _st_datas, _st_binaries, _st_hidden = collect_all("setuptools")
 _ad_datas, _ad_binaries, _ad_hidden = collect_all("appdirs")
 
+# ── Data files ────────────────────────────────────────────────────────────────
 datas = [
-    # Shared package (fingerprint.py, ssl_cert.py)
+    # Shared package (fingerprint.py, etc)
     (str(REPO_ROOT / "shared"), "shared"),
-    # Services package
-    (str(ROOT / "utils"), "utils"),
 ]
 
+# ── Hidden imports ────────────────────────────────────────────────────────────
 hidden = [
     # Cryptography (for key generation + license signing)
     "cryptography.hazmat.primitives.asymmetric.ed25519",
@@ -43,8 +42,6 @@ hidden = [
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
-
-# ── Analysis for Tkinter Admin App ───────────────────────────────────────────
 a = Analysis(
     ["main.py"],
     pathex=[str(ROOT), str(REPO_ROOT)],
@@ -53,9 +50,8 @@ a = Analysis(
     hiddenimports=hidden + _st_hidden + _ad_hidden,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[str(ROOT / "hooks" / "rthook_appdirs.py")],
+    runtime_hooks=[],
     excludes=[
-        # Remove web/GUI exclusions, keep only unnecessary packages
         "matplotlib",
         "IPython",
         "jupyter",
@@ -73,13 +69,12 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
-
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,   # onedir mode
-    name="admin-panel",
+    name="tools-panel",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -99,5 +94,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="admin-panel",      # dist/admin-panel/
+    name="tools-panel",      # dist/tools-panel/
 )

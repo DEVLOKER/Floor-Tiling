@@ -14,7 +14,15 @@ class AdminGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Floor Tiling Admin Panel")
-        self.geometry("800x600")
+        window_width = 800
+        window_height = 600
+        # Get screen width and height
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        # Calculate position x, y to center the window
+        x = int((screen_width / 2) - (window_width / 2))
+        y = int((screen_height / 2) - (window_height / 2))
+        self.geometry(f"{window_width}x{window_height}+{x}+{y}")
         self.resizable(True, True)
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
@@ -55,14 +63,21 @@ class AdminGUI(tk.Tk):
 
     def keygen(self, force):
         try:
-            result = generate_keypair(force=force)
+            generate_keypair(force=force)
             self.keygen_status.config(text="Key pair generated.", foreground="green")
+            # Always reload keys from disk to avoid blanks
+            pubkey = get_public_key_pem() or ""
+            privkey = get_private_key_pem() or ""
+            self.pubkey_text.config(state=tk.NORMAL)
             self.pubkey_text.delete("1.0", tk.END)
-            self.pubkey_text.insert(tk.END, getattr(result, "public_key_pem", ""))
+            self.pubkey_text.insert(tk.END, pubkey)
+            self.pubkey_text.config(state=tk.DISABLED)
+            self.pubkey_text.update_idletasks()
             self.privkey_text.config(state=tk.NORMAL)
             self.privkey_text.delete("1.0", tk.END)
-            self.privkey_text.insert(tk.END, getattr(result, "private_key_pem", ""))
+            self.privkey_text.insert(tk.END, privkey)
             self.privkey_text.config(state=tk.DISABLED)
+            self.privkey_text.update_idletasks()
         except Exception as e:
             self.keygen_status.config(text=f"Error: {e}", foreground="red")
 

@@ -4,7 +4,7 @@
 .github/
 
 # ── Python bytecode ──────────────────────────────────────────────────────────
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
@@ -19,8 +19,8 @@ env/
 ENV/
 
 # ── Build / dist artefacts ───────────────────────────────────────────────────
-build/
-dist/
+**/build/
+**/dist/
 *.egg-info/
 
 # ── IDE & editor configs ─────────────────────────────────────────────────────
@@ -31,12 +31,9 @@ dist/
 .DS_Store
 Thumbs.db
 
-# ── Secrets / local config ───────────────────────────────────────────────────
+# ── Local config ───────────────────────────────────────────────────
 .env
 .env.*
-.env.example
-client/secrets/
-admin/secrets/
 
 # ── Test & CI artefacts ──────────────────────────────────────────────────────
 .pytest_cache/
@@ -45,8 +42,8 @@ htmlcov/
 coverage.xml
 
 # ── Docker files themselves (avoid inception) ────────────────────────────────
-Dockerfile*
-docker-compose*.yml
+**/Dockerfile*
+**/docker-compose*.yml
 .dockerignore
 
 # ── Shell scripts (only used on host, not inside the image) ─────────────────
@@ -56,7 +53,6 @@ docker-compose*.yml
 
 # ── Documentation (not needed at runtime) ────────────────────────────────────
 README.md
-ARCHITECTURE.md
 docs/
 
 # ── Test files (not needed inside the image) ────────────────────────────────
@@ -80,12 +76,9 @@ client/sam2/models/*.pt
 #   client/sam2/models/*.pt
 # and volume-mount the models directory at runtime (see docker-compose.yml).
 
-
-# ── Other client files ───────────────────────────────────────────────────────────
-client/scripts/
-client/build/
-client/dist/
-client/.gitignore
-client/Dockerfile
-client/docker-compose.yml
-client/floor_tiling.spec
+# ── Other files to ignore ───────────────────────────────────────────────────────
+*.log
+*.pem
+*.lic
+*.spec
+SignTools/

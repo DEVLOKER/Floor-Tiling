@@ -1,3 +1,4 @@
+
 # Floor Tiling — Admin Panel
 # Python dependencies (install with:  pip install -r requirements.txt)
 
@@ -8,3 +9,5 @@ pydantic>=2.0
 psutil>=5.9
 pyusb>=1.2
 wmi>=1.5
+pyinstaller
+cython
