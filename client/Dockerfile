@@ -22,7 +22,7 @@ WORKDIR /models
 # In download mode these will be absent from the build context (.dockerignore
 # excludes them), so the COPY lands an empty directory — no error.
 # In local mode the files are present and used as-is.
-# COPY client/sam2/models/ .
+COPY client/sam2/models/ .
 
 # Only hit the CDN when MODEL_SOURCE=download
 RUN if [ "$MODEL_SOURCE" = "download" ]; then \
