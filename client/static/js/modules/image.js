@@ -1,6 +1,11 @@
 import { state } from "./state.js";
 import { CONFIG } from "./config.js";
-import { showStatus, updateFloorList, redrawWithFloorHighlight } from "./ui.js";
+import {
+  showStatus,
+  updateFloorList,
+  redrawWithFloorHighlight,
+  updateTogglePreviewVisibility,
+} from "./ui.js";
 
 export async function handleImageUpload(file) {
   const reader = new FileReader();
@@ -25,6 +30,7 @@ export async function handleImageUpload(file) {
       state.imageDimensions = { width: w, height: h };
       state.ctx.drawImage(img, 0, 0, w, h);
       state.originalImage = img;
+      updateTogglePreviewVisibility();
       state.floorMask = null;
       const welcomeOverlay = document.getElementById("welcomeOverlay");
       if (welcomeOverlay) welcomeOverlay.classList.add("hidden");

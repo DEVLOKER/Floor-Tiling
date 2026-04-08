@@ -87,6 +87,13 @@
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
     </symbol>
+
+    <!-- eye / preview -->
+    <symbol id="ico-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+        <circle cx="12" cy="12" r="3" />
+    </symbol>
 </svg>
 
 <!-- ── Full-page canvas ────────────────────────────────────── -->
@@ -180,6 +187,13 @@
         <button class="fab fab-sm" id="openSettingsBtn" title="Paramètres du carrelage">
             <svg class="app-icon">
                 <use href="#ico-settings" />
+            </svg>
+        </button>
+    </div>
+    <div class="fab-tip-wrap" data-tip="Afficher l'original / Résultat" id="togglePreviewFabWrap" style="display:none">
+        <button class="fab fab-sm fab-toggle-preview" id="togglePreviewBtn" title="Afficher l'original / Résultat">
+            <svg class="app-icon">
+                <use href="#ico-eye" />
             </svg>
         </button>
     </div>

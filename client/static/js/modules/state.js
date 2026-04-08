@@ -11,6 +11,7 @@ export let state = {
   tileTextureDataUrl: null, // base64 data URL of primary (light) texture
   tileTextureDarkDataUrl: null, // base64 data URL of secondary (dark) texture
   resultUrl: null, // object URL of last applied-tiles result
+  showingTiledResult: false, // tracks which image is shown on canvas in toggle preview
 };
 
 export function setState(newState) {

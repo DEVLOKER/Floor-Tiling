@@ -1,11 +1,18 @@
-import { badge } from "./helpers.js";
-import { updateTilePreview, syncPatternUI } from "./ui.js";
-import { handleImageUpload } from "./image.js";
+import { badge, val } from "./helpers.js";
+import {
+  updateTilePreview,
+  syncPatternUI,
+  updateFloorList,
+  showStatus,
+  updateTogglePreviewVisibility,
+} from "./ui.js";
+import {
+  handleImageUpload,
+  originalImageToBlob,
+  dataUrlToBlob,
+} from "./image.js";
 import { state } from "./state.js";
-import { updateFloorList, showStatus } from "./ui.js";
 import { isDualColorPattern } from "./patterns.js";
-import { originalImageToBlob, dataUrlToBlob } from "./image.js";
-import { val } from "./helpers.js";
 import { CONFIG } from "./config.js";
 
 export function initEventListeners() {
@@ -79,19 +86,52 @@ export function initEventListeners() {
     document.getElementById(id).addEventListener("input", updateTilePreview);
   });
 
-  // Add click event for floor selection on mainCanvas
-  const mainCanvas = document.getElementById("mainCanvas");
-  if (mainCanvas) {
-    mainCanvas.addEventListener("click", (e) => {
-      // Custom event logic for floor selection
-      // TODO: Replace with actual floor selection logic
-      const coordsInfo = document.getElementById("coordsInfo");
-      if (coordsInfo) {
-        coordsInfo.textContent = `Clicked at (${e.offsetX}, ${e.offsetY})`;
-      }
-      // You can call a function like handleFloorClick(e) here
-    });
+  // ── FAB: download & toggle preview ──
+  const downloadBtn = document.getElementById("downloadBtn");
+  if (downloadBtn) downloadBtn.addEventListener("click", downloadResultImage);
+
+  const togglePreviewBtn = document.getElementById("togglePreviewBtn");
+  if (togglePreviewBtn)
+    togglePreviewBtn.addEventListener("click", togglePreview);
+
+  // Initial FAB visibility
+  updateTogglePreviewVisibility();
+}
+
+// ── Download button handler ──
+export function downloadResultImage() {
+  if (state.resultUrl) {
+    const a = document.createElement("a");
+    a.href = state.resultUrl;
+    a.download = "carrelage_resultat.jpg";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
+}
+
+// ── Toggle preview handler ──
+export function togglePreview() {
+  if (!state.originalImage || !state.resultUrl) return;
+  if (!state.ctx) return;
+  if (state.showingTiledResult) {
+    // Show original
+    state.ctx.drawImage(
+      state.originalImage,
+      0,
+      0,
+      state.canvas.width,
+      state.canvas.height,
+    );
+  } else {
+    // Show tiled result
+    const img = new Image();
+    img.onload = () => {
+      state.ctx.drawImage(img, 0, 0, state.canvas.width, state.canvas.height);
+    };
+    img.src = state.resultUrl;
+  }
+  state.showingTiledResult = !state.showingTiledResult;
 }
 
 // ── Clear floor selection ──
@@ -178,6 +218,7 @@ export async function applyTilesToFloor() {
     const resultBlob = await res.blob();
     if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
     state.resultUrl = URL.createObjectURL(resultBlob);
+    updateTogglePreviewVisibility();
     const img = new Image();
     img.onload = () => {
       state.ctx.drawImage(img, 0, 0, state.canvas.width, state.canvas.height);
@@ -187,6 +228,7 @@ export async function applyTilesToFloor() {
         "success",
       );
       state.isLoading = false;
+      state.showingTiledResult = true;
     };
     img.src = state.resultUrl;
   } catch (err) {

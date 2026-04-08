@@ -4,6 +4,13 @@ import { val } from "./helpers.js";
 import { hexToRgbArray } from "./utils.js";
 import { isCheckerPattern, isDualColorPattern } from "./patterns.js";
 
+// ── FAB visibility ──
+export function updateTogglePreviewVisibility() {
+  const wrap = document.getElementById("togglePreviewFabWrap");
+  if (!wrap) return;
+  wrap.style.display = state.originalImage && state.resultUrl ? "" : "none";
+}
+
 // UI-related functions (to be filled in next steps)
 export function showStatus(msg, type) {
   const overlay = document.getElementById("loadingOverlay");

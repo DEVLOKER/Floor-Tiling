@@ -299,6 +299,7 @@ body.fullscreen-mode .top-btn-close {
   white-space: nowrap;
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: opacity 0.3s;
+  display: none; /* hidden by default, shown when needed via JS */
 }
 
 /*  Floor badge (top-left)  */

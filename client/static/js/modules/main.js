@@ -1,8 +1,7 @@
 // Main entry point for the app
 import { CONFIG } from "./config.js";
-import { state, setState } from "./state.js";
-window.state = state;
-import { val, badge, applyDefaults } from "./helpers.js";
+import { state } from "./state.js";
+import { val, applyDefaults } from "./helpers.js";
 import { saveTilePreferences, loadTilePreferences } from "./persistence.js";
 import {
   showStatus,
@@ -19,6 +18,7 @@ import {
   clearFloorSelection,
   applyTilesToFloor,
   initEventListeners,
+  downloadResultImage,
 } from "./events.js";
 import { initTextureUpload } from "./texture.js";
 
@@ -113,6 +113,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("applyTilesPanelBtn")
     ?.addEventListener("click", applyTilesToFloor);
+
+  document
+    .getElementById("downloadBtn")
+    ?.addEventListener("click", downloadResultImage);
+
   // Redraw highlight if needed (optional)
   // redrawWithFloorHighlight();
   console.log("App modules loaded:", { CONFIG, state });
