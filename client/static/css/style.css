@@ -449,13 +449,13 @@ body.fullscreen-mode .top-btn-close {
   box-shadow: var(--shadow-lg);
 }
 .fab-download {
-  background: rgba(72, 187, 120, 0.15) !important;
-  color: #276749 !important;
-  border: 2px solid rgba(72, 187, 120, 0.4) !important;
+  background: rgba(118, 75, 162, 0.15) !important;
+  color: var(--accent-2) !important;
+  border: 2px solid rgba(118, 75, 162, 0.4) !important;
 }
 .fab-download:hover {
-  background: rgba(72, 187, 120, 0.28) !important;
-  border-color: var(--success) !important;
+  background: rgba(118, 75, 162, 0.28) !important;
+  border-color: var(--accent-2) !important;
 }
 .fab-main {
   width: auto;

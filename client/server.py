@@ -54,8 +54,8 @@ logger = logging.getLogger(__name__)
 async def require_license():
     """FastAPI dependency: re-verify USB license on every API call."""
     try:
-        # verify_license()
-        logger.info("License verified — customer: me  expires: never")
+        verify_license()
+        # logger.info("License verified — customer: me  expires: never")
     except LicenseError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
 
@@ -180,6 +180,7 @@ async def apply_tiles(
     grout_color: str = Form("#A9A9A9"),
     grout_h_thickness: int = Form(1),
     grout_v_thickness: int = Form(1),
+    rotation: float = Form(0.0),
     pattern: str = Form("grid"),
     tile_texture: Optional[UploadFile] = File(None),
     tile_texture2: Optional[UploadFile] = File(None),
@@ -275,6 +276,7 @@ async def apply_tiles(
             tile_color, tile_color2, grout_color,
             tile_width, tile_height,
             grout_h_thickness, grout_v_thickness,
+            rotation,
             pattern,
             texture_arr,
             texture_arr2,

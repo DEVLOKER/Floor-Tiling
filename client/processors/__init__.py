@@ -4,7 +4,7 @@ from config.settings import DEFAULT_REAL_WIDTH_CM
 from core import hex_to_bgr, extract_floor_quad, rectify_quad, estimate_floor_geometry, align_quad_to_walls
 from patterns import get_pattern
 
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, pattern: str, tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True) -> np.ndarray:
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
     tile_bgr = np.array(hex_to_bgr(tile_color), dtype=np.float32)
     tile2_bgr = np.array(hex_to_bgr(tile_color2), dtype=np.float32)
@@ -34,6 +34,16 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     u_all = (pc[:, 0] / wdiv).reshape(h_img, w_img)
     v_all = (pc[:, 1] / wdiv).reshape(h_img, w_img)
     v_all = v_all * (n_tiles_y / plane_h)
+    
+    if abs(rotation_deg) > 0.001:
+        theta = np.radians(rotation_deg)
+        cx, cy = float(n_tiles_x) / 2.0, float(n_tiles_y) / 2.0
+        u_shifted = u_all - cx
+        v_shifted = v_all - cy
+        u_rot = u_shifted * np.cos(theta) - v_shifted * np.sin(theta) + cx
+        v_rot = u_shifted * np.sin(theta) + v_shifted * np.cos(theta) + cy
+        u_all, v_all = u_rot, v_rot
+
     du_dy, du_dx = np.gradient(u_all)
     dv_dy, dv_dx = np.gradient(v_all)
     for arr in (du_dx, du_dy, dv_dx, dv_dy):

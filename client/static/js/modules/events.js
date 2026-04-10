@@ -57,6 +57,9 @@ export function initEventListeners() {
     badge("tileHeightValue", e.target.value + " cm");
     updateTilePreview();
   });
+  document.getElementById("gridRotation").addEventListener("input", (e) => {
+    badge("gridRotationValue", e.target.value + "°");
+  });
   document.getElementById("groutHThickness").addEventListener("input", (e) => {
     badge("groutHValue", e.target.value + " px");
     document
@@ -194,6 +197,7 @@ export async function applyTilesToFloor() {
     fd.append("grout_color", groutColor);
     fd.append("grout_h_thickness", val("groutHThickness"));
     fd.append("grout_v_thickness", val("groutVThickness"));
+    fd.append("rotation", val("gridRotation") || 0);
     fd.append("pattern", val("tilePattern"));
     if (state.tileMode === "texture" && state.tileTextureDataUrl) {
       fd.append(

@@ -39,6 +39,6 @@ jobs:
             MODEL_SOURCE=download
           tags: |
             berghout/ceramic:latest
-            berghout/ceramic:${{ github.sha }}
+          # berghout/ceramic:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
