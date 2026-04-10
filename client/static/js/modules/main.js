@@ -48,10 +48,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const area = document.getElementById("textureDarkUploadArea");
     if (area) area.classList.add("has-texture");
     // Restore the filename if present
-    if (state.tileTextureDarkName) {
-      const name = document.getElementById("textureDarkName");
-      if (name) name.textContent = state.tileTextureDarkName;
-    }
   }
   // Always show the dark group if a dark texture is present
   if (state.tileTextureDarkDataUrl && darkGroup) {

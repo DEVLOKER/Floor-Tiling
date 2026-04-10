@@ -1,3 +1,5 @@
+import { state } from "./state.js";
+
 // Save current color and texture selections to localStorage
 export function saveTilePreferences() {
   const keys = [
@@ -10,7 +12,6 @@ export function saveTilePreferences() {
     "tileMode",
     "tileTextureDataUrl",
     "tileTextureDarkDataUrl",
-    "tileTextureDarkName",
   ];
   const data = {};
   keys.forEach((k) => {
@@ -24,13 +25,10 @@ export function saveTilePreferences() {
     } else if (k === "tileTextureDataUrl" || k === "tileTextureDarkDataUrl") {
       // These are stored in state
       try {
-        data[k] = window.state && window.state[k] ? window.state[k] : null;
+        data[k] = state && state[k] ? state[k] : null;
       } catch (e) {
         data[k] = null;
       }
-    } else if (k === "tileTextureDarkName") {
-      // Save the dark texture filename from state
-      data[k] = window.state && window.state[k] ? window.state[k] : null;
     }
   });
   localStorage.setItem("tilePreferences", JSON.stringify(data));
@@ -61,11 +59,10 @@ export function loadTilePreferences() {
     }
     if (
       (k === "tileTextureDataUrl" ||
-        k === "tileTextureDarkDataUrl" ||
-        k === "tileTextureDarkName") &&
+        k === "tileTextureDarkDataUrl") &&
       v
     ) {
-      if (window.state) window.state[k] = v;
+      if (state) state[k] = v;
     }
   });
 }

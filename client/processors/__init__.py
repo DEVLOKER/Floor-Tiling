@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from config.settings import DEFAULT_REAL_WIDTH_CM
-from core import hex_to_bgr, extract_floor_quad, rectify_quad, estimate_floor_geometry, align_quad_to_walls
+from core import hex_to_bgr, extract_floor_quad, estimate_floor_geometry
 from patterns import get_pattern
 
 def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True) -> np.ndarray:

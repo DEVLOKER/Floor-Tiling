@@ -1,5 +1,6 @@
 import { state } from "./state.js";
 import { updateTilePreview } from "./ui.js";
+import { saveTilePreferences } from "./persistence.js";
 
 // Texture upload and handling (to be filled in next steps)
 // This will handle texture uploads and previews
@@ -42,9 +43,7 @@ function loadTextureFile(file, which = "light") {
   reader.onload = (e) => {
     if (which === "dark") {
       state.tileTextureDarkDataUrl = e.target.result;
-      state.tileTextureDarkName = file.name;
       document.getElementById("textureDarkThumb").src = e.target.result;
-      document.getElementById("textureDarkName").textContent = file.name;
       document.getElementById("textureDarkEmpty").style.display = "none";
       document.getElementById("textureDarkPreview").style.display = "block";
       document
@@ -53,14 +52,13 @@ function loadTextureFile(file, which = "light") {
     } else {
       state.tileTextureDataUrl = e.target.result;
       document.getElementById("textureThumb").src = e.target.result;
-      document.getElementById("textureName").textContent = file.name;
       document.getElementById("textureEmpty").style.display = "none";
       document.getElementById("texturePreview").style.display = "block";
       document.getElementById("textureUploadArea").classList.add("has-texture");
     }
     updateTilePreview();
     // Save preferences after texture upload
-    if (window.saveTilePreferences) window.saveTilePreferences();
+    saveTilePreferences();
   };
   reader.readAsDataURL(file);
 }

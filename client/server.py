@@ -1,3 +1,4 @@
+from config import DEFAULT_ROTATION
 from starlette.formparsers import MultiPartParser
 MultiPartParser.max_part_size = 10 * 1024 * 1024  # 10 MB
 """Floor Tile Visualizer API
@@ -31,7 +32,12 @@ from config.settings import (
     TILE_HEIGHT_MAX,
     GROUT_THICKNESS_MIN,
     GROUT_THICKNESS_MAX,
+    DEFAULT_GROUT_V_THICKNESS, 
+    DEFAULT_GROUT_H_THICKNESS, 
+    DEFAULT_TILE_WIDTH,
+    DEFAULT_TILE_HEIGHT,
     JPEG_QUALITY,
+    DEFAULT_PATTERN
 )
 from utils import verify_license, LicenseError
 from ml_models import get_sam2_predictor
@@ -172,16 +178,16 @@ async def segment_floor(
 async def apply_tiles(
     image: UploadFile = File(...),
     mask: UploadFile = File(...),
-    tile_width: float = Form(30),
-    tile_height: float = Form(30),
+    tile_width: float = Form(DEFAULT_TILE_WIDTH),
+    tile_height: float = Form(DEFAULT_TILE_HEIGHT),
     tile_size: float = Form(None),
     tile_color: str = Form("#E8D1B5"),
     tile_color2: str = Form("#333333"),
     grout_color: str = Form("#A9A9A9"),
-    grout_h_thickness: int = Form(1),
-    grout_v_thickness: int = Form(1),
-    rotation: float = Form(0.0),
-    pattern: str = Form("grid"),
+    grout_h_thickness: int = Form(DEFAULT_GROUT_H_THICKNESS),
+    grout_v_thickness: int = Form(DEFAULT_GROUT_V_THICKNESS),
+    rotation: float = Form(DEFAULT_ROTATION),
+    pattern: str = Form(DEFAULT_PATTERN),
     tile_texture: Optional[UploadFile] = File(None),
     tile_texture2: Optional[UploadFile] = File(None),
 ):

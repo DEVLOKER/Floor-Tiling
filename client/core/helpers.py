@@ -300,10 +300,6 @@ def _extract_floor_quad_fallback(mask: np.ndarray) -> Optional[tuple]:
     far_right = np.array([fr, float(y_far)], dtype=np.float32)
     return (near_left, near_right, far_left, far_right)
 
-def rectify_quad(near_left: np.ndarray, near_right: np.ndarray, far_left: np.ndarray, far_right: np.ndarray, mask: np.ndarray) -> tuple:
-    # DEPRECATED: 1-point hack
-    return (near_left, near_right, far_left, far_right)
-
 def _detect_wall_dominant_angle(image: np.ndarray, y_floor_top: float) -> tuple:
     if image is None:
         return (0.0, None)
@@ -371,10 +367,6 @@ def _detect_wall_dominant_angle(image: np.ndarray, y_floor_top: float) -> tuple:
                     c = y1 + max(0, h_floor_base - search_h) - m * x1
                     best_line = (m, c)
     return (med, best_line)
-
-def align_quad_to_walls(near_left: np.ndarray, near_right: np.ndarray, far_left: np.ndarray, far_right: np.ndarray, image: np.ndarray, y_floor_top: float) -> tuple:
-    # DEPRECATED: replaced by 2-point perspective extractor 
-    return (near_left, near_right, far_left, far_right)
 
 def estimate_floor_geometry(near_left: np.ndarray, near_right: np.ndarray, far_left: np.ndarray, far_right: np.ndarray, real_width_cm: float) -> tuple:
     x1, y1 = (float(far_left[0]), float(far_left[1]))

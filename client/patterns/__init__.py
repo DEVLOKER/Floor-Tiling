@@ -5,11 +5,19 @@ def _grout_alpha(dist: np.ndarray, half_frac: np.ndarray, step: np.ndarray=None)
         feather = np.maximum(half_frac * 0.3, step * 0.8)
     else:
         feather = half_frac * 0.4
-    feather = np.clip(feather, 1e-06, half_frac * 2.0)
+    feather = np.clip(feather, 1e-06, np.maximum(half_frac * 2.0, 1e-06))
     t = np.clip((half_frac + feather - dist) / (feather + 1e-09), 0.0, 1.0)
     t2 = np.clip((half_frac - dist) / (feather + 1e-09), -1.0, 1.0)
     t2 = (t2 + 1.0) * 0.5
-    return t2 * t2 * (3.0 - 2.0 * t2)
+    alpha = t2 * t2 * (3.0 - 2.0 * t2)
+    
+    # Force zero alpha where thickness is zero
+    if isinstance(half_frac, np.ndarray):
+        alpha[half_frac <= 0] = 0.0
+    elif half_frac <= 0:
+        return np.zeros_like(dist)
+        
+    return alpha
 
 def _combine_grout(alpha_u: np.ndarray, alpha_v: np.ndarray) -> np.ndarray:
     return np.maximum(alpha_u, alpha_v)
@@ -25,8 +33,8 @@ def _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy, grout_thickness_v, grout_th
     dv_rot_dy = -s * du_dy + c * dv_dy
     step_u_rot = np.clip(np.sqrt(du_rot_dx ** 2 + du_rot_dy ** 2), 1e-06, 10.0)
     step_v_rot = np.clip(np.sqrt(dv_rot_dx ** 2 + dv_rot_dy ** 2), 1e-06, 10.0)
-    grout_v_frac_rot = np.clip(step_u_rot * grout_thickness_v, 0.0005, 0.45)
-    grout_h_frac_rot = np.clip(step_v_rot * grout_thickness_h, 0.0005, 0.45)
+    grout_v_frac_rot = np.clip(step_u_rot * grout_thickness_v, 0.0, 0.45)
+    grout_h_frac_rot = np.clip(step_v_rot * grout_thickness_h, 0.0, 0.45)
     return (grout_v_frac_rot, grout_h_frac_rot)
 
 def pattern_grid(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, uv_step_u=None, uv_step_v=None, **_) -> tuple:
@@ -133,12 +141,12 @@ def pattern_chevron(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, as
     dist_t = np.minimum(t_raw, 1.0 - t_raw)
     step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
     step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
-    gf_long = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
-    gf_end = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
+    gf_long = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
+    gf_end = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
     alpha_long = _grout_alpha(dist_s, gf_long / 2.0, step=step_v)
     alpha_end = _grout_alpha(dist_t, gf_end / 2.0, step=step_u)
     dist_seam = np.abs(u_mod - 1.0)
-    gf_seam = np.clip(step_u * grout_thickness_v * 0.8, 0.0005, 0.3)
+    gf_seam = np.clip(step_u * grout_thickness_v * 0.8, 0.0, 0.3)
     alpha_seam = _grout_alpha(dist_seam, gf_seam / 2.0, step=step_u)
     on_grout = np.maximum(np.maximum(alpha_long, alpha_end), alpha_seam)
     is_second = right_arm
@@ -155,16 +163,16 @@ def pattern_basketweave(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac
     dist_mid_h = np.abs(lv - 1.0)
     dist_edge_lu = np.minimum(lu, 2.0 - lu)
     dist_edge_lv = np.minimum(lv, 2.0 - lv)
-    gf_h_mid = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
-    gf_h_edgeU = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
-    gf_h_edgeV = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
+    gf_h_mid = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
+    gf_h_edgeU = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
+    gf_h_edgeV = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
     alpha_h = np.maximum(np.maximum(_grout_alpha(dist_mid_h, gf_h_mid / 2.0, step=step_v), _grout_alpha(dist_edge_lu, gf_h_edgeU / 2.0, step=step_u)), _grout_alpha(dist_edge_lv, gf_h_edgeV / 2.0, step=step_v))
     dist_mid_v = np.abs(lu - 1.0)
     dist_edge_vu = np.minimum(lu, 2.0 - lu)
     dist_edge_vv = np.minimum(lv, 2.0 - lv)
-    gf_v_mid = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
-    gf_v_edgeU = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
-    gf_v_edgeV = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
+    gf_v_mid = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
+    gf_v_edgeU = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
+    gf_v_edgeV = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
     alpha_v = np.maximum(np.maximum(_grout_alpha(dist_mid_v, gf_v_mid / 2.0, step=step_u), _grout_alpha(dist_edge_vu, gf_v_edgeU / 2.0, step=step_u)), _grout_alpha(dist_edge_vv, gf_v_edgeV / 2.0, step=step_v))
     on_grout = np.where(is_h, alpha_h, alpha_v)
     plank_h = np.floor(lv).astype(int) % 2
@@ -187,8 +195,8 @@ def pattern_versailles(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac,
     dist_v = dist_to_boundaries(vc)
     step_u = uv_step_u * 2.0 if uv_step_u is not None else grout_v_frac
     step_v = uv_step_v * 2.0 * ar if uv_step_v is not None else grout_h_frac
-    gf_u = np.clip(step_u * grout_thickness_v / 2.0, 0.0005, 0.4)
-    gf_v = np.clip(step_v * grout_thickness_h / 2.0, 0.0005, 0.4)
+    gf_u = np.clip(step_u * grout_thickness_v / 2.0, 0.0, 0.4)
+    gf_v = np.clip(step_v * grout_thickness_h / 2.0, 0.0, 0.4)
     alpha = np.maximum(_grout_alpha(dist_u, gf_u / 2.0, step=step_u), _grout_alpha(dist_v, gf_v / 2.0, step=step_v))
     in_center = (uc >= 1.0) & (uc < 3.0) & (vc >= 1.0) & (vc < 3.0)
     is_second = ~in_center
