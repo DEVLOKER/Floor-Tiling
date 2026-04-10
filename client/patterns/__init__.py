@@ -1,415 +1,200 @@
-"""Tile pattern generators — with anti-aliased grout lines"""
 import numpy as np
 
-
-# ── Anti-aliased grout helper ─────────────────────────────────────────────────
-
-def _grout_alpha(dist: np.ndarray, half_frac: np.ndarray,
-                 step: np.ndarray = None) -> np.ndarray:
+def _grout_alpha(dist: np.ndarray, half_frac: np.ndarray, step: np.ndarray=None) -> np.ndarray:
     if step is not None:
-        # Feather must span at least 0.8px so adjacent pixels get partial alpha
-        # → no gaps in diagonal lines. DO NOT increase half_frac (keeps line thin).
         feather = np.maximum(half_frac * 0.3, step * 0.8)
     else:
         feather = half_frac * 0.4
-
-    feather = np.clip(feather, 1e-6, half_frac * 2.0)
-    t = np.clip((half_frac + feather - dist) / (feather + 1e-9), 0.0, 1.0)
-    # Remap so: dist <= half_frac → alpha=1,  dist >= half_frac+feather → alpha=0
-    t2 = np.clip((half_frac - dist) / (feather + 1e-9), -1.0, 1.0)
-    t2 = (t2 + 1.0) * 0.5   # map [-1,1] → [0,1]
-    return t2 * t2 * (3.0 - 2.0 * t2)   # cubic smoothstep
-
+    feather = np.clip(feather, 1e-06, half_frac * 2.0)
+    t = np.clip((half_frac + feather - dist) / (feather + 1e-09), 0.0, 1.0)
+    t2 = np.clip((half_frac - dist) / (feather + 1e-09), -1.0, 1.0)
+    t2 = (t2 + 1.0) * 0.5
+    return t2 * t2 * (3.0 - 2.0 * t2)
 
 def _combine_grout(alpha_u: np.ndarray, alpha_v: np.ndarray) -> np.ndarray:
-    """Combine U and V grout alphas (union: max)."""
     return np.maximum(alpha_u, alpha_v)
 
-
-# ── Rotated grout helper ──────────────────────────────────────────────────────
-
-def _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy,
-                          grout_thickness_v, grout_thickness_h,
-                          angle_deg: float = 45.0):
-    """
-    Compute correct grout fractions for a rotated tile grid.
-    Recomputes step sizes from rotated-space gradients so line thickness
-    is correct for any rotation angle.
-    """
+def _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy, grout_thickness_v, grout_thickness_h, angle_deg: float=45.0):
     if du_dx is None:
-        return None, None   # signal: use fallback
-
+        return (None, None)
     rad = np.radians(angle_deg)
-    c, s = np.cos(rad), np.sin(rad)
-
+    c, s = (np.cos(rad), np.sin(rad))
     du_rot_dx = c * du_dx + s * dv_dx
     du_rot_dy = c * du_dy + s * dv_dy
     dv_rot_dx = -s * du_dx + c * dv_dx
     dv_rot_dy = -s * du_dy + c * dv_dy
-
-    step_u_rot = np.clip(np.sqrt(du_rot_dx**2 + du_rot_dy**2), 1e-6, 10.0)
-    step_v_rot = np.clip(np.sqrt(dv_rot_dx**2 + dv_rot_dy**2), 1e-6, 10.0)
-
+    step_u_rot = np.clip(np.sqrt(du_rot_dx ** 2 + du_rot_dy ** 2), 1e-06, 10.0)
+    step_v_rot = np.clip(np.sqrt(dv_rot_dx ** 2 + dv_rot_dy ** 2), 1e-06, 10.0)
     grout_v_frac_rot = np.clip(step_u_rot * grout_thickness_v, 0.0005, 0.45)
     grout_h_frac_rot = np.clip(step_v_rot * grout_thickness_h, 0.0005, 0.45)
+    return (grout_v_frac_rot, grout_h_frac_rot)
 
-    return grout_v_frac_rot, grout_h_frac_rot
-
-
-# ── Pattern functions ─────────────────────────────────────────────────────────
-
-def pattern_grid(u: np.ndarray, v: np.ndarray,
-                 grout_h_frac, grout_v_frac,
-                 uv_step_u=None, uv_step_v=None, **_) -> tuple:
+def pattern_grid(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, uv_step_u=None, uv_step_v=None, **_) -> tuple:
     frac_u = u - np.floor(u)
     frac_v = v - np.floor(v)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
     dist_v = np.minimum(frac_v, 1.0 - frac_v)
+    alpha = _combine_grout(_grout_alpha(dist_u, grout_v_frac / 2.0, step=uv_step_u), _grout_alpha(dist_v, grout_h_frac / 2.0, step=uv_step_v))
+    return (np.zeros(u.shape, dtype=bool), alpha)
 
-    alpha = _combine_grout(
-        _grout_alpha(dist_u, grout_v_frac / 2.0, step=uv_step_u),
-        _grout_alpha(dist_v, grout_h_frac / 2.0, step=uv_step_v),
-    )
-    return np.zeros(u.shape, dtype=bool), alpha
-
-def pattern_diagonal(u: np.ndarray, v: np.ndarray,
-                     grout_h_frac, grout_v_frac,
-                     du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
-                     grout_thickness_v=1, grout_thickness_h=1,
-                     uv_step_u=None, uv_step_v=None, **_) -> tuple:
+def pattern_diagonal(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, du_dx=None, du_dy=None, dv_dx=None, dv_dy=None, grout_thickness_v=1, grout_thickness_h=1, uv_step_u=None, uv_step_v=None, **_) -> tuple:
     SQRT2 = np.sqrt(2.0)
     u_rot = (u + v) / SQRT2
     v_rot = (-u + v) / SQRT2
-
     frac_u = u_rot - np.floor(u_rot)
     frac_v = v_rot - np.floor(v_rot)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
     dist_v = np.minimum(frac_v, 1.0 - frac_v)
-
-    gv, gh = _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy,
-                                   grout_thickness_v, grout_thickness_h, 45.0)
+    gv, gh = _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy, grout_thickness_v, grout_thickness_h, 45.0)
     if gv is None:
-        gv, gh = grout_v_frac / np.sqrt(2), grout_h_frac / np.sqrt(2)
-
-    # step_rot: per-pixel UV advance in rotated space (= gv / grout_thickness_v)
+        gv, gh = (grout_v_frac / np.sqrt(2), grout_h_frac / np.sqrt(2))
     step_u_rot = gv / max(grout_thickness_v, 1)
     step_v_rot = gh / max(grout_thickness_h, 1)
+    alpha = _combine_grout(_grout_alpha(dist_u, gv / 2.0, step=step_u_rot), _grout_alpha(dist_v, gh / 2.0, step=step_v_rot))
+    return (np.zeros(u.shape, dtype=bool), alpha)
 
-    alpha = _combine_grout(
-        _grout_alpha(dist_u, gv / 2.0, step=step_u_rot),
-        _grout_alpha(dist_v, gh / 2.0, step=step_v_rot),
-    )
-    return np.zeros(u.shape, dtype=bool), alpha
-
-
-def pattern_brick(u: np.ndarray, v: np.ndarray,
-                  grout_h_frac, grout_v_frac,
-                  uv_step_u=None, uv_step_v=None, **_) -> tuple:
+def pattern_brick(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, uv_step_u=None, uv_step_v=None, **_) -> tuple:
     row = np.floor(v).astype(np.int32)
-    u_shifted = u + (row % 2) * 0.5
+    u_shifted = u + row % 2 * 0.5
     frac_u = u_shifted - np.floor(u_shifted)
     frac_v = v - np.floor(v)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
     dist_v = np.minimum(frac_v, 1.0 - frac_v)
+    alpha = _combine_grout(_grout_alpha(dist_u, grout_v_frac / 2.0, step=uv_step_u), _grout_alpha(dist_v, grout_h_frac / 2.0, step=uv_step_v))
+    return (np.zeros(u.shape, dtype=bool), alpha)
 
-    alpha = _combine_grout(
-        _grout_alpha(dist_u, grout_v_frac / 2.0, step=uv_step_u),
-        _grout_alpha(dist_v, grout_h_frac / 2.0, step=uv_step_v),
-    )
-    return np.zeros(u.shape, dtype=bool), alpha
-
-
-def pattern_herringbone(u: np.ndarray, v: np.ndarray,
-                        grout_h_frac, grout_v_frac,
-                        aspect_ratio: float = 2.0, **_) -> tuple:
-    L  = max(float(aspect_ratio), 1.01)
-    S  = 1.5
+def pattern_herringbone(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, aspect_ratio: float=2.0, **_) -> tuple:
+    L = max(float(aspect_ratio), 1.01)
+    S = 1.5
     CW = L + S
-
     lu = u % CW
     lv = v % CW
-
-    in_H1 = (lu <  L)  & (lv <  S)
-    in_V2 = (lu >= L)  & (lv <  L)
-    in_V1 = (lu <  S)  & (lv >= S)
-    in_H2 = (lu >= S)  & (lv >= L)
-    gap   = ~(in_H1 | in_V1 | in_V2 | in_H2)
-
-    fu = np.zeros_like(u);  fv = np.zeros_like(v)
-    fu = np.where(in_H1,  lu      / L, fu);  fv = np.where(in_H1,  lv      / S, fv)
-    fu = np.where(in_V1,  lu      / S, fu);  fv = np.where(in_V1, (lv-S)   / L, fv)
-    fu = np.where(in_V2, (lu-L)   / S, fu);  fv = np.where(in_V2,  lv      / L, fv)
-    fu = np.where(in_H2, (lu-S)   / L, fu);  fv = np.where(in_H2, (lv-L)   / S, fv)
-    fu = np.clip(fu, 0.0, 1.0);  fv = np.clip(fv, 0.0, 1.0)
-
+    in_H1 = (lu < L) & (lv < S)
+    in_V2 = (lu >= L) & (lv < L)
+    in_V1 = (lu < S) & (lv >= S)
+    in_H2 = (lu >= S) & (lv >= L)
+    gap = ~(in_H1 | in_V1 | in_V2 | in_H2)
+    fu = np.zeros_like(u)
+    fv = np.zeros_like(v)
+    fu = np.where(in_H1, lu / L, fu)
+    fv = np.where(in_H1, lv / S, fv)
+    fu = np.where(in_V1, lu / S, fu)
+    fv = np.where(in_V1, (lv - S) / L, fv)
+    fu = np.where(in_V2, (lu - L) / S, fu)
+    fv = np.where(in_V2, lv / L, fv)
+    fu = np.where(in_H2, (lu - S) / L, fu)
+    fv = np.where(in_H2, (lv - L) / S, fv)
+    fu = np.clip(fu, 0.0, 1.0)
+    fv = np.clip(fv, 0.0, 1.0)
     dist_u = np.minimum(fu, 1.0 - fu)
     dist_v = np.minimum(fv, 1.0 - fv)
+    alpha = np.where(gap, 1.0, _combine_grout(_grout_alpha(dist_u, grout_v_frac / 4.0), _grout_alpha(dist_v, grout_h_frac / 4.0)))
+    return (np.zeros(u.shape, dtype=bool), alpha)
 
-    alpha = np.where(gap, 1.0, _combine_grout(
-        _grout_alpha(dist_u, grout_v_frac / 4.0),
-        _grout_alpha(dist_v, grout_h_frac / 4.0),
-    ))
-    return np.zeros(u.shape, dtype=bool), alpha
-
-
-def pattern_checkerboard(u: np.ndarray, v: np.ndarray,
-                         grout_h_frac, grout_v_frac,
-                         uv_step_u=None, uv_step_v=None, **_) -> tuple:
+def pattern_checkerboard(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, uv_step_u=None, uv_step_v=None, **_) -> tuple:
     frac_u = u - np.floor(u)
     frac_v = v - np.floor(v)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
     dist_v = np.minimum(frac_v, 1.0 - frac_v)
-
-    alpha = _combine_grout(
-        _grout_alpha(dist_u, grout_v_frac / 4.0, step=uv_step_u),
-        _grout_alpha(dist_v, grout_h_frac / 4.0, step=uv_step_v),
-    )
+    alpha = _combine_grout(_grout_alpha(dist_u, grout_v_frac / 4.0, step=uv_step_u), _grout_alpha(dist_v, grout_h_frac / 4.0, step=uv_step_v))
     cell_u = np.floor(u).astype(np.int32)
     cell_v = np.floor(v).astype(np.int32)
-    is_second = ((cell_u + cell_v) % 2) == 1
-    return is_second, alpha
+    is_second = (cell_u + cell_v) % 2 == 1
+    return (is_second, alpha)
 
-
-def pattern_diagonal_checkerboard(u: np.ndarray, v: np.ndarray,
-                                   grout_h_frac, grout_v_frac,
-                                   du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
-                                   grout_thickness_v=1, grout_thickness_h=1,
-                                   uv_step_u=None, uv_step_v=None, **_) -> tuple:
+def pattern_diagonal_checkerboard(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, du_dx=None, du_dy=None, dv_dx=None, dv_dy=None, grout_thickness_v=1, grout_thickness_h=1, uv_step_u=None, uv_step_v=None, **_) -> tuple:
     SQRT2 = np.sqrt(2.0)
     u_rot = (u + v) / SQRT2
     v_rot = (-u + v) / SQRT2
-
     frac_u = u_rot - np.floor(u_rot)
     frac_v = v_rot - np.floor(v_rot)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
     dist_v = np.minimum(frac_v, 1.0 - frac_v)
-
-    gv, gh = _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy,
-                                   grout_thickness_v, grout_thickness_h, 45.0)
+    gv, gh = _rotated_grout_fracs(du_dx, du_dy, dv_dx, dv_dy, grout_thickness_v, grout_thickness_h, 45.0)
     if gv is None:
-        gv, gh = grout_v_frac / np.sqrt(2), grout_h_frac / np.sqrt(2)
-
+        gv, gh = (grout_v_frac / np.sqrt(2), grout_h_frac / np.sqrt(2))
     step_u_rot = gv / max(grout_thickness_v, 1)
     step_v_rot = gh / max(grout_thickness_h, 1)
-
-    alpha = _combine_grout(
-        _grout_alpha(dist_u, gv / 2.0, step=step_u_rot),
-        _grout_alpha(dist_v, gh / 2.0, step=step_v_rot),
-    )
+    alpha = _combine_grout(_grout_alpha(dist_u, gv / 2.0, step=step_u_rot), _grout_alpha(dist_v, gh / 2.0, step=step_v_rot))
     cell_u = np.floor(u_rot).astype(np.int32)
     cell_v = np.floor(v_rot).astype(np.int32)
-    is_second = ((cell_u + cell_v) % 2) == 1
-    return is_second, alpha
+    is_second = (cell_u + cell_v) % 2 == 1
+    return (is_second, alpha)
 
-
-def pattern_chevron(u: np.ndarray, v: np.ndarray,
-                    grout_h_frac,
-                    grout_v_frac,
-                    aspect_ratio: float = 1.0,   # unused in geometry, kept for API compat
-                    uv_step_u=None,
-                    uv_step_v=None,
-                    grout_thickness_v=1,
-                    grout_thickness_h=1,
-                    du_dx=None, du_dy=None,
-                    dv_dx=None, dv_dy=None,
-                    **_) -> tuple:
-    # ── Fold into one V cell (period 2 × 1) ──────────────────────────────
-    u_mod     = u % 2.0          # ∈ [0, 2)
-    v_mod     = v % 1.0          # ∈ [0, 1)
-
-    right_arm = u_mod >= 1.0                              # True = right arm (\)
-    u_arm     = np.where(right_arm, u_mod - 1.0, u_mod)  # ∈ [0, 1) for both arms
-
-    # ── Shear: map parallelogram → unit square ────────────────────────────
+def pattern_chevron(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, aspect_ratio: float=1.0, uv_step_u=None, uv_step_v=None, grout_thickness_v=1, grout_thickness_h=1, du_dx=None, du_dy=None, dv_dx=None, dv_dy=None, **_) -> tuple:
+    u_mod = u % 2.0
+    v_mod = v % 1.0
+    right_arm = u_mod >= 1.0
+    u_arm = np.where(right_arm, u_mod - 1.0, u_mod)
     shear = np.where(right_arm, 1.0 - u_arm, u_arm)
-
-    s_raw = (v_mod - shear) % 1.0   # across-plank position [0,1]
-    t_raw = u_arm                    # along-plank  position [0,1]
-
-    # ── Grout distances ───────────────────────────────────────────────────
-    dist_s = np.minimum(s_raw, 1.0 - s_raw)   # long-edge grout
-    dist_t = np.minimum(t_raw, 1.0 - t_raw)   # end-cut  grout
-
-    # ── Adaptive grout fractions ──────────────────────────────────────────
+    s_raw = (v_mod - shear) % 1.0
+    t_raw = u_arm
+    dist_s = np.minimum(s_raw, 1.0 - s_raw)
+    dist_t = np.minimum(t_raw, 1.0 - t_raw)
     step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
     step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
-
-    gf_long = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)  # long-edge gap
-    gf_end  = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)  # end-cut gap
-
+    gf_long = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
+    gf_end = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
     alpha_long = _grout_alpha(dist_s, gf_long / 2.0, step=step_v)
-    alpha_end  = _grout_alpha(dist_t, gf_end  / 2.0, step=step_u)
-
-    # ── Apex seam: thin grout line where left and right arms meet ─────────
-    dist_seam  = np.abs(u_mod - 1.0)            # distance from u=1 seam
-    gf_seam    = np.clip(step_u * grout_thickness_v * 0.8, 0.0005, 0.30)
+    alpha_end = _grout_alpha(dist_t, gf_end / 2.0, step=step_u)
+    dist_seam = np.abs(u_mod - 1.0)
+    gf_seam = np.clip(step_u * grout_thickness_v * 0.8, 0.0005, 0.3)
     alpha_seam = _grout_alpha(dist_seam, gf_seam / 2.0, step=step_u)
-
-    # ── Combine ───────────────────────────────────────────────────────────
-    on_grout  = np.maximum(np.maximum(alpha_long, alpha_end), alpha_seam)
+    on_grout = np.maximum(np.maximum(alpha_long, alpha_end), alpha_seam)
     is_second = right_arm
+    return (is_second, on_grout)
 
-    return is_second, on_grout
-
-
-def pattern_basketweave(u: np.ndarray, v: np.ndarray,
-                        grout_h_frac,
-                        grout_v_frac,
-                        aspect_ratio: float = 1.0,
-                        uv_step_u=None,
-                        uv_step_v=None,
-                        grout_thickness_v: int = 1,
-                        grout_thickness_h: int = 1,
-                        du_dx=None, du_dy=None,
-                        dv_dx=None, dv_dy=None,
-                        **_) -> tuple:
-    # ── Bundle assignment ─────────────────────────────────────────────────
-    # Group tiles into 2×2 blocks, then checkerboard the blocks
+def pattern_basketweave(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, aspect_ratio: float=1.0, uv_step_u=None, uv_step_v=None, grout_thickness_v: int=1, grout_thickness_h: int=1, du_dx=None, du_dy=None, dv_dx=None, dv_dy=None, **_) -> tuple:
     block_u = np.floor(u / 2.0).astype(int)
     block_v = np.floor(v / 2.0).astype(int)
-    is_h    = ((block_u + block_v) % 2) == 0   # H when even, V when odd
-
-    # ── Local position within the 2×2 tile bundle ────────────────────────
-    lu = u % 2.0   # [0, 2)
-    lv = v % 2.0   # [0, 2)
-
-    # ── Per-pixel UV step sizes ───────────────────────────────────────────
+    is_h = (block_u + block_v) % 2 == 0
+    lu = u % 2.0
+    lv = v % 2.0
     step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
     step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
-
-    # ── H bundle grout ────────────────────────────────────────────────────
-    # Between-plank line: at lv=1 (midpoint of [0,2))
-    dist_mid_h   = np.abs(lv - 1.0)           # 0 at lv=1, max=1 at edges
-    # Bundle left/right edges: at lu=0 and lu=2
+    dist_mid_h = np.abs(lv - 1.0)
     dist_edge_lu = np.minimum(lu, 2.0 - lu)
-    # Bundle top/bottom edges: at lv=0 and lv=2
     dist_edge_lv = np.minimum(lv, 2.0 - lv)
-
-    gf_h_mid  = np.clip(step_v * grout_thickness_h,       0.0005, 0.45)
-    gf_h_edgeU= np.clip(step_u * grout_thickness_v,       0.0005, 0.45)
-    gf_h_edgeV= np.clip(step_v * grout_thickness_h,       0.0005, 0.45)
-
-    alpha_h = np.maximum(
-        np.maximum(
-            _grout_alpha(dist_mid_h,   gf_h_mid   / 2.0, step=step_v),
-            _grout_alpha(dist_edge_lu, gf_h_edgeU / 2.0, step=step_u),
-        ),
-        _grout_alpha(dist_edge_lv, gf_h_edgeV / 2.0, step=step_v),
-    )
-
-    # ── V bundle grout ────────────────────────────────────────────────────
-    # Between-plank line: at lu=1
-    dist_mid_v   = np.abs(lu - 1.0)
-    # Bundle left/right edges: at lu=0 and lu=2
+    gf_h_mid = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
+    gf_h_edgeU = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
+    gf_h_edgeV = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
+    alpha_h = np.maximum(np.maximum(_grout_alpha(dist_mid_h, gf_h_mid / 2.0, step=step_v), _grout_alpha(dist_edge_lu, gf_h_edgeU / 2.0, step=step_u)), _grout_alpha(dist_edge_lv, gf_h_edgeV / 2.0, step=step_v))
+    dist_mid_v = np.abs(lu - 1.0)
     dist_edge_vu = np.minimum(lu, 2.0 - lu)
-    # Bundle top/bottom edges: at lv=0 and lv=2
     dist_edge_vv = np.minimum(lv, 2.0 - lv)
-
-    gf_v_mid  = np.clip(step_u * grout_thickness_v,       0.0005, 0.45)
-    gf_v_edgeU= np.clip(step_u * grout_thickness_v,       0.0005, 0.45)
-    gf_v_edgeV= np.clip(step_v * grout_thickness_h,       0.0005, 0.45)
-
-    alpha_v = np.maximum(
-        np.maximum(
-            _grout_alpha(dist_mid_v,   gf_v_mid   / 2.0, step=step_u),
-            _grout_alpha(dist_edge_vu, gf_v_edgeU / 2.0, step=step_u),
-        ),
-        _grout_alpha(dist_edge_vv, gf_v_edgeV / 2.0, step=step_v),
-    )
-
-    on_grout  = np.where(is_h, alpha_h, alpha_v)
-    plank_h   = np.floor(lv).astype(int) % 2   # 0=top, 1=bottom (within H-bundle)
-    plank_v   = np.floor(lu).astype(int) % 2   # 0=left, 1=right  (within V-bundle)
-    # is_second = np.where(is_h, plank_h == 1, plank_v == 1)
+    gf_v_mid = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
+    gf_v_edgeU = np.clip(step_u * grout_thickness_v, 0.0005, 0.45)
+    gf_v_edgeV = np.clip(step_v * grout_thickness_h, 0.0005, 0.45)
+    alpha_v = np.maximum(np.maximum(_grout_alpha(dist_mid_v, gf_v_mid / 2.0, step=step_u), _grout_alpha(dist_edge_vu, gf_v_edgeU / 2.0, step=step_u)), _grout_alpha(dist_edge_vv, gf_v_edgeV / 2.0, step=step_v))
+    on_grout = np.where(is_h, alpha_h, alpha_v)
+    plank_h = np.floor(lv).astype(int) % 2
+    plank_v = np.floor(lu).astype(int) % 2
     is_second = ~is_h
+    return (is_second, on_grout)
 
-    return is_second, on_grout
-
-
-def pattern_versailles(u: np.ndarray, v: np.ndarray,
-                       grout_h_frac,
-                       grout_v_frac,
-                       aspect_ratio: float = 1.0,
-                       uv_step_u=None,
-                       uv_step_v=None,
-                       grout_thickness_v: int = 1,
-                       grout_thickness_h: int = 1,
-                       du_dx=None, du_dy=None,
-                       dv_dx=None, dv_dy=None,
-                       **_) -> tuple:
-    """
-    Versailles (French parquet) pattern — 4x4 unit repeating cell.
-
-    Cell layout (each unit = 1 tile width):
-      x:  0   1       3   4
-      y=0 +---+-------+---+
-          |TL |  Top  |TR |   1x1  |  2x1  |  1x1
-      y=1 +---+-------+---+
-          | L | Large | R |   1x2  |  2x2  |  1x2
-      y=3 +---+-------+---+
-          |BL |Bottom |BR |   1x1  |  2x1  |  1x1
-      y=4 +---+-------+---+
-
-    Grout lines at UV boundaries: x in {0,1,3,4}, y in {0,1,3,4} (mod 4).
-    Colors: large center + 4 corner squares = color1
-            4 border rectangles             = color2
-    """
+def pattern_versailles(u: np.ndarray, v: np.ndarray, grout_h_frac, grout_v_frac, aspect_ratio: float=1.0, uv_step_u=None, uv_step_v=None, grout_thickness_v: int=1, grout_thickness_h: int=1, du_dx=None, du_dy=None, dv_dx=None, dv_dy=None, **_) -> tuple:
     CELL = 4.0
     ar = float(aspect_ratio) if aspect_ratio and aspect_ratio > 0 else 1.0
-    uc = (u * 2.0) % CELL
-    vc = (v * 2.0 * ar) % CELL
+    uc = u * 2.0 % CELL
+    vc = v * 2.0 * ar % CELL
 
-    # ── Grout: distance to nearest boundary in {0, 1, 3} within [0,4) ────
     def dist_to_boundaries(c):
-        d0 = np.minimum(c, CELL - c)   # distance to 0 (wraps from 4)
-        d1 = np.abs(c - 1.0)           # distance to 1
-        d3 = np.abs(c - 3.0)           # distance to 3
+        d0 = np.minimum(c, CELL - c)
+        d1 = np.abs(c - 1.0)
+        d3 = np.abs(c - 3.0)
         return np.minimum(d0, np.minimum(d1, d3))
-
     dist_u = dist_to_boundaries(uc)
     dist_v = dist_to_boundaries(vc)
-
-    # UV step size scaled to match the 2× UV scaling above
-    step_u = (uv_step_u * 2.0) if uv_step_u is not None else grout_v_frac
-    step_v = (uv_step_v * 2.0 * ar) if uv_step_v is not None else grout_h_frac
-
-    # Grout half-width: divide by 2 to compensate for the 2× UV scaling above
-    gf_u = np.clip(step_u * grout_thickness_v / 2.0, 0.0005, 0.40)
-    gf_v = np.clip(step_v * grout_thickness_h / 2.0, 0.0005, 0.40)
-
-    alpha = np.maximum(
-        _grout_alpha(dist_u, gf_u / 2.0, step=step_u),
-        _grout_alpha(dist_v, gf_v / 2.0, step=step_v),
-    )
-
-    # ── Color assignment ──────────────────────────────────────────────────
+    step_u = uv_step_u * 2.0 if uv_step_u is not None else grout_v_frac
+    step_v = uv_step_v * 2.0 * ar if uv_step_v is not None else grout_h_frac
+    gf_u = np.clip(step_u * grout_thickness_v / 2.0, 0.0005, 0.4)
+    gf_v = np.clip(step_v * grout_thickness_h / 2.0, 0.0005, 0.4)
+    alpha = np.maximum(_grout_alpha(dist_u, gf_u / 2.0, step=step_u), _grout_alpha(dist_v, gf_v / 2.0, step=step_v))
     in_center = (uc >= 1.0) & (uc < 3.0) & (vc >= 1.0) & (vc < 3.0)
-    is_second = ~in_center   # all surrounding tiles = color2
-
-    return is_second, alpha
-
-# ── Pattern registry ──────────────────────────────────────────────────────────
-PATTERN_FUNCTIONS = {
-    "grid":                   pattern_grid,
-    "diagonal":               pattern_diagonal,
-    "brick":                  pattern_brick,
-    "herringbone":            pattern_herringbone,
-    "checkerboard":           pattern_checkerboard,
-    "diagonal_checkerboard":  pattern_diagonal_checkerboard,
-    "chevron":                pattern_chevron,
-    "basketweave":            pattern_basketweave,
-    "versailles":             pattern_versailles
-}
-
+    is_second = ~in_center
+    return (is_second, alpha)
+PATTERN_FUNCTIONS = {'grid': pattern_grid, 'diagonal': pattern_diagonal, 'brick': pattern_brick, 'herringbone': pattern_herringbone, 'checkerboard': pattern_checkerboard, 'diagonal_checkerboard': pattern_diagonal_checkerboard, 'chevron': pattern_chevron, 'basketweave': pattern_basketweave, 'versailles': pattern_versailles}
 
 def get_pattern(pattern_name: str):
     return PATTERN_FUNCTIONS.get(pattern_name, pattern_grid)
-
-
-__all__ = [
-    "pattern_grid", "pattern_brick", "pattern_diagonal",
-    "pattern_herringbone", "pattern_checkerboard",
-    "pattern_diagonal_checkerboard", "pattern_chevron", 
-    "pattern_basketweave", "pattern_versailles", 
-    "PATTERN_FUNCTIONS", "get_pattern",
-]
+__all__ = ['pattern_grid', 'pattern_brick', 'pattern_diagonal', 'pattern_herringbone', 'pattern_checkerboard', 'pattern_diagonal_checkerboard', 'pattern_chevron', 'pattern_basketweave', 'pattern_versailles', 'PATTERN_FUNCTIONS', 'get_pattern']
