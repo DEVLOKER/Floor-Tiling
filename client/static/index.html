@@ -109,7 +109,10 @@
 </svg>
 
 <!-- ── Full-page canvas ────────────────────────────────────── -->
-<canvas id="mainCanvas"></canvas>
+<main class="app-layout">
+    <div class="canvas-workspace">
+        <canvas id="mainCanvas"></canvas>
+        <div id="markersOverlay"></div>
 
 <!-- ── Welcome state (pre-upload) ─────────────────────────── -->
 <div class="welcome-overlay" id="welcomeOverlay">
@@ -143,27 +146,7 @@
     </div>
 </div>
 
-<!-- ── Top bar ────────────────────────────────────────────── -->
-<header class="top-bar">
-    <div class="top-bar-left">
-        <span class="app-logo">
-            <svg class="app-icon app-icon-lg">
-                <use href="#ico-layers" />
-            </svg>
-        </span>
-        <div class="app-name">
-            <div class="app-title">Visualiseur de Carrelage</div>
-            <div class="app-subtitle">Propulsé par SCRIPTIHA</div>
-        </div>
-    </div>
-    <div class="top-bar-right">
-        <button class="top-btn top-btn-close" id="closeAppBtn" title="Fermer l'application" onclick="window.close()">
-            <svg class="app-icon app-icon-sm">
-                <use href="#ico-close" />
-            </svg> Fermer
-        </button>
-    </div>
-</header>
+<!-- Header moved to side panel -->
 
 <!-- ── HUD: instruction / coords pill ────────────────────── -->
 <div class="hud-pill" id="coordsInfo">Cliquez sur le sol pour le sélectionner</div>
@@ -188,13 +171,7 @@
             </svg>
         </button>
     </div>
-    <div class="fab-tip-wrap" data-tip="Paramètres du carrelage">
-        <button class="fab fab-sm" id="openSettingsBtn" title="Paramètres du carrelage">
-            <svg class="app-icon">
-                <use href="#ico-settings" />
-            </svg>
-        </button>
-    </div>
+<!-- Removed openSettingsBtn since sidebar is always visible -->
     <div class="fab-tip-wrap" data-tip="Afficher l'original / Résultat" id="togglePreviewFabWrap" style="display:none">
         <button class="fab fab-sm fab-toggle-preview" id="togglePreviewBtn" title="Afficher l'original / Résultat">
             <svg class="app-icon">
@@ -209,7 +186,7 @@
             </svg>
         </button>
     </div>
-    <button class="fab fab-main" id="applyTilesBtn">
+    <button class="fab fab-main" id="applyTilesBtn" style="display:none">
         <svg class="app-icon">
             <use href="#ico-paint" />
         </svg>
@@ -220,22 +197,30 @@
 <!-- Hidden file input -->
 <input type="file" id="fileInput" accept="image/*" style="display:none" />
 
-<!-- ── Side panel backdrop ───────────────────────────────── -->
-<div class="panel-backdrop" id="panelBackdrop"></div>
+<!-- No backdrop needed in 2-column layout -->
+    </div> <!-- /canvas-workspace -->
 
 <!-- ── Side panel ────────────────────────────────────────── -->
 <aside class="side-panel" id="sidePanel">
     <div class="panel-header">
-        <span class="panel-title">
-            <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:6px">
-                <use href="#ico-tile" />
-            </svg>Paramètres
-        </span>
-        <button class="panel-close" id="closePanelBtn" title="Fermer">
-            <svg class="app-icon app-icon-sm">
-                <use href="#ico-close" />
-            </svg>
-        </button>
+        <div class="top-bar-left">
+            <span class="app-logo">
+                <svg class="app-icon app-icon-lg">
+                    <use href="#ico-layers" />
+                </svg>
+            </span>
+            <div class="app-name">
+                <div class="app-title">Visualiseur de Carrelage</div>
+                <div class="app-subtitle">Propulsé par SCRIPTIHA</div>
+            </div>
+        </div>
+        <div class="top-bar-right">
+            <button class="top-btn top-btn-close" id="closeAppBtn" title="Fermer l'application" onclick="window.close()">
+                <svg class="app-icon app-icon-sm">
+                    <use href="#ico-close" />
+                </svg> Fermer
+            </button>
+        </div>
     </div>
 
     <div class="panel-body">
@@ -432,10 +417,9 @@
 <!-- ── Toast notifications ───────────────────────────────── -->
 <div class="toast-container" id="toastContainer"></div>
 
-    <canvas id="mainCanvas"></canvas>
-    <div id="markersOverlay"></div>
+</main> <!-- /app-layout -->
 
-    <script type="module" src="/static/js/modules/main.js"></script>
+<script type="module" src="/static/js/modules/main.js"></script>
 </body>
 
 </html>
