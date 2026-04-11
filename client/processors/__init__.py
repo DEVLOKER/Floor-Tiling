@@ -50,8 +50,8 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
         arr[mask == 0] = 0.0
     uv_step_u = np.clip(np.sqrt(du_dx ** 2 + du_dy ** 2), 1e-06, 10.0)
     uv_step_v = np.clip(np.sqrt(dv_dx ** 2 + dv_dy ** 2), 1e-06, 10.0)
-    grout_v_frac_map = np.clip(uv_step_u * grout_v_thickness, 0.0005, 0.45)
-    grout_h_frac_map = np.clip(uv_step_v * grout_h_thickness, 0.0005, 0.45)
+    grout_v_frac_map = np.clip(uv_step_u * grout_v_thickness, 0.0, 0.45)
+    grout_h_frac_map = np.clip(uv_step_v * grout_h_thickness, 0.0, 0.45)
     is_second, on_grout = get_pattern(pattern)(u_all, v_all, grout_h_frac=grout_h_frac_map, grout_v_frac=grout_v_frac_map, aspect_ratio=tile_width_cm / tile_height_cm if tile_height_cm > 0 else 1.0, du_dx=du_dx, du_dy=du_dy, dv_dx=dv_dx, dv_dy=dv_dy, grout_thickness_v=grout_v_thickness, grout_thickness_h=grout_h_thickness, uv_step_u=uv_step_u, uv_step_v=uv_step_v)
     orig_f = image.astype(np.float32)
     orig_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
