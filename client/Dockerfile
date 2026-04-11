@@ -106,21 +106,11 @@ WORKDIR /app
 COPY shared ./shared
 
 # --------------------------------------------------------------------------
-# 3. Python dependencies — ordered for maximum layer-cache reuse
-#
-#    Install CPU-only torch FIRST (largest layer, changes rarely).
-#    Using the official PyTorch CPU index avoids pulling the multi-GB
-#    CUDA variant that pip would pick from PyPI by default.
+# 3. Python dependencies
+#    requirements.txt includes --extra-index-url for the PyTorch CPU index
+#    and pins torch/torchvision+cpu, so a single pip install handles everything.
 # --------------------------------------------------------------------------
-RUN pip install --no-cache-dir \
-        torch==2.3.0 \
-        torchvision==0.18.0 \
-        --index-url https://download.pytorch.org/whl/cpu
-
-# Copy requirements separately so the layer is only rebuilt when it changes.
 COPY client/requirements.txt .
-
-# torch/torchvision already satisfy the >=2.3.0 constraint — pip will skip them.
 RUN pip install --no-cache-dir -r requirements.txt
 
 # --------------------------------------------------------------------------

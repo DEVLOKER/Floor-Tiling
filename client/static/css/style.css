@@ -956,7 +956,7 @@ input[type="range"] {
 
 /*  Toast notifications  */
 .toast-container {
-  position: fixed;
+  position: absolute;
   top: 20px;
   left: 50%;
   transform: translateX(-50%);

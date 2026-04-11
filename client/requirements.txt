@@ -12,11 +12,13 @@ numpy>=1.26.0
 opencv-python>=4.9.0
 Pillow>=10.3.0
 
-# Deep learning (PyTorch — install the CUDA variant if you have a GPU)
-# CPU-only: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-# CUDA 12.1:  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-torch>=2.3.0
-torchvision>=0.18.0
+# Deep learning (PyTorch CPU-only)
+# The extra index ensures pip pulls the lightweight CPU wheels instead of the
+# multi-GB CUDA variant from PyPI.  For local GPU dev, override with:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
+torchvision==0.21.0+cpu
 
 # SAM2 dependencies
 hydra-core>=1.3.0
@@ -25,6 +27,7 @@ tqdm>=4.66.0
 
 # Mask2Former (Transformers)
 transformers>=4.40.0
+scipy>=1.11.0
 
 # System/hardware utilities
 psutil>=7.2.2
