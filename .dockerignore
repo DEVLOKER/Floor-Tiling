@@ -1,0 +1,83 @@
+# ── Version control ─────────────────────────────────────────────────────────
+.git/
+.gitignore
+.github/
+
+# ── Python bytecode ──────────────────────────────────────────────────────────
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Build / dist artefacts ───────────────────────────────────────────────────
+**/build/
+**/dist/
+*.egg-info/
+
+# ── IDE & editor configs ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Local config ───────────────────────────────────────────────────
+.env
+.env.*
+
+# ── Test & CI artefacts ──────────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Docker files themselves (avoid inception) ────────────────────────────────
+**/Dockerfile*
+**/docker-compose*.yml
+.dockerignore
+
+# ── Shell scripts (only used on host, not inside the image) ─────────────────
+*.sh
+*.bat
+*.ps1
+
+# ── Documentation (not needed at runtime) ────────────────────────────────────
+README.md
+docs/
+
+# ── Test files (not needed inside the image) ────────────────────────────────
+__tests__/
+
+# ── SAM2 non-runtime files ───────────────────────────────────────────────────
+# CUDA kernel sources (CPU-only build, never compiled inside the image)
+client/sam2/csrc/
+client/sam2/benchmark.py
+
+# ── Local model checkpoints ──────────────────────────────────────────────────
+# DEFAULT (download mode): keep .pt files EXCLUDED — Docker fetches them fresh
+#   from Meta CDN in the downloader stage.  Build context stays lightweight.
+#
+# LOCAL mode: comment out the line below so .pt files enter the build context,
+#   then build with:  ./build.sh latest local
+client/sam2/models/*.pt
+!client/sam2/models/sam2.1_hiera_tiny.pt
+client/mask2former/models/*.bin
+client/mask2former/models/*.safetensors
+!client/mask2former/models/model.safetensors
+
+# ── Other files to ignore ───────────────────────────────────────────────────────
+*.log
+*.pem
+*.lic
+*.spec
+SignTools/

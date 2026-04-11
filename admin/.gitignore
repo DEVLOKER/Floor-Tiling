@@ -1,0 +1,10 @@
+# ── Admin panel — project-specific ignores ───────────────────────────────────
+
+# Virtual environment
+.venv/
+
+# Generated keys (NEVER commit)
+keys/
+
+# SSL certs (auto-generated at runtime)
+ssl/

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visualiseur de Carrelage</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+
+<!-- ── SVG sprite (inline, hidden) ─────────────────────── -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <!-- home -->
+    <symbol id="ico-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
+        <polyline points="9 21 9 13 15 13 15 21" />
+    </symbol>
+    <!-- layers / stack -->
+    <symbol id="ico-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+        <polyline points="2 12 12 17 22 12" />
+    </symbol>
+    <!-- camera / upload -->
+    <symbol id="ico-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+        <circle cx="12" cy="13" r="4" />
+    </symbol>
+    <!-- trash -->
+    <symbol id="ico-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </symbol>
+    <!-- settings / gear -->
+    <symbol id="ico-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </symbol>
+    <!-- download -->
+    <symbol id="ico-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+    </symbol>
+    <!-- paint brush / apply tiles -->
+    <symbol id="ico-paint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M18 3a3 3 0 0 1 0 6L9 18l-6 1 1-6z" />
+        <path d="M16 5l3 3" />
+    </symbol>
+    <!-- close / X -->
+    <symbol id="ico-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+    </symbol>
+    <!-- image / texture -->
+    <symbol id="ico-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <polyline points="21 15 16 10 5 21" />
+    </symbol>
+    <!-- palette / color -->
+    <symbol id="ico-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="8" cy="14" r="1" fill="currentColor" />
+        <circle cx="12" cy="9" r="1" fill="currentColor" />
+        <circle cx="16" cy="14" r="1" fill="currentColor" />
+        <path d="M12 22c0-4-4-6-4-10" />
+    </symbol>
+    <!-- book / how-to -->
+    <symbol id="ico-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </symbol>
+    <!-- tile / grid -->
+    <symbol id="ico-tile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+    </symbol>
+
+    <symbol id="ico-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+        <circle cx="12" cy="12" r="3" />
+    </symbol>
+    <!-- sparkles / AI -->
+    <symbol id="ico-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-11.314l.707.707m11.314 11.314l.707.707" />
+        <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+    </symbol>
+</svg>
+
+<!-- ── Full-page canvas ────────────────────────────────────── -->
+<canvas id="mainCanvas"></canvas>
+
+<!-- ── Welcome state (pre-upload) ─────────────────────────── -->
+<div class="welcome-overlay" id="welcomeOverlay">
+    <div class="welcome-card">
+        <div class="welcome-icon">
+            <svg class="app-icon app-icon-xl">
+                <use href="#ico-layers" />
+            </svg>
+        </div>
+        <h2>Visualiseur de Carrelage</h2>
+        <p>Téléchargez une photo de pièce, cliquez sur le sol et prévisualisez n'importe quel style de carrelage
+            instantanément.</p>
+        <button class="btn-welcome" id="welcomeUploadBtn">
+            <svg class="app-icon">
+                <use href="#ico-camera" />
+            </svg> Choisir une photo
+        </button>
+        <div class="welcome-drag-hint">ou glissez-déposez n'importe où sur cet écran</div>
+    </div>
+</div>
+
+<!-- ── Drag-and-drop overlay ───────────────────────────────── -->
+<div class="drop-overlay" id="dropOverlay">
+    <div class="drop-card">
+        <div class="drop-icon">
+            <svg class="app-icon app-icon-xl">
+                <use href="#ico-camera" />
+            </svg>
+        </div>
+        <div class="drop-text">Déposez votre photo ici</div>
+    </div>
+</div>
+
+<!-- ── Top bar ────────────────────────────────────────────── -->
+<header class="top-bar">
+    <div class="top-bar-left">
+        <span class="app-logo">
+            <svg class="app-icon app-icon-lg">
+                <use href="#ico-layers" />
+            </svg>
+        </span>
+        <div class="app-name">
+            <div class="app-title">Visualiseur de Carrelage</div>
+            <div class="app-subtitle">Propulsé par SCRIPTIHA</div>
+        </div>
+    </div>
+    <div class="top-bar-right">
+        <button class="top-btn top-btn-close" id="closeAppBtn" title="Fermer l'application" onclick="window.close()">
+            <svg class="app-icon app-icon-sm">
+                <use href="#ico-close" />
+            </svg> Fermer
+        </button>
+    </div>
+</header>
+
+<!-- ── HUD: instruction / coords pill ────────────────────── -->
+<div class="hud-pill" id="coordsInfo">Cliquez sur le sol pour le sélectionner</div>
+
+<!-- ── Floor selection badge ──────────────────────────────── -->
+<!-- ── Info sidebar (fixed left) ───────────────────────────── -->
+
+<!-- ── Loading overlay ───────────────────────────────────── -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+    <div class="loading-card">
+        <div class="loading-ring"></div>
+        <div class="loading-text" id="loadingText">Traitement en cours…</div>
+    </div>
+</div>
+
+<!-- ── Floating action buttons ───────────────────────────── -->
+<div class="fab-group">
+    <div class="fab-tip-wrap" data-tip="Importer une photo">
+        <button class="fab fab-sm" id="uploadBtn" title="Importer une photo">
+            <svg class="app-icon">
+                <use href="#ico-camera" />
+            </svg>
+        </button>
+    </div>
+    <div class="fab-tip-wrap" data-tip="Paramètres du carrelage">
+        <button class="fab fab-sm" id="openSettingsBtn" title="Paramètres du carrelage">
+            <svg class="app-icon">
+                <use href="#ico-settings" />
+            </svg>
+        </button>
+    </div>
+    <div class="fab-tip-wrap" data-tip="Afficher l'original / Résultat" id="togglePreviewFabWrap" style="display:none">
+        <button class="fab fab-sm fab-toggle-preview" id="togglePreviewBtn" title="Afficher l'original / Résultat">
+            <svg class="app-icon">
+                <use href="#ico-eye" />
+            </svg>
+        </button>
+    </div>
+    <div class="fab-tip-wrap" data-tip="Télécharger le résultat" id="downloadFabWrap" style="display:none">
+        <button class="fab fab-sm fab-download" id="downloadBtn" title="Télécharger le résultat">
+            <svg class="app-icon">
+                <use href="#ico-download" />
+            </svg>
+        </button>
+    </div>
+    <button class="fab fab-main" id="applyTilesBtn">
+        <svg class="app-icon">
+            <use href="#ico-paint" />
+        </svg>
+        <span class="fab-label">Appliquer</span>
+    </button>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" accept="image/*" style="display:none" />
+
+<!-- ── Side panel backdrop ───────────────────────────────── -->
+<div class="panel-backdrop" id="panelBackdrop"></div>
+
+<!-- ── Side panel ────────────────────────────────────────── -->
+<aside class="side-panel" id="sidePanel">
+    <div class="panel-header">
+        <span class="panel-title">
+            <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:6px">
+                <use href="#ico-tile" />
+            </svg>Paramètres
+        </span>
+        <button class="panel-close" id="closePanelBtn" title="Fermer">
+            <svg class="app-icon app-icon-sm">
+                <use href="#ico-close" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="panel-body">
+
+        <!-- Pattern selector -->
+        <div class="panel-section">
+            <div class="section-label">Motif</div>
+            <select id="tilePattern" class="panel-select">
+                <option value="grid">Grille</option>
+                <option value="brick">Brique (décalée)</option>
+                <option value="herringbone">Chevrons classiques</option>
+                <option value="chevron">Chevron ∧</option>
+                <option value="basketweave">Natte</option>
+                <option value="versailles">Versailles</option>
+                <option value="checkerboard">Damier</option>
+            </select>
+        </div>
+
+        <!-- Pattern thumbnail previews -->
+        <div class="tile-preview" id="tilePreview"></div>
+
+        <div class="panel-divider"></div>
+
+        <!-- Grid Rotation -->
+        <div class="panel-section">
+            <div class="section-label">Rotation du carrelage <span class="value-badge" id="gridRotationValue">0°</span>
+            </div>
+            <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <!-- Tile size -->
+        <div class="panel-section">
+            <div class="section-label">Taille du carrelage</div>
+            <div class="range-pair">
+                <div class="range-item">
+                    <div class="range-label">
+                        Largeur <span class="value-badge" id="tileWidthValue"></span>
+                    </div>
+                    <input type="range" id="tileWidth" min="10" max="320" step="5" />
+                </div>
+                <div class="range-item">
+                    <div class="range-label">
+                        Hauteur <span class="value-badge" id="tileHeightValue"></span>
+                    </div>
+                    <input type="range" id="tileHeight" min="10" max="320" step="5" />
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <!-- Grout -->
+        <div class="panel-section">
+            <div class="section-label">Épaisseur du joint</div>
+            <div class="range-pair">
+                <div class="range-item">
+                    <div class="range-label">
+                        ↔ Horizontal <span class="value-badge" id="groutHValue"></span>
+                    </div>
+                    <input type="range" id="groutHThickness" min="0" max="20" step="1" />
+                    <div class="thickness-hint">
+                        <div class="thickness-bar-h" id="hintH"></div>
+                        <span class="hint-label">aperçu</span>
+                    </div>
+                </div>
+                <div class="range-item">
+                    <div class="range-label">
+                        ↕ Vertical <span class="value-badge" id="groutVValue"></span>
+                    </div>
+                    <input type="range" id="groutVThickness" min="0" max="20" step="1" />
+                    <div class="thickness-hint">
+                        <div class="thickness-bar-v" id="hintV"></div>
+                        <span class="hint-label">aperçu</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <!-- Fill style -->
+        <div class="panel-section">
+            <div class="section-label">Style de remplissage</div>
+            <div class="tile-source-toggle">
+                <button class="tile-source-btn active" id="btnModeColor">
+                    <svg class="app-icon app-icon-sm">
+                        <use href="#ico-palette" />
+                    </svg> Couleur
+                </button>
+                <button class="tile-source-btn" id="btnModeTexture">
+                    <svg class="app-icon app-icon-sm">
+                        <use href="#ico-image" />
+                    </svg> Texture
+                </button>
+            </div>
+
+            <!-- Color panel -->
+            <div id="colorModePanel" class="active">
+                <div class="color-row" id="normalColorRow">
+                    <div class="color-swatch-group">
+                        <label>Carrelage</label>
+                        <input type="color" id="tileColor" />
+                    </div>
+                    <div class="color-swatch-group">
+                        <label>Joint</label>
+                        <input type="color" id="groutColor" />
+                    </div>
+                </div>
+                <!-- Dual-colour row: used by checkerboard AND chevron -->
+                <div class="checker-row" id="checkerColorRow">
+                    <div class="color-swatch-group">
+                        <label id="dualColorLabel1">Clair</label>
+                        <input type="color" id="tileColorLight" />
+                    </div>
+                    <div class="color-swatch-group">
+                        <label id="dualColorLabel2">Foncé</label>
+                        <input type="color" id="tileColorDark" />
+                    </div>
+                    <div class="color-swatch-group">
+                        <label>Joint</label>
+                        <input type="color" id="groutColorChecker" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Texture panel -->
+            <div id="textureModePanel">
+                <div class="texture-pair-row" id="texturePairRow">
+                    <!-- Primary / light texture -->
+                    <div id="textureLightGroup">
+                        <div class="texture-slot-label" id="textureLightLabel">Texture du carrelage</div>
+                        <div class="texture-upload-area" id="textureUploadArea">
+                            <div id="textureEmpty">
+                                <div class="tex-icon">
+                                    <svg class="app-icon app-icon-lg">
+                                        <use href="#ico-image" />
+                                    </svg>
+                                </div>
+                                <div class="texture-hint">Cliquer pour importer</div>
+                                <div class="texture-hint muted">JPG · PNG · WebP</div>
+                            </div>
+                            <div id="texturePreview" style="display:none">
+                                <img id="textureThumb" class="texture-thumb" alt="aperçu texture" />
+                                <div class="texture-name" id="textureName"></div>
+                                <div class="texture-hint">Cliquer pour changer</div>
+                            </div>
+                            <input type="file" id="textureFileInput" accept="image/*" style="display:none" />
+                        </div>
+                    </div>
+                    <!-- Secondary / dark texture (dual patterns: checker, chevron) -->
+                    <div id="textureDarkGroup" style="display:none">
+                        <div class="texture-slot-label" id="textureDarkLabel">Texture foncée</div>
+                        <div class="texture-upload-area" id="textureDarkUploadArea">
+                            <div id="textureDarkEmpty">
+                                <div class="tex-icon">
+                                    <svg class="app-icon app-icon-lg">
+                                        <use href="#ico-image" />
+                                    </svg>
+                                </div>
+                                <div class="texture-hint">Cliquer pour importer</div>
+                                <div class="texture-hint muted">JPG · PNG · WebP</div>
+                            </div>
+                            <div id="textureDarkPreview" style="display:none">
+                                <img id="textureDarkThumb" class="texture-thumb" alt="aperçu texture foncée" />
+                                <div class="texture-name" id="textureDarkName"></div>
+                                <div class="texture-hint">Cliquer pour changer</div>
+                            </div>
+                            <input type="file" id="textureDarkFileInput" accept="image/*" style="display:none" />
+                        </div>
+                    </div>
+                </div>
+                <!-- Grout for texture mode -->
+                <div class="grout-texture-row">
+                    <label class="grout-texture-label">Couleur du joint</label>
+                    <input type="color" id="groutColorTexture" class="grout-texture-input" />
+                </div>
+            </div>
+        </div>
+
+
+    </div><!-- /panel-body -->
+
+    <div class="panel-footer" id="panelFooter">
+        <button class="btn-apply-panel" id="applyTilesPanelBtn">
+            <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
+                <use href="#ico-paint" />
+            </svg> Appliquer le carrelage
+        </button>
+    </div>
+</aside>
+
+<!-- ── Toast notifications ───────────────────────────────── -->
+<div class="toast-container" id="toastContainer"></div>
+
+    <canvas id="mainCanvas"></canvas>
+    <div id="markersOverlay"></div>
+
+    <script type="module" src="/static/js/modules/main.js"></script>
+</body>
+
+</html>

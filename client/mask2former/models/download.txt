@@ -1,0 +1,21 @@
+Mask2Former (ADE20K Semantic Segmentation)
+Model: facebook/mask2former-swin-tiny-ade-semantic
+
+Repo: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic
+
+Direct Downloads:
+- config.json: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic/resolve/main/config.json
+- pytorch_model.bin: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic/resolve/main/pytorch_model.bin
+- preprocessor_config.json: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic/resolve/main/preprocessor_config.json
+
+Note: On your local machine, the weights are saved as 'model.safetensors'. 
+They correspond to 'pytorch_model.bin' in the Hugging Face repository.
+
+
+To recreate 'model.safetensors' from scratch:
+1. Download 'pytorch_model.bin' from the link above.
+2. Make sure pytorch_model.bin is inside the models/ folder.
+3. Run the script: python client/mask2former/convert_to_safetensors.py
+
+The script will load the model, convert it, and save the new model.safetensors 
+file in the same models/ folder.

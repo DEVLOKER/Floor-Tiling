@@ -1,0 +1,49 @@
+# ── Shared — applies to the entire monorepo ──────────────────────────────────
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+.venv/
+
+# Build artifacts (PyInstaller / Cython)
+dist/
+build/
+*.spec.bak
+*.manifest
+
+# ── SSL (auto-generated self-signed certs) ───────────────────────────────────
+ssl/
+
+# ── License keys — NEVER commit private keys ─────────────────────────────────
+*.pem
