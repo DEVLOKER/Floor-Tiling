@@ -50,7 +50,7 @@ COPY shared ./shared
 # We install these in builder to perform on-the-fly weights conversion.
 RUN pip install --no-cache-dir cython \
     && pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir transformers
+    && pip install --no-cache-dir transformers scipy
 
 # Copy application source
 COPY client/. .
