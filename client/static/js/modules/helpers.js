@@ -18,16 +18,16 @@ export function applyDefaults(CONFIG) {
   badge("tileWidthValue", CONFIG.defaultTileWidth + " cm");
   badge("tileHeightValue", CONFIG.defaultTileHeight + " cm");
   // Grout thickness
-  set("groutHThickness", CONFIG.defaultGroutH);
-  set("groutVThickness", CONFIG.defaultGroutV);
-  badge("groutHValue", CONFIG.defaultGroutH + " px");
-  badge("groutVValue", CONFIG.defaultGroutV + " px");
+  set("groutThickness", CONFIG.defaultGrout);
+  badge("groutValue", CONFIG.defaultGrout + " px");
   document
-    .getElementById("hintH")
-    ?.style.setProperty("--th", CONFIG.defaultGroutH + "px");
-  document
-    .getElementById("hintV")
-    ?.style.setProperty("--tv", CONFIG.defaultGroutV + "px");
+    .getElementById("hintGrout")
+    ?.style.setProperty("--th", CONFIG.defaultGrout + "px");
+  // Translation
+  set("translateX", CONFIG.defaultTranslateX);
+  set("translateY", CONFIG.defaultTranslateY);
+  badge("translateXValue", CONFIG.defaultTranslateX);
+  badge("translateYValue", CONFIG.defaultTranslateY);
   // Pattern
   set("tilePattern", CONFIG.defaultPattern);
   // Colours

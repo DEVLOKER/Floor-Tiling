@@ -53,7 +53,6 @@ export function initEventListeners() {
     if (f && f.type.startsWith("image/")) handleImageUpload(f);
   });
 
-
   document.getElementById("tileWidth").addEventListener("input", (e) => {
     badge("tileWidthValue", e.target.value + " cm");
     updateTilePreview();
@@ -65,17 +64,17 @@ export function initEventListeners() {
   document.getElementById("gridRotation").addEventListener("input", (e) => {
     badge("gridRotationValue", e.target.value + "°");
   });
-  document.getElementById("groutHThickness").addEventListener("input", (e) => {
-    badge("groutHValue", e.target.value + " px");
-    document
-      .getElementById("hintH")
-      .style.setProperty("--th", e.target.value + "px");
+  document.getElementById("translateX").addEventListener("input", (e) => {
+    badge("translateXValue", e.target.value);
   });
-  document.getElementById("groutVThickness").addEventListener("input", (e) => {
-    badge("groutVValue", e.target.value + " px");
+  document.getElementById("translateY").addEventListener("input", (e) => {
+    badge("translateYValue", e.target.value);
+  });
+  document.getElementById("groutThickness").addEventListener("input", (e) => {
+    badge("groutValue", e.target.value + " px");
     document
-      .getElementById("hintV")
-      .style.setProperty("--tv", e.target.value + "px");
+      .getElementById("hintGrout")
+      .style.setProperty("--th", e.target.value + "px");
   });
 
   document.getElementById("tilePattern").addEventListener("change", () => {
@@ -183,8 +182,9 @@ export async function applyTilesToFloor() {
     fd.append("tile_color", tileColor);
     fd.append("tile_color2", tileColor2);
     fd.append("grout_color", groutColor);
-    fd.append("grout_h_thickness", val("groutHThickness"));
-    fd.append("grout_v_thickness", val("groutVThickness"));
+    fd.append("grout_thickness", val("groutThickness"));
+    fd.append("translate_x", val("translateX") || 0);
+    fd.append("translate_y", val("translateY") || 0);
     fd.append("rotation", val("gridRotation") || 0);
     fd.append("pattern", val("tilePattern"));
     if (state.tileMode === "texture" && state.tileTextureDataUrl) {
@@ -230,4 +230,3 @@ export async function applyTilesToFloor() {
     state.isLoading = false;
   }
 }
-

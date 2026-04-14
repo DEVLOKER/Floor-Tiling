@@ -1,11 +1,11 @@
-from config import DEFAULT_ROTATION
 from starlette.formparsers import MultiPartParser
 MultiPartParser.max_part_size = 10 * 1024 * 1024  # 10 MB
 """Floor Tile Visualizer API
 
-A FastAPI application for interactive floor tile visualization using SAM 2
-for floor segmentation and perspective-correct homography-based tile rendering.
+A FastAPI application for interactive floor tile visualization using
+Mask2Former for floor segmentation and perspective-correct homography-based tile rendering.
 """
+import asyncio
 import json
 import io
 import logging
@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, Form
-from fastapi.responses import JSONResponse, Response, FileResponse
+from fastapi.responses import JSONResponse, Response, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
@@ -32,15 +32,16 @@ from config.settings import (
     TILE_HEIGHT_MAX,
     GROUT_THICKNESS_MIN,
     GROUT_THICKNESS_MAX,
-    DEFAULT_GROUT_V_THICKNESS, 
-    DEFAULT_GROUT_H_THICKNESS, 
+    DEFAULT_GROUT_THICKNESS,
     DEFAULT_TILE_WIDTH,
     DEFAULT_TILE_HEIGHT,
+    DEFAULT_TRANSLATE_X,
+    DEFAULT_TRANSLATE_Y,
+    DEFAULT_ROTATION,
     JPEG_QUALITY,
     DEFAULT_PATTERN
 )
 from utils import verify_license, LicenseError
-from mask2former import get_sam2_predictor
 from mask2former.mask2former import get_mask2former_predictor
 from processors import apply_perspective_tiles
 from patterns import PATTERN_FUNCTIONS
@@ -51,6 +52,8 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 
+# Configure logging so logger.info() messages actually show up
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +65,7 @@ async def require_license():
     """FastAPI dependency: re-verify USB license on every API call."""
     try:
         # verify_license()
-        logger.info("License verified — customer: me  expires: never")
+        pass
     except LicenseError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
 
@@ -71,20 +74,12 @@ async def require_license():
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Predictors — populated after license check passes
-predictor = None
 mask2former_predictor = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup / shutdown lifecycle.
-
-    Order:
-      1. Verify USB license (signature + expiry + machine fingerprint).
-         → sys.exit(1) immediately if any check fails.
-      2. Load the SAM2 model.
-    """
-    global predictor
+    global mask2former_predictor
 
     # ── 1. License check ──────────────────────────────────────────────────────
     try:
@@ -94,21 +89,18 @@ async def lifespan(app: FastAPI):
         sys.exit(1)
 
     # ── 2. Load Models ────────────────────────────────────────────────────────
-    logger.info("Loading SAM2 model ...")
-    predictor = get_sam2_predictor()
-    logger.info("SAM2 model ready.")
-
-    logger.info("Loading Mask2Former model ...")
-    global mask2former_predictor
-    mask2former_predictor = get_mask2former_predictor()
-    logger.info("Mask2Former model ready.")
+    try:
+        mask2former_predictor = await asyncio.to_thread(get_mask2former_predictor)
+        logger.info("Mask2Former model ready.")
+    except Exception as e:
+        logger.error("Failed to load Mask2Former: %s", e, exc_info=True)
 
     yield  # ── server is running ─────────────────────────────────────────────
 
 
 app = FastAPI(
     title="Floor Tile Visualizer",
-    description="SAM 2 powered floor segmentation and tile visualization",
+    description="Floor segmentation and tile visualization",
     version="1.0.0",
     lifespan=lifespan,
     dependencies=[Depends(require_license)],
@@ -135,58 +127,83 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 # Routes
 # ─────────────────────────────────────────────────────────────────────────────
 
+
+# Enhanced endpoint: use both SAM and Mask2Former for robust wall detection
 @app.post("/api/auto-detect")
 async def auto_detect_features(
     image: UploadFile = File(...)
 ):
-    """Automatically detect floor and walls using Mask2Former.
-    
-    Returns:
-        JSON with masks and centroids for labels
-    """
-    try:
-        image_data = await image.read()
-        pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        image_np = np.array(pil_image)
-        
-        floor_mask, wall_mask = mask2former_predictor.predict(image_np)
-        
-        def get_centroid(mask):
-            coords = np.argwhere(mask > 0)
-            if len(coords) == 0:
-                return None
-            y, x = np.mean(coords, axis=0)
-            return {"x": float(x), "y": float(y)}
+    image_data = await image.read()
 
-        labels = []
-        floor_center = get_centroid(floor_mask)
-        if floor_center:
-            labels.append({"text": "Floor", "x": floor_center["x"], "y": floor_center["y"], "type": "floor", "id": "floor"})
-            
-        # Identify individual wall segments
-        num_labels, labeled_walls, stats, centroids = cv2.connectedComponentsWithStats(
-            wall_mask.astype(np.uint8), connectivity=8
-        )
-        
-        for i in range(1, num_labels):
-            if stats[i, cv2.CC_STAT_AREA] < 500: # Filter small noise
-                continue
-            labels.append({
-                "text": "Wall", 
-                "x": float(centroids[i][0]), 
-                "y": float(centroids[i][1]), 
-                "type": "wall",
-                "id": str(i)
-            })
+    async def event_stream():
+        import struct, gzip, base64
 
-        return JSONResponse({
-            "floor_mask": floor_mask.astype(float).tolist(),
-            "wall_mask": labeled_walls.astype(float).tolist(),
-            "labels": labels
-        })
-    except Exception as e:
-        logger.error(f"Auto-detect error: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        def sse(obj):
+            return f"data: {json.dumps(obj)}\n\n"
+
+        try:
+            yield sse({'step': 1, 'total': 3, 'message': "Chargement de l'image…"})
+
+            pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
+            image_np = np.array(pil_image)
+            h, w = image_np.shape[:2]
+
+            # ── Stage 1: Mask2Former ─────────────────────────────────────────
+            yield sse({'step': 2, 'total': 3, 'message': 'Détection sémantique (Mask2Former)…'})
+
+            floor_mask, wall_mask = await asyncio.to_thread(
+                mask2former_predictor.predict, image_np
+            )
+
+            # ── Stage 2: Post-processing ────────────────────────────────────
+            yield sse({'step': 3, 'total': 3, 'message': 'Finalisation…'})
+
+            def get_centroid(mask):
+                coords = np.argwhere(mask > 0)
+                if len(coords) == 0:
+                    return None
+                y, x = np.mean(coords, axis=0)
+                return {"x": float(x), "y": float(y)}
+
+            labels = []
+            floor_center = get_centroid(floor_mask)
+            if floor_center:
+                labels.append({"text": "Floor", "x": floor_center["x"], "y": floor_center["y"], "type": "floor", "id": "floor"})
+
+            num_labels, labeled_walls, stats, centroids = cv2.connectedComponentsWithStats(
+                wall_mask.astype(np.uint8), connectivity=8
+            )
+            for i in range(1, num_labels):
+                if stats[i, cv2.CC_STAT_AREA] < 500:
+                    continue
+                labels.append({
+                    "text": "Wall",
+                    "x": float(centroids[i][0]),
+                    "y": float(centroids[i][1]),
+                    "type": "wall",
+                    "id": str(i)
+                })
+
+            # ── Build binary payload ────────────────────────────────────────
+            labels_json = json.dumps(labels).encode("utf-8")
+            floor_bytes = floor_mask.astype(np.uint8).tobytes()
+            wall_bytes = labeled_walls.astype(np.uint8).tobytes()
+            header = struct.pack("<III", len(labels_json), h, w)
+            raw = header + labels_json + floor_bytes + wall_bytes
+            compressed = gzip.compress(raw, compresslevel=1)
+            b64 = base64.b64encode(compressed).decode("ascii")
+
+            yield sse({'step': 'done', 'binary': b64})
+
+        except Exception as e:
+            logger.error("Auto-detect error: %s", e, exc_info=True)
+            yield sse({'step': 'error', 'message': str(e)})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
 
 
 @app.post("/api/apply-tiles")
@@ -199,8 +216,9 @@ async def apply_tiles(
     tile_color: str = Form("#E8D1B5"),
     tile_color2: str = Form("#333333"),
     grout_color: str = Form("#A9A9A9"),
-    grout_h_thickness: int = Form(DEFAULT_GROUT_H_THICKNESS),
-    grout_v_thickness: int = Form(DEFAULT_GROUT_V_THICKNESS),
+    grout_thickness: int = Form(DEFAULT_GROUT_THICKNESS),
+    translate_x: float = Form(DEFAULT_TRANSLATE_X),
+    translate_y: float = Form(DEFAULT_TRANSLATE_Y),
     rotation: float = Form(DEFAULT_ROTATION),
     pattern: str = Form(DEFAULT_PATTERN),
     tile_texture: Optional[UploadFile] = File(None),
@@ -220,8 +238,7 @@ async def apply_tiles(
         tile_color: Hex color for primary tiles
         tile_color2: Hex color for secondary tiles (checkerboard)
         grout_color: Hex color for grout lines
-        grout_h_thickness: Horizontal grout thickness in pixels
-        grout_v_thickness: Vertical grout thickness in pixels
+        grout_thickness: Grout thickness in pixels (applied to both directions)
         pattern: Tile pattern (grid, brick, diagonal, herringbone, checkerboard, diagonal_checkerboard)
     
     Returns:
@@ -268,11 +285,8 @@ async def apply_tiles(
         # Validate and clamp parameters
         tile_width = float(np.clip(tile_width, TILE_WIDTH_MIN, TILE_WIDTH_MAX))
         tile_height = float(np.clip(tile_height, TILE_HEIGHT_MIN, TILE_HEIGHT_MAX))
-        grout_h_thickness = int(np.clip(
-            grout_h_thickness, GROUT_THICKNESS_MIN, GROUT_THICKNESS_MAX
-        ))
-        grout_v_thickness = int(np.clip(
-            grout_v_thickness, GROUT_THICKNESS_MIN, GROUT_THICKNESS_MAX
+        grout_thickness = int(np.clip(
+            grout_thickness, GROUT_THICKNESS_MIN, GROUT_THICKNESS_MAX
         ))
 
         # Validate pattern
@@ -296,11 +310,13 @@ async def apply_tiles(
             img, floor_mask,
             tile_color, tile_color2, grout_color,
             tile_width, tile_height,
-            grout_h_thickness, grout_v_thickness,
+            grout_thickness, grout_thickness,
             rotation,
             pattern,
             texture_arr,
             texture_arr2,
+            translate_x=translate_x,
+            translate_y=translate_y,
         )
 
         # Encode result

@@ -12,6 +12,7 @@ import {
   closePanel,
   setTileMode,
   redrawWithFloorHighlight,
+  updateTogglePreviewVisibility,
 } from "./ui.js";
 import {
   applyTilesToFloor,
@@ -23,7 +24,7 @@ import { initTextureUpload } from "./texture.js";
 // ── Bootstrap ─────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   applyDefaults(CONFIG);
-  
+
   // 1. Initialize listeners and basic modules first
   initEventListeners();
   initTextureUpload();
@@ -76,8 +77,9 @@ document.addEventListener("DOMContentLoaded", () => {
     "gridRotation",
     "tileWidth",
     "tileHeight",
-    "groutHThickness",
-    "groutVThickness",
+    "groutThickness",
+    "translateX",
+    "translateY",
   ].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
@@ -101,18 +103,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("panelBackdrop")
     ?.addEventListener("click", closePanel);
-  document
-    .getElementById("btnModeColor")
-    ?.addEventListener("click", () => {
-      setTileMode("color");
-      saveTilePreferences();
-    });
-  document
-    .getElementById("btnModeTexture")
-    ?.addEventListener("click", () => {
-      setTileMode("texture");
-      saveTilePreferences();
-    });
+  document.getElementById("btnModeColor")?.addEventListener("click", () => {
+    setTileMode("color");
+    saveTilePreferences();
+  });
+  document.getElementById("btnModeTexture")?.addEventListener("click", () => {
+    setTileMode("texture");
+    saveTilePreferences();
+  });
   // Canvas click for floor selection
   // Clear/apply floor selection
   document

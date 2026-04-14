@@ -1,5 +1,13 @@
 {
+  "crop_size": null,
+  "data_format": "channels_first",
+  "default_to_square": false,
+  "device": null,
+  "disable_grouping": null,
+  "do_center_crop": null,
+  "do_convert_rgb": null,
   "do_normalize": true,
+  "do_pad": true,
   "do_reduce_labels": false,
   "do_rescale": true,
   "do_resize": true,
@@ -9,16 +17,19 @@
     0.4560000002384186,
     0.4059999883174896
   ],
-  "image_processor_type": "Mask2FormerImageProcessor",
+  "image_processor_type": "Mask2FormerImageProcessorFast",
   "image_std": [
     0.2290000021457672,
     0.2239999920129776,
     0.22499999403953552
   ],
+  "input_data_format": null,
   "num_labels": 150,
   "pad_size": null,
+  "reduce_labels": false,
   "resample": 2,
   "rescale_factor": 0.00392156862745098,
+  "return_tensors": null,
   "size": {
     "height": 384,
     "width": 384
