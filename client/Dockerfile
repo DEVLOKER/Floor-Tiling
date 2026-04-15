@@ -1,4 +1,6 @@
-# ── Floor Tile Visualizer — Production Dockerfile ──────────────────────────
+# ── Floor Tiling Visualizer — Production Dockerfile ───────────────────────
+# Model: facebook/mask2former-swin-base-IN21k-ade-semantic
+# SAM2 removed — segmentation is handled entirely by Mask2Former.
 
 ARG MODEL_SOURCE=download
 
@@ -14,15 +16,15 @@ RUN apk add --no-cache wget
 
 WORKDIR /models
 
-# Copy local weight folders (may be empty if files are ignored by .dockerignore)
-COPY client/sam2/models/ sam2/
+# Copy local weight folder (may be empty if files are ignored by .dockerignore)
 COPY client/mask2former/models/ mask2former/
 
 # Download weights only when MODEL_SOURCE=download
+# Model: facebook/mask2former-swin-base-IN21k-ade-semantic
 RUN if [ "$MODEL_SOURCE" = "download" ]; then \
-        echo "▶ [downloader] Downloading weight files from CDNs ..."; \
-        wget -q --show-progress -O sam2/sam2.1_hiera_tiny.pt https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt; \
-        wget -q --show-progress -O mask2former/pytorch_model.bin https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic/resolve/main/pytorch_model.bin; \
+        echo "▶ [downloader] Downloading Mask2Former swin-base weights ..."; \
+        wget -q --show-progress -O mask2former/pytorch_model.bin \
+            https://huggingface.co/facebook/mask2former-swin-base-IN21k-ade-semantic/resolve/main/pytorch_model.bin; \
     fi
 
 # ==========================================================================
@@ -63,7 +65,7 @@ RUN python setup_cython.py build_ext --inplace \
     && python mask2former/convert_to_safetensors.py \
     && rm -f mask2former/models/pytorch_model.bin
 
-# Strip .py source files from compiled packages (keep server.py + sam2/)
+# Strip .py source files from compiled packages (keep server.py)
 RUN find config core mask2former patterns processors \
         -name "*.py" -delete \
     && find . -name "*.c" -delete \
@@ -115,20 +117,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # --------------------------------------------------------------------------
 # 4. Application code (compiled artifacts from builder — no .py sources
-#    for business-logic packages; only server.py + sam2/ are plain Python)
+#    for business-logic packages; only server.py is plain Python)
 # --------------------------------------------------------------------------
 COPY --chown=appuser:appuser --from=builder /app .
 
 # --------------------------------------------------------------------------
-# 5. SAM2 model checkpoints (copied from Stage 1 into the standard vendor path)
-COPY --chown=appuser:appuser --from=downloader /models/sam2/ ./sam2/models/
-
-# --------------------------------------------------------------------------
-# 6. Runtime environment
+# 5. Runtime environment
 # --------------------------------------------------------------------------
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    # Add /app to PYTHONPATH so `sam2`, `config`, etc. are importable
     PYTHONPATH=/app \
     # Override in docker-compose / runtime for dev (reload=true, workers=1)
     APP_HOST=0.0.0.0 \
@@ -141,9 +138,9 @@ USER appuser
 EXPOSE 8000
 
 # --------------------------------------------------------------------------
-# 7. Health check (SAM2 loads at startup; give it 90 s to warm up)
+# 7. Health check (Mask2Former swin-base loads at startup; allow 120 s warm-up)
 # --------------------------------------------------------------------------
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -fs http://localhost:8000/health || exit 1
 
 # --------------------------------------------------------------------------

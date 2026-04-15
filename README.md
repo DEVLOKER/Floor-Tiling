@@ -283,8 +283,7 @@ Returns `{ mask, confidence, image_width, image_height }`.
 | `grout_color` | string (form) | Grout colour (hex) |
 | `tile_width_cm` | float (form) | Tile width in cm |
 | `tile_height_cm` | float (form) | Tile height in cm |
-| `grout_h_thickness` | float (form) | Horizontal grout thickness (px) |
-| `grout_v_thickness` | float (form) | Vertical grout thickness (px) |
+| `grout_thickness` | int (form) | Grout thickness in px (both directions) |
 | `tile_texture` | file (optional) | Texture image for primary tile |
 | `tile_texture2` | file (optional) | Texture image for secondary tile (checker) |
 

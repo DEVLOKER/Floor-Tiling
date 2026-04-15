@@ -1,6 +1,6 @@
 """Application settings and configuration"""
 # Upload size limit
-MAX_SIZE = 1024 * 1024 * 10  # 10 MB
+MAX_UPLOAD_SIZE_BYTES = 1024 * 1024 * 10  # 10 MB
 # CORS origins
 CORS_ORIGINS = [
     "http://127.0.0.1:5500",
