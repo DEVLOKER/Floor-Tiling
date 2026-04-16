@@ -57,42 +57,81 @@ def pattern_brick(
 def pattern_herringbone(
     u: np.ndarray, v: np.ndarray,
     grout_h_frac, grout_v_frac,
-    aspect_ratio: float = 2.0,
+    aspect_ratio: float = 3.0,
     **_,
 ) -> tuple:
+    """Mathematical Herringbone pattern.
+    
+    Returns (is_second, on_grout, custom_u, custom_v).
+    Custom UVs ensure vertical tiles rotate their texture by 90-degrees so grain runs lengthwise.
+    """
     L = max(float(aspect_ratio), 1.01)
-    S = 1.5
-    CW = L + S
-    lu = u % CW
-    lv = v % CW
-    in_H1 = (lu < L) & (lv < S)
-    in_V2 = (lu >= L) & (lv < L)
-    in_V1 = (lu < S) & (lv >= S)
-    in_H2 = (lu >= S) & (lv >= L)
-    gap = ~(in_H1 | in_V1 | in_V2 | in_H2)
-    fu = np.zeros_like(u)
-    fv = np.zeros_like(v)
-    fu = np.where(in_H1, lu / L, fu)
-    fv = np.where(in_H1, lv / S, fv)
-    fu = np.where(in_V1, lu / S, fu)
-    fv = np.where(in_V1, (lv - S) / L, fv)
-    fu = np.where(in_V2, (lu - L) / S, fu)
-    fv = np.where(in_V2, lv / L, fv)
-    fu = np.where(in_H2, (lu - S) / L, fu)
-    fv = np.where(in_H2, (lv - L) / S, fv)
-    fu = np.clip(fu, 0.0, 1.0)
-    fv = np.clip(fv, 0.0, 1.0)
-    dist_u = np.minimum(fu, 1.0 - fu)
-    dist_v = np.minimum(fv, 1.0 - fv)
-    alpha = np.where(
-        gap,
-        1.0,
-        combine_grout(
-            grout_alpha(dist_u, grout_v_frac / 4.0),
-            grout_alpha(dist_v, grout_h_frac / 4.0),
-        ),
+    L_int = max(2, int(round(L)))
+    
+    # Map to uniform coordinate space where short edge is 1 unit.
+    X_unrot = u * L
+    Y_unrot = v
+    
+    # Classic Herringbone is laid diagonally (45 degrees) relative to the grid.
+    # We rotate the uniform coordinates by 45 degrees (pi/4) before processing.
+    theta = np.pi / 4.0
+    c, s = np.cos(theta), np.sin(theta)
+    
+    X = X_unrot * c - Y_unrot * s
+    Y = X_unrot * s + Y_unrot * c
+    
+    ix = np.floor(X).astype(np.int32)
+    iy = np.floor(Y).astype(np.int32)
+    
+    S = ix + iy
+    S_m = S % (2 * L_int)
+    
+    is_H = S_m < L_int
+    is_V = ~is_H
+    
+    # Local coordinates for H-tiles
+    tile_start_x_H = ix - S_m
+    tile_start_y_H = iy
+    local_u_H = X - tile_start_x_H
+    local_v_H = Y - tile_start_y_H
+    
+    # Local coordinates for V-tiles
+    tile_start_y_V = iy - (S_m - L_int)
+    tile_start_x_V = ix
+    local_u_V = X - tile_start_x_V
+    local_v_V = Y - tile_start_y_V
+    
+    # Distances for grout.
+    # dist_x is distance to the nearest vertical edge in X units.
+    dist_x = np.where(
+        is_H, 
+        np.minimum(local_u_H, L_int - local_u_H), 
+        np.minimum(local_u_V, 1.0 - local_u_V)
     )
-    return (np.zeros(u.shape, dtype=bool), alpha)
+    # dist_y is distance to the nearest horizontal edge in Y units.
+    dist_y = np.where(
+        is_H, 
+        np.minimum(local_v_H, 1.0 - local_v_H), 
+        np.minimum(local_v_V, L_int - local_v_V)
+    )
+    
+    # Convert distances back to original u, v space for the caller's grout fractions.
+    dist_u = dist_x / L
+    dist_v = dist_y
+    
+    alpha = combine_grout(
+        grout_alpha(dist_u, grout_v_frac / 2.0),
+        grout_alpha(dist_v, grout_h_frac / 2.0),
+    )
+    
+    # Texture UV mappings (0 to 1).
+    # For H tiles: U spans the length (L_int), V spans the width (1.0).
+    # For V tiles: To rotate the grain perfectly, we map U to the V-tile's length (which is along Y),
+    # and V to the V-tile's width (which is along X).
+    custom_u = np.where(is_H, local_u_H / L_int, local_v_V / L_int)
+    custom_v = np.where(is_H, local_v_H, 1.0 - local_u_V)
+    
+    return (is_V, alpha, custom_u, custom_v)
 
 
 def pattern_checkerboard(
@@ -190,7 +229,76 @@ def pattern_basketweave(
     )
     on_grout = np.where(is_h, alpha_h, alpha_v)
     is_second = ~is_h
-    return (is_second, on_grout)
+    
+    # Custom UV logic for texture grain rotation
+    custom_u = np.where(is_h, lu / 2.0, lv / 2.0)
+    custom_v = np.where(is_h, lv % 1.0, 1.0 - (lu % 1.0))
+    
+    return (is_second, on_grout, custom_u, custom_v)
+
+
+def pattern_straight_weave(
+    u: np.ndarray, v: np.ndarray,
+    grout_h_frac, grout_v_frac,
+    aspect_ratio: float = 1.0,
+    uv_step_u=None, uv_step_v=None,
+    **_,
+) -> tuple:
+    # A simple grid pattern where colors alternate by column (vertical stripes).
+    frac_u = u - np.floor(u)
+    frac_v = v - np.floor(v)
+    dist_u = np.minimum(frac_u, 1.0 - frac_u)
+    dist_v = np.minimum(frac_v, 1.0 - frac_v)
+    
+    step_u = uv_step_u * 2.0 if uv_step_u is not None else grout_v_frac
+    step_v = uv_step_v * 2.0 if uv_step_v is not None else grout_h_frac
+    
+    alpha = combine_grout(
+        grout_alpha(dist_u, grout_v_frac / 2.0, step=step_u),
+        grout_alpha(dist_v, grout_h_frac / 2.0, step=step_v),
+    )
+    
+    cell_u = np.floor(u).astype(np.int32)
+    is_second = (cell_u % 2) == 1
+    
+    return (is_second, alpha)
+
+
+def pattern_bookmatch(
+    u: np.ndarray, v: np.ndarray,
+    grout_h_frac, grout_v_frac,
+    aspect_ratio: float = 1.0,
+    uv_step_u=None, uv_step_v=None,
+    **_,
+) -> tuple:
+    # Bookmatch lays tiles in a grid but mirrors the texture coordinates
+    # to create a butterfly/diamond pattern across 4 abutting slabs.
+    frac_u = u - np.floor(u)
+    frac_v = v - np.floor(v)
+    dist_u = np.minimum(frac_u, 1.0 - frac_u)
+    dist_v = np.minimum(frac_v, 1.0 - frac_v)
+    
+    step_u = uv_step_u * 2.0 if uv_step_u is not None else grout_v_frac
+    step_v = uv_step_v * 2.0 if uv_step_v is not None else grout_h_frac
+    
+    alpha = combine_grout(
+        grout_alpha(dist_u, grout_v_frac / 2.0, step=step_u),
+        grout_alpha(dist_v, grout_h_frac / 2.0, step=step_v),
+    )
+    
+    cell_u = np.floor(u).astype(np.int32)
+    cell_v = np.floor(v).astype(np.int32)
+    
+    # 4-Slab Bookmatch: mirror U on odd columns, V on odd rows
+    custom_u = np.where((cell_u % 2) == 1, 1.0 - frac_u, frac_u)
+    custom_v = np.where((cell_v % 2) == 1, 1.0 - frac_v, frac_v)
+    
+    is_second = np.zeros_like(u, dtype=bool)
+    
+    return (is_second, alpha, custom_u, custom_v)
+
+
+
 
 
 def pattern_versailles(
@@ -237,6 +345,8 @@ PATTERN_FUNCTIONS: dict = {
     "checkerboard": pattern_checkerboard,
     "chevron": pattern_chevron,
     "basketweave": pattern_basketweave,
+    "straightweave": pattern_straight_weave,
+    "bookmatch": pattern_bookmatch,
     "versailles": pattern_versailles,
 }
 

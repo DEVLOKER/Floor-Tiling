@@ -33,7 +33,7 @@ if __name__ == "__main__":
         reload=not _frozen, # reload=True,  # dev only; breaks frozen exe (spawn loop)
         # ssl_certfile=ssl_certfile,
         # ssl_keyfile=ssl_keyfile,
-        limit_max_requests=MAX_SIZE,
-        limit_max_requests_jitter=MAX_SIZE,        
+        limit_max_requests=MAX_UPLOAD_SIZE_BYTES,
+        limit_max_requests_jitter=MAX_UPLOAD_SIZE_BYTES,        
         h11_max_incomplete_event_size=MAX_UPLOAD_SIZE_BYTES,  # large mask payloads
     )

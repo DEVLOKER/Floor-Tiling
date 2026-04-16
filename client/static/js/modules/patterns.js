@@ -10,6 +10,7 @@ export function isDualColorPattern(pattern) {
     "checkerboard",
     "chevron",
     "basketweave",
+    "straightweave",
     "versailles",
   ].includes(pattern);
 }

@@ -148,6 +148,8 @@ export function updateTilePreview() {
     { id: "herringbone", name: "Chevrons classiques" },
     { id: "chevron", name: "Chevron ∧" },
     { id: "basketweave", name: "Natte" },
+    { id: "straightweave", name: "Tissage Droit" },
+    { id: "bookmatch", name: "Bookmatch" },
     { id: "versailles", name: "Versailles" },
     { id: "checkerboard", name: "Damier" },
   ];
@@ -220,15 +222,36 @@ export function updateTilePreview() {
         }
         break;
       case "herringbone": {
-        const L = pW,
-          S = pH / 2;
-        for (let row = 0; row < 6; row++)
-          for (let col = 0; col < 6; col++) {
-            const x = col * (L + S),
-              y = row * (L + S);
-            ctx.strokeRect(x, y, L, S);
-            ctx.strokeRect(x + L, y, S, L);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, 90, 55);
+        ctx.clip();
+        
+        ctx.translate(45, 27.5);
+        ctx.rotate(Math.PI / 4.0);
+        
+        // Ensure tiles are actually rectangular to show the zig-zag
+        const L = Math.max(pW, pH * 2);
+        const S = Math.min(pW, pH);
+        
+        ctx.fillStyle = useTexture ? texPatLight || color1 : color1;
+        ctx.strokeStyle = grout;
+        ctx.lineWidth = 1.0;
+        
+        const span = 120;
+        for (let row = -span; row < span; row += (L + S)) {
+          for (let col = -span; col < span; col += (L + S)) {
+            // H-tile mapping
+            ctx.fillRect(col, row, L, S);
+            ctx.strokeRect(col, row, L, S);
+            
+            // V-tile mapping
+            ctx.fillRect(col + L, row, S, L);
+            ctx.strokeRect(col + L, row, S, L);
           }
+        }
+        
+        ctx.restore();
         break;
       }
       case "chevron": {
@@ -283,6 +306,67 @@ export function updateTilePreview() {
               ctx.lineTo(ox + bW / 2, oy + bH);
             }
             ctx.stroke();
+          }
+        }
+        break;
+      }
+      case "straightweave": {
+        // Simple striped grid: colors alternate by column
+        const bW = Math.max(8, Math.round(pW));
+        const bH = Math.max(8, Math.round(pH));
+        const colsB = Math.ceil(90 / bW) + 2;
+        const rowsB = Math.ceil(55 / bH) + 2;
+        
+        ctx.strokeStyle = grout;
+        ctx.lineWidth = 1.0;
+        
+        for (let row = -1; row < rowsB; row++) {
+          for (let col = -1; col < colsB; col++) {
+            const isSecond = (col % 2) !== 0;
+            const ox = col * bW;
+            const oy = row * bH;
+            
+            ctx.fillStyle = useTexture
+              ? isSecond
+                ? texPatDark || color2
+                : texPatLight || color1
+              : isSecond
+                ? color2
+                : color1;
+                
+            ctx.fillRect(ox, oy, bW, bH);
+            ctx.strokeRect(ox, oy, bW, bH);
+          }
+        }
+        break;
+      }
+      case "bookmatch": {
+        // Bookmatch lays out simple tiles but mirrors the texture across axes
+        const bW = Math.max(12, Math.round(pW));
+        const bH = Math.max(12, Math.round(pH));
+        const colsB = Math.ceil(90 / bW) + 2;
+        const rowsB = Math.ceil(55 / bH) + 2;
+        
+        ctx.strokeStyle = grout;
+        ctx.lineWidth = 1.0;
+        
+        for (let row = -1; row < rowsB; row++) {
+          for (let col = -1; col < colsB; col++) {
+            const ox = col * bW;
+            const oy = row * bH;
+            
+            const flipX = (col % 2) !== 0;
+            const flipY = (row % 2) !== 0;
+            
+            ctx.save();
+            ctx.translate(ox + bW / 2, oy + bH / 2);
+            ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+            
+            ctx.fillStyle = texPatLight || color1;
+            ctx.fillRect(-bW / 2, -bH / 2, bW, bH);
+            ctx.restore();
+            
+            ctx.strokeRect(ox, oy, bW, bH);
           }
         }
         break;
@@ -372,7 +456,7 @@ export function updateTilePreview() {
 export function syncPatternUI() {
   const pattern = val("tilePattern");
   const isChevron = pattern === "chevron";
-  const isBasketweave = pattern === "basketweave";
+  const isBasketweave = pattern === "basketweave" || pattern === "straightweave";
   const isVersionailles = pattern === "versailles";
   const isChecker = isCheckerPattern(pattern);
   const isDual = isDualColorPattern(pattern);

@@ -184,7 +184,7 @@
   font-size: 0.65em;
   color: var(--txt-secondary);
   font-weight: 600;
-  background: #fff;
+  background: var(--ctrl-bg);
   user-select: none;
 }
 .tile-option:hover {
@@ -241,8 +241,8 @@ input[type="range"] {
     to right,
     var(--accent) 0%,
     var(--accent) var(--sl-pct, 50%),
-    #dddfe8 var(--sl-pct, 50%),
-    #dddfe8 100%
+    rgba(255, 255, 255, 0.1) var(--sl-pct, 50%),
+    rgba(255, 255, 255, 0.1) 100%
   );
 }
 input[type="range"]::-webkit-slider-thumb {
@@ -250,7 +250,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ctrl-bg);
   border: 2.5px solid var(--accent);
   box-shadow: 0 1px 5px rgba(var(--accent-rgb), 0.45);
   cursor: pointer;
@@ -270,7 +270,7 @@ input[type="range"]::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ctrl-bg);
   border: 2.5px solid var(--accent);
   cursor: pointer;
 }
@@ -303,14 +303,14 @@ input[type="range"]::-moz-range-progress {
 }
 .thickness-bar-h {
   flex: 1;
-  background: #d1d5db;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 3px;
   height: var(--th, 3px);
   transition: height 0.2s;
 }
 .thickness-bar-v {
   height: 22px;
-  background: #d1d5db;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 3px;
   width: var(--tv, 3px);
   transition: width 0.2s;
@@ -349,9 +349,9 @@ input[type="range"]::-moz-range-progress {
   gap: 5px;
 }
 .tile-source-btn.active {
-  background: #fff;
-  color: var(--accent-dark);
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+  background: rgba(var(--accent-rgb), 0.15);
+  color: #c8c5ff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Color / Texture mode panels ───────────────────────────────── */
@@ -397,7 +397,7 @@ input[type="range"]::-moz-range-progress {
   border-radius: var(--r-sm);
   cursor: pointer;
   padding: 3px;
-  background: #fff;
+  background: var(--ctrl-bg);
   transition:
     border-color 0.15s,
     box-shadow 0.15s;
@@ -495,6 +495,7 @@ input[type="range"]::-moz-range-progress {
   border-radius: var(--r-sm);
   cursor: pointer;
   padding: 3px;
+  background: var(--ctrl-bg);
 }
 
 /* ── Panel footer / apply button ───────────────────────────────── */
