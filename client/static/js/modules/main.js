@@ -13,6 +13,7 @@ import {
   setTileMode,
   redrawWithFloorHighlight,
   updateTogglePreviewVisibility,
+  drawAutoLabels,
 } from "./ui.js";
 import {
   applyTilesToFloor,
@@ -133,7 +134,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (canvasEl && window.ResizeObserver) {
     const ro = new ResizeObserver(() => {
       requestAnimationFrame(() => {
-        // Note: drawAutoLabels() is no longer needed here as markers are Percentage-Locked via CSS
+        // Re-sync overlay to canvas bounding rect on every layout change
+        drawAutoLabels();
         updateTogglePreviewVisibility();
       });
     });

@@ -1,4 +1,16 @@
 // Helper functions
+
+/**
+ * Sync the CSS --sl-pct variable on a range input so the track fill
+ * always matches the current thumb position.
+ */
+export function syncSliderTrack(el) {
+  const min = parseFloat(el.min) || 0;
+  const max = parseFloat(el.max) || 100;
+  const pct = ((parseFloat(el.value) - min) / (max - min)) * 100;
+  el.style.setProperty("--sl-pct", pct.toFixed(1) + "%");
+}
+
 export function val(id) {
   return document.getElementById(id).value;
 }
@@ -30,6 +42,19 @@ export function applyDefaults(CONFIG) {
   badge("translateYValue", CONFIG.defaultTranslateY);
   // Pattern
   set("tilePattern", CONFIG.defaultPattern);
+  // Sync slider tracks after values are set
+  [
+    "tileWidth",
+    "tileHeight",
+    "groutThickness",
+    "translateX",
+    "translateY",
+    "gridRotation",
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) syncSliderTrack(el);
+  });
+
   // Colours
   set("tileColor", CONFIG.defaultTileColor);
   set("groutColor", CONFIG.defaultGroutColor);

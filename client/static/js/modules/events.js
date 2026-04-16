@@ -1,4 +1,4 @@
-import { badge, val } from "./helpers.js";
+import { badge, val, syncSliderTrack } from "./helpers.js";
 import {
   updateTilePreview,
   syncPatternUI,
@@ -55,23 +55,29 @@ export function initEventListeners() {
 
   document.getElementById("tileWidth").addEventListener("input", (e) => {
     badge("tileWidthValue", e.target.value + " cm");
+    syncSliderTrack(e.target);
     updateTilePreview();
   });
   document.getElementById("tileHeight").addEventListener("input", (e) => {
     badge("tileHeightValue", e.target.value + " cm");
+    syncSliderTrack(e.target);
     updateTilePreview();
   });
   document.getElementById("gridRotation").addEventListener("input", (e) => {
     badge("gridRotationValue", e.target.value + "°");
+    syncSliderTrack(e.target);
   });
   document.getElementById("translateX").addEventListener("input", (e) => {
     badge("translateXValue", e.target.value);
+    syncSliderTrack(e.target);
   });
   document.getElementById("translateY").addEventListener("input", (e) => {
     badge("translateYValue", e.target.value);
+    syncSliderTrack(e.target);
   });
   document.getElementById("groutThickness").addEventListener("input", (e) => {
     badge("groutValue", e.target.value + " px");
+    syncSliderTrack(e.target);
     document
       .getElementById("hintGrout")
       .style.setProperty("--th", e.target.value + "px");

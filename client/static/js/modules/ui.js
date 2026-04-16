@@ -32,18 +32,24 @@ export function drawAutoLabels(labels, onToggle) {
     return;
   }
 
-  // The overlay is now a CSS twin of the canvas.
-  // We set its base size to the image dimensions so percentages calculate correctly.
+  // Pin the overlay to exactly match the canvas's rendered bounding rect.
+  // This accounts for the side panel, topbar, and any CSS scaling.
   overlay.style.display = "block";
   const imgW = state.canvas.width;
   const imgH = state.canvas.height;
-  overlay.style.width = `${imgW}px`;
-  overlay.style.height = `${imgH}px`;
+  const rect = state.canvas.getBoundingClientRect();
+  overlay.style.left = `${rect.left}px`;
+  overlay.style.top = `${rect.top}px`;
+  overlay.style.width = `${rect.width}px`;
+  overlay.style.height = `${rect.height}px`;
+  overlay.style.transform = "none";
 
   activeLabels.forEach((l) => {
     // Container group: Centers label + marker
     const group = document.createElement("div");
-    group.className = "surface-marker-group" + (state.selectedSurfaces.has(l.id) ? " active" : "");
+    group.className =
+      "surface-marker-group" +
+      (state.selectedSurfaces.has(l.id) ? " active" : "");
     group.setAttribute("data-id", l.id);
 
     // Text Label

@@ -122,6 +122,14 @@ def create_app() -> FastAPI:
             "docs": "/docs",
         }
 
+    @_app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        """Serve the SVG favicon to silence 404s from browsers."""
+        return FileResponse(
+            os.path.join(_BASE_DIR, "static", "favicon.svg"),
+            media_type="image/svg+xml",
+        )
+
     @_app.get("/", response_class=FileResponse, include_in_schema=False)
     async def root():
         """Serve the frontend SPA."""

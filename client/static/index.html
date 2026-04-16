@@ -5,10 +5,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Visualiseur de Carrelage</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/css/style.css" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="shortcut icon" href="/static/favicon.svg" />
+
+    <link rel="stylesheet" href="/static/css/main.css" />
 </head>
 
 <!-- ── SVG sprite (inline, hidden) ─────────────────────── -->
@@ -254,75 +254,6 @@
 
             <div class="panel-divider"></div>
 
-            <!-- Grid Rotation -->
-            <div class="panel-section">
-                <div class="section-label">Rotation du carrelage <span class="value-badge"
-                        id="gridRotationValue">0°</span>
-                </div>
-                <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Translation -->
-            <div class="panel-section">
-                <div class="section-label">Décalage du carrelage</div>
-                <div class="range-pair">
-                    <div class="range-item">
-                        <div class="range-label">
-                            ↔ Horizontal <span class="value-badge" id="translateXValue">0</span>
-                        </div>
-                        <input type="range" id="translateX" min="-200" max="200" step="1" value="0" />
-                    </div>
-                    <div class="range-item">
-                        <div class="range-label">
-                            ↕ Vertical <span class="value-badge" id="translateYValue">0</span>
-                        </div>
-                        <input type="range" id="translateY" min="-200" max="200" step="1" value="0" />
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Tile size -->
-            <div class="panel-section">
-                <div class="section-label">Taille du carrelage</div>
-                <div class="range-pair">
-                    <div class="range-item">
-                        <div class="range-label">
-                            Largeur <span class="value-badge" id="tileWidthValue"></span>
-                        </div>
-                        <input type="range" id="tileWidth" min="10" max="320" step="5" />
-                    </div>
-                    <div class="range-item">
-                        <div class="range-label">
-                            Hauteur <span class="value-badge" id="tileHeightValue"></span>
-                        </div>
-                        <input type="range" id="tileHeight" min="10" max="320" step="5" />
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Grout -->
-            <div class="panel-section">
-                <div class="section-label">Épaisseur du joint</div>
-                <div class="range-item">
-                    <div class="range-label">
-                        Joint <span class="value-badge" id="groutValue"></span>
-                    </div>
-                    <input type="range" id="groutThickness" min="0" max="20" step="1" />
-                    <div class="thickness-hint">
-                        <div class="thickness-bar-h" id="hintGrout"></div>
-                        <span class="hint-label">aperçu</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel-divider"></div>
-
             <!-- Fill style -->
             <div class="panel-section">
                 <div class="section-label">Style de remplissage</div>
@@ -418,6 +349,77 @@
                     <div class="grout-texture-row">
                         <label class="grout-texture-label">Couleur du joint</label>
                         <input type="color" id="groutColorTexture" class="grout-texture-input" />
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="panel-divider"></div>
+
+            <!-- Grout -->
+            <div class="panel-section">
+                <div class="section-label">Épaisseur du joint</div>
+                <div class="range-item">
+                    <div class="range-label">
+                        Joint <span class="value-badge" id="groutValue"></span>
+                    </div>
+                    <input type="range" id="groutThickness" min="0" max="20" step="1" />
+                    <div class="thickness-hint">
+                        <div class="thickness-bar-h" id="hintGrout"></div>
+                        <span class="hint-label">aperçu</span>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="panel-divider"></div>
+
+            <!-- Translation -->
+            <div class="panel-section">
+                <div class="section-label">Décalage du carrelage</div>
+                <div class="range-pair">
+                    <div class="range-item">
+                        <div class="range-label">
+                            ↔ Horizontal <span class="value-badge" id="translateXValue">0</span>
+                        </div>
+                        <input type="range" id="translateX" min="-200" max="200" step="1" value="0" />
+                    </div>
+                    <div class="range-item">
+                        <div class="range-label">
+                            ↕ Vertical <span class="value-badge" id="translateYValue">0</span>
+                        </div>
+                        <input type="range" id="translateY" min="-200" max="200" step="1" value="0" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Grid Rotation -->
+            <div class="panel-section">
+                <div class="section-label">Rotation du carrelage <span class="value-badge"
+                        id="gridRotationValue">0°</span>
+                </div>
+                <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Tile size -->
+            <div class="panel-section">
+                <div class="section-label">Taille du carrelage</div>
+                <div class="range-pair">
+                    <div class="range-item">
+                        <div class="range-label">
+                            Largeur <span class="value-badge" id="tileWidthValue"></span>
+                        </div>
+                        <input type="range" id="tileWidth" min="10" max="320" step="5" />
+                    </div>
+                    <div class="range-item">
+                        <div class="range-label">
+                            Hauteur <span class="value-badge" id="tileHeightValue"></span>
+                        </div>
+                        <input type="range" id="tileHeight" min="10" max="320" step="5" />
                     </div>
                 </div>
             </div>
