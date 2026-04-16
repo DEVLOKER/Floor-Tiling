@@ -14,8 +14,9 @@ export function saveTilePreferences() {
     "gridRotation",
     "tileWidth",
     "tileHeight",
-    "groutHThickness",
-    "groutVThickness",
+    "groutThickness",
+    "translateX",
+    "translateY",
     "tileTextureDataUrl",
     "tileTextureDarkDataUrl",
   ];
@@ -51,14 +52,22 @@ export function loadTilePreferences() {
   Object.entries(data).forEach(([k, v]) => {
     const el = document.getElementById(k);
     if (k === "tileMode" && v) {
-      // We manually update the mode to avoid circular imports, 
+      // We manually update the mode to avoid circular imports,
       // mirroring setTileMode logic for robustness
       if (state) state.tileMode = v;
       document.body.classList.toggle("texture-mode", v === "texture");
-      document.getElementById("btnModeColor")?.classList.toggle("active", v === "color");
-      document.getElementById("btnModeTexture")?.classList.toggle("active", v === "texture");
-      document.getElementById("colorModePanel")?.classList.toggle("active", v === "color");
-      document.getElementById("textureModePanel")?.classList.toggle("active", v === "texture");
+      document
+        .getElementById("btnModeColor")
+        ?.classList.toggle("active", v === "color");
+      document
+        .getElementById("btnModeTexture")
+        ?.classList.toggle("active", v === "texture");
+      document
+        .getElementById("colorModePanel")
+        ?.classList.toggle("active", v === "color");
+      document
+        .getElementById("textureModePanel")
+        ?.classList.toggle("active", v === "texture");
       return;
     }
     if ((k === "tileTextureDataUrl" || k === "tileTextureDarkDataUrl") && v) {

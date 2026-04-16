@@ -1,6 +1,6 @@
 """Application settings and configuration"""
 # Upload size limit
-MAX_SIZE = 1024 * 1024 * 10  # 10 MB
+MAX_UPLOAD_SIZE_BYTES = 1024 * 1024 * 10  # 10 MB
 # CORS origins
 CORS_ORIGINS = [
     "http://127.0.0.1:5500",
@@ -10,19 +10,15 @@ CORS_ORIGINS = [
     "https://127.0.0.1:8000",
     "https://localhost:8000",
 ]
-# SAM2 Model configuration
-MODEL_CONFIG = {
-    "variant": "tiny",
-    "device": "cpu",
-}
 # Tile rendering constants
 DEFAULT_REAL_WIDTH_CM = 300.0
 DEFAULT_TILE_WIDTH = 30.0
 DEFAULT_TILE_HEIGHT = 30.0
-DEFAULT_GROUT_H_THICKNESS = 1
-DEFAULT_GROUT_V_THICKNESS = 1
+DEFAULT_GROUT_THICKNESS = 1
 DEFAULT_PATTERN = "grid"
 DEFAULT_ROTATION = 0.0
+DEFAULT_TRANSLATE_X = 0.0
+DEFAULT_TRANSLATE_Y = 0.0
 # Tile size constraints
 TILE_WIDTH_MIN = 5.0
 TILE_WIDTH_MAX = 200.0

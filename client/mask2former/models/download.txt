@@ -1,12 +1,12 @@
 Mask2Former (ADE20K Semantic Segmentation)
-Model: facebook/mask2former-swin-tiny-ade-semantic
+Model: facebook/mask2former-swin-base-IN21k-ade-semantic
 
-Repo: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic
+Repo: https://huggingface.co/facebook/mask2former-swin-base-IN21k-ade-semantic
 
 Direct Downloads:
-- config.json: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic/resolve/main/config.json
-- pytorch_model.bin: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic/resolve/main/pytorch_model.bin
-- preprocessor_config.json: https://huggingface.co/facebook/mask2former-swin-tiny-ade-semantic/resolve/main/preprocessor_config.json
+- config.json: https://huggingface.co/facebook/mask2former-swin-base-IN21k-ade-semantic/resolve/main/config.json
+- pytorch_model.bin: https://huggingface.co/facebook/mask2former-swin-base-IN21k-ade-semantic/resolve/main/pytorch_model.bin
+- preprocessor_config.json: https://huggingface.co/facebook/mask2former-swin-base-IN21k-ade-semantic/resolve/main/preprocessor_config.json
 
 Note: On your local machine, the weights are saved as 'model.safetensors'. 
 They correspond to 'pytorch_model.bin' in the Hugging Face repository.

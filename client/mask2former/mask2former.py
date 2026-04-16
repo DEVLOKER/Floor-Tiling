@@ -12,7 +12,7 @@ class Mask2FormerManager:
     _instance = None
     _model = None
     _processor = None
-    _model_id = "facebook/mask2former-swin-tiny-ade-semantic"
+    _model_id = "facebook/mask2former-swin-base-IN21k-ade-semantic"
     
     def __new__(cls):
         if cls._instance is None:
@@ -34,17 +34,32 @@ class Mask2FormerManager:
             config_file = self.local_path / "config.json"
             # Support both standard pytorch and safetensors
             has_weights = (self.local_path / "model.safetensors").exists() or (self.local_path / "pytorch_model.bin").exists()
+
+            # Check if cached model matches expected model ID
+            marker_file = self.local_path / ".model_id"
+            cached_id = marker_file.read_text().strip() if marker_file.exists() else None
+            model_mismatch = cached_id != self._model_id
             
-            if not config_file.exists() or not has_weights:
-                print(f"⏬ Mask2Former not found in {self.local_path}, downloading from Hugging Face...")
+            if not config_file.exists() or not has_weights or model_mismatch:
+                if model_mismatch and has_weights:
+                    print(f"🔄 Model changed from {cached_id} → {self._model_id}, re-downloading...")
+                    # Clean old model files
+                    for f in self.local_path.glob("*"):
+                        if f.is_file():
+                            f.unlink()
+                else:
+                    print(f"⏬ Mask2Former not found in {self.local_path}, downloading from Hugging Face...")
+                
                 self._processor = AutoImageProcessor.from_pretrained(self._model_id, use_fast=True)
                 self._model = Mask2FormerForUniversalSegmentation.from_pretrained(self._model_id)
                 # Save locally for future use
                 self._processor.save_pretrained(self.local_path)
                 self._model.save_pretrained(self.local_path)
+                # Write marker so we detect model changes in future
+                marker_file.write_text(self._model_id)
                 print(f"✅ Model downloaded and saved to {self.local_path}")
             else:
-                print(f"🟡 Loading Mask2Former from local storage: {self.local_path}")
+                print(f"🟡 Loading Mask2Former ({self._model_id}) from local storage")
                 self._processor = AutoImageProcessor.from_pretrained(str(self.local_path), use_fast=True)
                 # use_safetensors=True will prioritize .safetensors files if available
                 self._model = Mask2FormerForUniversalSegmentation.from_pretrained(

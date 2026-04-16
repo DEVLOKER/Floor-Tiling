@@ -5,7 +5,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Visualiseur de Carrelage</title>
-    <link rel="stylesheet" href="/static/css/style.css" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="shortcut icon" href="/static/favicon.svg" />
+
+    <link rel="stylesheet" href="/static/css/main.css" />
 </head>
 
 <!-- ── SVG sprite (inline, hidden) ─────────────────────── -->
@@ -17,8 +20,8 @@
         <polyline points="9 21 9 13 15 13 15 21" />
     </symbol>
     <!-- layers / stack -->
-    <symbol id="ico-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-        stroke-linejoin="round">
+    <symbol id="ico-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
         <polygon points="12 2 2 7 12 12 22 7 12 2" />
         <polyline points="2 17 12 22 22 17" />
         <polyline points="2 12 12 17 22 12" />
@@ -101,9 +104,10 @@
         <circle cx="12" cy="12" r="3" />
     </symbol>
     <!-- sparkles / AI -->
-    <symbol id="ico-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-        stroke-linejoin="round">
-        <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-11.314l.707.707m11.314 11.314l.707.707" />
+    <symbol id="ico-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path
+            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-11.314l.707.707m11.314 11.314l.707.707" />
         <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
     </symbol>
 </svg>
@@ -114,311 +118,328 @@
         <canvas id="mainCanvas"></canvas>
         <div id="markersOverlay"></div>
 
-<!-- ── Welcome state (pre-upload) ─────────────────────────── -->
-<div class="welcome-overlay" id="welcomeOverlay">
-    <div class="welcome-card">
-        <div class="welcome-icon">
-            <svg class="app-icon app-icon-xl">
-                <use href="#ico-layers" />
-            </svg>
-        </div>
-        <h2>Visualiseur de Carrelage</h2>
-        <p>Téléchargez une photo de pièce, cliquez sur le sol et prévisualisez n'importe quel style de carrelage
-            instantanément.</p>
-        <button class="btn-welcome" id="welcomeUploadBtn">
-            <svg class="app-icon">
-                <use href="#ico-camera" />
-            </svg> Choisir une photo
-        </button>
-        <div class="welcome-drag-hint">ou glissez-déposez n'importe où sur cet écran</div>
-    </div>
-</div>
-
-<!-- ── Drag-and-drop overlay ───────────────────────────────── -->
-<div class="drop-overlay" id="dropOverlay">
-    <div class="drop-card">
-        <div class="drop-icon">
-            <svg class="app-icon app-icon-xl">
-                <use href="#ico-camera" />
-            </svg>
-        </div>
-        <div class="drop-text">Déposez votre photo ici</div>
-    </div>
-</div>
-
-<!-- Header moved to side panel -->
-
-<!-- ── HUD: instruction / coords pill ────────────────────── -->
-<div class="hud-pill" id="coordsInfo">Cliquez sur le sol pour le sélectionner</div>
-
-<!-- ── Floor selection badge ──────────────────────────────── -->
-<!-- ── Info sidebar (fixed left) ───────────────────────────── -->
-
-<!-- ── Loading overlay ───────────────────────────────────── -->
-<div class="loading-overlay" id="loadingOverlay" style="display:none">
-    <div class="loading-card">
-        <div class="loading-ring"></div>
-        <div class="loading-text" id="loadingText">Traitement en cours…</div>
-    </div>
-</div>
-
-<!-- ── Floating action buttons ───────────────────────────── -->
-<div class="fab-group">
-    <div class="fab-tip-wrap" data-tip="Importer une photo">
-        <button class="fab fab-sm" id="uploadBtn" title="Importer une photo">
-            <svg class="app-icon">
-                <use href="#ico-camera" />
-            </svg>
-        </button>
-    </div>
-<!-- Removed openSettingsBtn since sidebar is always visible -->
-    <div class="fab-tip-wrap" data-tip="Afficher l'original / Résultat" id="togglePreviewFabWrap" style="display:none">
-        <button class="fab fab-sm fab-toggle-preview" id="togglePreviewBtn" title="Afficher l'original / Résultat">
-            <svg class="app-icon">
-                <use href="#ico-eye" />
-            </svg>
-        </button>
-    </div>
-    <div class="fab-tip-wrap" data-tip="Télécharger le résultat" id="downloadFabWrap" style="display:none">
-        <button class="fab fab-sm fab-download" id="downloadBtn" title="Télécharger le résultat">
-            <svg class="app-icon">
-                <use href="#ico-download" />
-            </svg>
-        </button>
-    </div>
-    <button class="fab fab-main" id="applyTilesBtn" style="display:none">
-        <svg class="app-icon">
-            <use href="#ico-paint" />
-        </svg>
-        <span class="fab-label">Appliquer</span>
-    </button>
-</div>
-
-<!-- Hidden file input -->
-<input type="file" id="fileInput" accept="image/*" style="display:none" />
-
-<!-- ── Toast notifications (anchored to workspace) ───── -->
-<div class="toast-container" id="toastContainer"></div>
-
-<!-- No backdrop needed in 2-column layout -->
-    </div> <!-- /canvas-workspace -->
-
-<!-- ── Side panel ────────────────────────────────────────── -->
-<aside class="side-panel" id="sidePanel">
-    <div class="panel-header">
-        <div class="top-bar-left">
-            <span class="app-logo">
-                <svg class="app-icon app-icon-lg">
-                    <use href="#ico-layers" />
-                </svg>
-            </span>
-            <div class="app-name">
-                <div class="app-title">Visualiseur de Carrelage</div>
-                <div class="app-subtitle">Propulsé par SCRIPTIHA</div>
+        <!-- ── Welcome state (pre-upload) ─────────────────────────── -->
+        <div class="welcome-overlay" id="welcomeOverlay">
+            <div class="welcome-card">
+                <div class="welcome-icon">
+                    <svg class="app-icon app-icon-xl">
+                        <use href="#ico-layers" />
+                    </svg>
+                </div>
+                <h2>Visualiseur de Carrelage</h2>
+                <p>Téléchargez une photo de pièce, cliquez sur le sol et prévisualisez n'importe quel style de carrelage
+                    instantanément.</p>
+                <button class="btn-welcome" id="welcomeUploadBtn">
+                    <svg class="app-icon">
+                        <use href="#ico-camera" />
+                    </svg> Choisir une photo
+                </button>
+                <div class="welcome-drag-hint">ou glissez-déposez n'importe où sur cet écran</div>
             </div>
         </div>
-        <div class="top-bar-right">
-            <button class="top-btn top-btn-close" id="closeAppBtn" title="Fermer l'application" onclick="window.close()">
-                <svg class="app-icon app-icon-sm">
-                    <use href="#ico-close" />
-                </svg> Fermer
+
+        <!-- ── Drag-and-drop overlay ───────────────────────────────── -->
+        <div class="drop-overlay" id="dropOverlay">
+            <div class="drop-card">
+                <div class="drop-icon">
+                    <svg class="app-icon app-icon-xl">
+                        <use href="#ico-camera" />
+                    </svg>
+                </div>
+                <div class="drop-text">Déposez votre photo ici</div>
+            </div>
+        </div>
+
+        <!-- Header moved to side panel -->
+
+        <!-- ── HUD: instruction / coords pill ────────────────────── -->
+        <div class="hud-pill" id="coordsInfo">Cliquez sur le sol pour le sélectionner</div>
+
+        <!-- ── Floor selection badge ──────────────────────────────── -->
+        <!-- ── Info sidebar (fixed left) ───────────────────────────── -->
+
+        <!-- ── Loading overlay ───────────────────────────────────── -->
+        <div class="loading-overlay" id="loadingOverlay" style="display:none">
+            <div class="loading-card">
+                <div class="loading-ring"></div>
+                <div class="loading-text" id="loadingText">Traitement en cours…</div>
+            </div>
+        </div>
+
+        <!-- ── Floating action buttons ───────────────────────────── -->
+        <div class="fab-group">
+            <div class="fab-tip-wrap" data-tip="Importer une photo">
+                <button class="fab fab-sm" id="uploadBtn" title="Importer une photo">
+                    <svg class="app-icon">
+                        <use href="#ico-camera" />
+                    </svg>
+                </button>
+            </div>
+            <!-- Removed openSettingsBtn since sidebar is always visible -->
+            <div class="fab-tip-wrap" data-tip="Afficher l'original / Résultat" id="togglePreviewFabWrap"
+                style="display:none">
+                <button class="fab fab-sm fab-toggle-preview" id="togglePreviewBtn"
+                    title="Afficher l'original / Résultat">
+                    <svg class="app-icon">
+                        <use href="#ico-eye" />
+                    </svg>
+                </button>
+            </div>
+            <div class="fab-tip-wrap" data-tip="Télécharger le résultat" id="downloadFabWrap" style="display:none">
+                <button class="fab fab-sm fab-download" id="downloadBtn" title="Télécharger le résultat">
+                    <svg class="app-icon">
+                        <use href="#ico-download" />
+                    </svg>
+                </button>
+            </div>
+            <button class="fab fab-main" id="applyTilesBtn" style="display:none">
+                <svg class="app-icon">
+                    <use href="#ico-paint" />
+                </svg>
+                <span class="fab-label">Appliquer</span>
             </button>
         </div>
-    </div>
 
-    <div class="panel-body">
+        <!-- Hidden file input -->
+        <input type="file" id="fileInput" accept="image/*" style="display:none" />
 
-        <!-- Pattern selector -->
-        <div class="panel-section">
-            <div class="section-label">Motif</div>
-            <select id="tilePattern" class="panel-select">
-                <option value="grid">Grille</option>
-                <option value="brick">Brique (décalée)</option>
-                <option value="herringbone">Chevrons classiques</option>
-                <option value="chevron">Chevron ∧</option>
-                <option value="basketweave">Natte</option>
-                <option value="versailles">Versailles</option>
-                <option value="checkerboard">Damier</option>
-            </select>
-        </div>
+        <!-- ── Toast notifications (anchored to workspace) ───── -->
+        <div class="toast-container" id="toastContainer"></div>
 
-        <!-- Pattern thumbnail previews -->
-        <div class="tile-preview" id="tilePreview"></div>
+        <!-- No backdrop needed in 2-column layout -->
+    </div> <!-- /canvas-workspace -->
 
-        <div class="panel-divider"></div>
-
-        <!-- Grid Rotation -->
-        <div class="panel-section">
-            <div class="section-label">Rotation du carrelage <span class="value-badge" id="gridRotationValue">0°</span>
-            </div>
-            <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
-        </div>
-
-        <div class="panel-divider"></div>
-
-        <!-- Tile size -->
-        <div class="panel-section">
-            <div class="section-label">Taille du carrelage</div>
-            <div class="range-pair">
-                <div class="range-item">
-                    <div class="range-label">
-                        Largeur <span class="value-badge" id="tileWidthValue"></span>
-                    </div>
-                    <input type="range" id="tileWidth" min="10" max="320" step="5" />
-                </div>
-                <div class="range-item">
-                    <div class="range-label">
-                        Hauteur <span class="value-badge" id="tileHeightValue"></span>
-                    </div>
-                    <input type="range" id="tileHeight" min="10" max="320" step="5" />
+    <!-- ── Side panel ────────────────────────────────────────── -->
+    <aside class="side-panel" id="sidePanel">
+        <div class="panel-header">
+            <div class="top-bar-left">
+                <span class="app-logo">
+                    <svg class="app-icon app-icon-lg">
+                        <use href="#ico-layers" />
+                    </svg>
+                </span>
+                <div class="app-name">
+                    <div class="app-title">Visualiseur de Carrelage</div>
+                    <div class="app-subtitle">Propulsé par SCRIPTIHA</div>
                 </div>
             </div>
-        </div>
-
-        <div class="panel-divider"></div>
-
-        <!-- Grout -->
-        <div class="panel-section">
-            <div class="section-label">Épaisseur du joint</div>
-            <div class="range-pair">
-                <div class="range-item">
-                    <div class="range-label">
-                        ↔ Horizontal <span class="value-badge" id="groutHValue"></span>
-                    </div>
-                    <input type="range" id="groutHThickness" min="0" max="20" step="1" />
-                    <div class="thickness-hint">
-                        <div class="thickness-bar-h" id="hintH"></div>
-                        <span class="hint-label">aperçu</span>
-                    </div>
-                </div>
-                <div class="range-item">
-                    <div class="range-label">
-                        ↕ Vertical <span class="value-badge" id="groutVValue"></span>
-                    </div>
-                    <input type="range" id="groutVThickness" min="0" max="20" step="1" />
-                    <div class="thickness-hint">
-                        <div class="thickness-bar-v" id="hintV"></div>
-                        <span class="hint-label">aperçu</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel-divider"></div>
-
-        <!-- Fill style -->
-        <div class="panel-section">
-            <div class="section-label">Style de remplissage</div>
-            <div class="tile-source-toggle">
-                <button class="tile-source-btn active" id="btnModeColor">
+            <div class="top-bar-right">
+                <button class="top-btn top-btn-close" id="closeAppBtn" title="Fermer l'application"
+                    onclick="window.close()">
                     <svg class="app-icon app-icon-sm">
-                        <use href="#ico-palette" />
-                    </svg> Couleur
-                </button>
-                <button class="tile-source-btn" id="btnModeTexture">
-                    <svg class="app-icon app-icon-sm">
-                        <use href="#ico-image" />
-                    </svg> Texture
+                        <use href="#ico-close" />
+                    </svg> Fermer
                 </button>
             </div>
+        </div>
 
-            <!-- Color panel -->
-            <div id="colorModePanel" class="active">
-                <div class="color-row" id="normalColorRow">
-                    <div class="color-swatch-group">
-                        <label>Carrelage</label>
-                        <input type="color" id="tileColor" />
-                    </div>
-                    <div class="color-swatch-group">
-                        <label>Joint</label>
-                        <input type="color" id="groutColor" />
-                    </div>
-                </div>
-                <!-- Dual-colour row: used by checkerboard AND chevron -->
-                <div class="checker-row" id="checkerColorRow">
-                    <div class="color-swatch-group">
-                        <label id="dualColorLabel1">Clair</label>
-                        <input type="color" id="tileColorLight" />
-                    </div>
-                    <div class="color-swatch-group">
-                        <label id="dualColorLabel2">Foncé</label>
-                        <input type="color" id="tileColorDark" />
-                    </div>
-                    <div class="color-swatch-group">
-                        <label>Joint</label>
-                        <input type="color" id="groutColorChecker" />
-                    </div>
-                </div>
+        <div class="panel-body">
+
+            <!-- Pattern selector -->
+            <div class="panel-section">
+                <div class="section-label">Motif</div>
+                <select id="tilePattern" class="panel-select">
+                    <option value="grid">Grille</option>
+                    <option value="brick">Brique (décalée)</option>
+                    <option value="herringbone">Chevrons classiques</option>
+                    <option value="chevron">Chevron ∧</option>
+                    <option value="basketweave">Natte</option>
+                    <option value="straightweave">Tissage Droit</option>
+                    <option value="bookmatch">Bookmatch</option>
+                    <option value="versailles">Versailles</option>
+                    <option value="checkerboard">Damier</option>
+                </select>
             </div>
 
-            <!-- Texture panel -->
-            <div id="textureModePanel">
-                <div class="texture-pair-row" id="texturePairRow">
-                    <!-- Primary / light texture -->
-                    <div id="textureLightGroup">
-                        <div class="texture-slot-label" id="textureLightLabel">Texture du carrelage</div>
-                        <div class="texture-upload-area" id="textureUploadArea">
-                            <div id="textureEmpty">
-                                <div class="tex-icon">
-                                    <svg class="app-icon app-icon-lg">
-                                        <use href="#ico-image" />
-                                    </svg>
-                                </div>
-                                <div class="texture-hint">Cliquer pour importer</div>
-                                <div class="texture-hint muted">JPG · PNG · WebP</div>
-                            </div>
-                            <div id="texturePreview" style="display:none">
-                                <img id="textureThumb" class="texture-thumb" alt="aperçu texture" />
-                                <div class="texture-name" id="textureName"></div>
-                                <div class="texture-hint">Cliquer pour changer</div>
-                            </div>
-                            <input type="file" id="textureFileInput" accept="image/*" style="display:none" />
+            <!-- Pattern thumbnail previews -->
+            <div class="tile-preview" id="tilePreview"></div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Fill style -->
+            <div class="panel-section">
+                <div class="section-label">Style de remplissage</div>
+                <div class="tile-source-toggle">
+                    <button class="tile-source-btn active" id="btnModeColor">
+                        <svg class="app-icon app-icon-sm">
+                            <use href="#ico-palette" />
+                        </svg> Couleur
+                    </button>
+                    <button class="tile-source-btn" id="btnModeTexture">
+                        <svg class="app-icon app-icon-sm">
+                            <use href="#ico-image" />
+                        </svg> Texture
+                    </button>
+                </div>
+
+                <!-- Color panel -->
+                <div id="colorModePanel" class="active">
+                    <div class="color-row" id="normalColorRow">
+                        <div class="color-swatch-group">
+                            <label>Carrelage</label>
+                            <input type="color" id="tileColor" />
+                        </div>
+                        <div class="color-swatch-group">
+                            <label>Joint</label>
+                            <input type="color" id="groutColor" />
                         </div>
                     </div>
-                    <!-- Secondary / dark texture (dual patterns: checker, chevron) -->
-                    <div id="textureDarkGroup" style="display:none">
-                        <div class="texture-slot-label" id="textureDarkLabel">Texture foncée</div>
-                        <div class="texture-upload-area" id="textureDarkUploadArea">
-                            <div id="textureDarkEmpty">
-                                <div class="tex-icon">
-                                    <svg class="app-icon app-icon-lg">
-                                        <use href="#ico-image" />
-                                    </svg>
-                                </div>
-                                <div class="texture-hint">Cliquer pour importer</div>
-                                <div class="texture-hint muted">JPG · PNG · WebP</div>
-                            </div>
-                            <div id="textureDarkPreview" style="display:none">
-                                <img id="textureDarkThumb" class="texture-thumb" alt="aperçu texture foncée" />
-                                <div class="texture-name" id="textureDarkName"></div>
-                                <div class="texture-hint">Cliquer pour changer</div>
-                            </div>
-                            <input type="file" id="textureDarkFileInput" accept="image/*" style="display:none" />
+                    <!-- Dual-colour row: used by checkerboard AND chevron -->
+                    <div class="checker-row" id="checkerColorRow">
+                        <div class="color-swatch-group">
+                            <label id="dualColorLabel1">Clair</label>
+                            <input type="color" id="tileColorLight" />
+                        </div>
+                        <div class="color-swatch-group">
+                            <label id="dualColorLabel2">Foncé</label>
+                            <input type="color" id="tileColorDark" />
+                        </div>
+                        <div class="color-swatch-group">
+                            <label>Joint</label>
+                            <input type="color" id="groutColorChecker" />
                         </div>
                     </div>
                 </div>
-                <!-- Grout for texture mode -->
-                <div class="grout-texture-row">
-                    <label class="grout-texture-label">Couleur du joint</label>
-                    <input type="color" id="groutColorTexture" class="grout-texture-input" />
+
+                <!-- Texture panel -->
+                <div id="textureModePanel">
+                    <div class="texture-pair-row" id="texturePairRow">
+                        <!-- Primary / light texture -->
+                        <div id="textureLightGroup">
+                            <div class="texture-slot-label" id="textureLightLabel">Texture du carrelage</div>
+                            <div class="texture-upload-area" id="textureUploadArea">
+                                <div id="textureEmpty">
+                                    <div class="tex-icon">
+                                        <svg class="app-icon app-icon-lg">
+                                            <use href="#ico-image" />
+                                        </svg>
+                                    </div>
+                                    <div class="texture-hint">Cliquer pour importer</div>
+                                    <div class="texture-hint muted">JPG · PNG · WebP</div>
+                                </div>
+                                <div id="texturePreview" style="display:none">
+                                    <img id="textureThumb" class="texture-thumb" alt="aperçu texture" />
+                                    <div class="texture-name" id="textureName"></div>
+                                    <div class="texture-hint">Cliquer pour changer</div>
+                                </div>
+                                <input type="file" id="textureFileInput" accept="image/*" style="display:none" />
+                            </div>
+                        </div>
+                        <!-- Secondary / dark texture (dual patterns: checker, chevron) -->
+                        <div id="textureDarkGroup" style="display:none">
+                            <div class="texture-slot-label" id="textureDarkLabel">Texture foncée</div>
+                            <div class="texture-upload-area" id="textureDarkUploadArea">
+                                <div id="textureDarkEmpty">
+                                    <div class="tex-icon">
+                                        <svg class="app-icon app-icon-lg">
+                                            <use href="#ico-image" />
+                                        </svg>
+                                    </div>
+                                    <div class="texture-hint">Cliquer pour importer</div>
+                                    <div class="texture-hint muted">JPG · PNG · WebP</div>
+                                </div>
+                                <div id="textureDarkPreview" style="display:none">
+                                    <img id="textureDarkThumb" class="texture-thumb" alt="aperçu texture foncée" />
+                                    <div class="texture-name" id="textureDarkName"></div>
+                                    <div class="texture-hint">Cliquer pour changer</div>
+                                </div>
+                                <input type="file" id="textureDarkFileInput" accept="image/*" style="display:none" />
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Grout for texture mode -->
+                    <div class="grout-texture-row">
+                        <label class="grout-texture-label">Couleur du joint</label>
+                        <input type="color" id="groutColorTexture" class="grout-texture-input" />
+                    </div>
                 </div>
             </div>
+
+
+            <div class="panel-divider"></div>
+
+            <!-- Grout -->
+            <div class="panel-section">
+                <div class="section-label">Épaisseur du joint</div>
+                <div class="range-item">
+                    <div class="range-label">
+                        Joint <span class="value-badge" id="groutValue"></span>
+                    </div>
+                    <input type="range" id="groutThickness" min="0" max="20" step="1" />
+                    <div class="thickness-hint">
+                        <div class="thickness-bar-h" id="hintGrout"></div>
+                        <span class="hint-label">aperçu</span>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="panel-divider"></div>
+
+            <!-- Translation -->
+            <div class="panel-section">
+                <div class="section-label">Décalage du carrelage</div>
+                <div class="range-pair">
+                    <div class="range-item">
+                        <div class="range-label">
+                            ↔ Horizontal <span class="value-badge" id="translateXValue">0</span>
+                        </div>
+                        <input type="range" id="translateX" min="-200" max="200" step="1" value="0" />
+                    </div>
+                    <div class="range-item">
+                        <div class="range-label">
+                            ↕ Vertical <span class="value-badge" id="translateYValue">0</span>
+                        </div>
+                        <input type="range" id="translateY" min="-200" max="200" step="1" value="0" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Grid Rotation -->
+            <div class="panel-section">
+                <div class="section-label">Rotation du carrelage <span class="value-badge"
+                        id="gridRotationValue">0°</span>
+                </div>
+                <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Tile size -->
+            <div class="panel-section">
+                <div class="section-label">Taille du carrelage</div>
+                <div class="range-pair">
+                    <div class="range-item">
+                        <div class="range-label">
+                            Largeur <span class="value-badge" id="tileWidthValue"></span>
+                        </div>
+                        <input type="range" id="tileWidth" min="10" max="320" step="5" />
+                    </div>
+                    <div class="range-item">
+                        <div class="range-label">
+                            Hauteur <span class="value-badge" id="tileHeightValue"></span>
+                        </div>
+                        <input type="range" id="tileHeight" min="10" max="320" step="5" />
+                    </div>
+                </div>
+            </div>
+
+
+        </div><!-- /panel-body -->
+
+        <div class="panel-footer" id="panelFooter">
+            <button class="btn-apply-panel" id="applyTilesPanelBtn">
+                <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
+                    <use href="#ico-paint" />
+                </svg> Appliquer le carrelage
+            </button>
         </div>
+    </aside>
 
-
-    </div><!-- /panel-body -->
-
-    <div class="panel-footer" id="panelFooter">
-        <button class="btn-apply-panel" id="applyTilesPanelBtn">
-            <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
-                <use href="#ico-paint" />
-            </svg> Appliquer le carrelage
-        </button>
-    </div>
-</aside>
-
-<!-- ── Toast notifications ───────────────────────────────── -->
-<div class="toast-container" id="toastContainer"></div>
+    <!-- ── Toast notifications ───────────────────────────────── -->
+    <div class="toast-container" id="toastContainer"></div>
 
 </main> <!-- /app-layout -->
 
