@@ -27,12 +27,13 @@ _ad_datas, _ad_binaries, _ad_hidden = collect_all("appdirs")
 # Collect all .pyd files in the sensitive packages.  Each entry is a tuple:
 #   (source_path, dest_directory_inside_the_bundle)
 pyd_binaries = []
-for pkg in ["config", "core", "mask2former", "patterns", "processors"]:
+for pkg in ["config", "core", "mask2former", "patterns", "processors", "utils"]:
     for pyd in glob.glob(str(ROOT / pkg / "*.pyd")):
         pyd_binaries.append((pyd, pkg))
-# Shared package (lives at repo root)
-for pyd in glob.glob(str(REPO_ROOT / "shared" / "*.pyd")):
-    pyd_binaries.append((pyd, "shared"))
+# Shared package (lives at repo root) — pyds are in sub-packages, so walk recursively
+for pyd in glob.glob(str(REPO_ROOT / "shared" / "**" / "*.pyd"), recursive=True):
+    rel_dir = os.path.relpath(os.path.dirname(pyd), REPO_ROOT)
+    pyd_binaries.append((pyd, rel_dir))
 
 # ── Data files ────────────────────────────────────────────────────────────────
 # Only include .py sources from shared/ if no .pyd exists for that module
@@ -67,8 +68,8 @@ def filter_dev_files(datas):
     return filtered
 
 datas = [
-    (str(ROOT / "static"),       "static"),
-    (str(ROOT / "sam2" / "configs"), os.path.join("sam2", "configs")),
+    (str(ROOT / "static"),                           "static"),
+    (str(ROOT / "mask2former" / "models"),            os.path.join("mask2former", "models")),
 ] + shared_datas()
 datas = filter_dev_files(datas)
 #    # SAM2 model checkpoints (large — uncomment if you want to bundle them)

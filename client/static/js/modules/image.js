@@ -117,7 +117,7 @@ export async function runAutoDetection() {
         } else {
           // Show step progress: "🤖 (2/4) Détection sémantique…"
           showStatus(
-            `🤖 (${payload.step}/${payload.total}) ${payload.message}`,
+            `🤖 [${payload.step}/${payload.total}] ${payload.message}`,
             "info",
           );
         }

@@ -277,7 +277,62 @@ class AdminGUI(tk.Tk):
                         self.build_output.insert(tk.END, text)
                         self.build_output.see(tk.END)
                     self.build_output.after(0, _append)
+                def cleanup_build_artefacts():
+                    import glob as _glob
+                    client_dir = Path(__file__).resolve().parent.parent / "client"
+                    shared_dir = Path(__file__).resolve().parent.parent / "shared"
+                    to_remove = (
+                        _glob.glob(str(client_dir / "**" / "*.pyd"), recursive=True) +
+                        _glob.glob(str(client_dir / "**" / "*.pyd.old"), recursive=True) +
+                        _glob.glob(str(client_dir / "**" / "*.c"), recursive=True) +
+                        _glob.glob(str(shared_dir / "**" / "*.pyd"), recursive=True) +
+                        _glob.glob(str(shared_dir / "**" / "*.pyd.old"), recursive=True) +
+                        _glob.glob(str(shared_dir / "**" / "*.c"), recursive=True)
+                    )
+                    # Exclude build/ and dist/ subtrees (PyInstaller output, not Cython artefacts)
+                    to_remove = [
+                        f for f in to_remove
+                        if "\\build\\" not in f and "\\dist\\" not in f
+                    ]
+                    removed, failed = [], []
+                    for f in to_remove:
+                        p = Path(f)
+                        try:
+                            p.unlink()
+                            removed.append(p.name)
+                        except OSError:
+                            # Still locked — rename so it won't block the next build
+                            try:
+                                p.rename(p.with_suffix(p.suffix + ".old"))
+                                removed.append(p.name + " (renamed)")
+                            except OSError as _e:
+                                failed.append(f"{p.name}: {_e}")
+                    if removed:
+                        append_output(f"\n[Cleanup] Removed: {', '.join(removed)}\n")
+                    if failed:
+                        append_output(f"[Cleanup] Could not remove: {', '.join(failed)}\n")
                 self.build_output.after(0, lambda: self.build_output.delete("1.0", tk.END))
+                # Rename any locked .pyd files before build so Cython can overwrite them
+                import glob as _glob
+                client_dir = Path(__file__).resolve().parent.parent / "client"
+                shared_dir = Path(__file__).resolve().parent.parent / "shared"
+                stale_pyds = (
+                    _glob.glob(str(client_dir / "**" / "*.pyd"), recursive=True) +
+                    _glob.glob(str(shared_dir / "**" / "*.pyd"), recursive=True)
+                )
+                stale_pyds = [f for f in stale_pyds if "\\build\\" not in f and "\\dist\\" not in f]
+                for stale in stale_pyds:
+                    stale_p = Path(stale)
+                    try:
+                        stale_p.unlink()
+                        append_output(f"Removed stale artefact: {stale_p.name}\n")
+                    except OSError:
+                        renamed = stale_p.with_suffix(".pyd.old")
+                        try:
+                            stale_p.rename(renamed)
+                            append_output(f"Renamed locked artefact: {stale_p.name} → {renamed.name}\n")
+                        except OSError as _e:
+                            append_output(f"Warning: could not remove or rename {stale_p.name}: {_e}\n")
                 append_output(f"License copied to {license_path}. Public key updated in client/config/secrets.py.\n")
                 build_script = Path(__file__).resolve().parent.parent / "client" / "scripts" / "build_exe.bat"
                 self._build_proc = None
@@ -309,12 +364,17 @@ class AdminGUI(tk.Tk):
                         append_output(f"\nError running build script: {e}\n")
                 else:
                     append_output(f"Build script not found: {build_script}\n")
+                cleanup_build_artefacts()
                 self.build_output.after(0, lambda: self.cancel_build_btn.config(state=tk.DISABLED))
                 self._build_proc = None
                 self._build_proc_group = None
             except Exception as e:
                 self.build_output.after(0, lambda: self.build_output.delete("1.0", tk.END))
                 self.build_output.after(0, lambda: self.build_output.insert(tk.END, f"Error: {e}"))
+                try:
+                    cleanup_build_artefacts()
+                except Exception:
+                    pass
                 self.build_output.after(0, lambda: self.cancel_build_btn.config(state=tk.DISABLED))
                 self._build_proc = None
                 self._build_proc_group = None

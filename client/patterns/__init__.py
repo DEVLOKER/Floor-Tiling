@@ -15,8 +15,8 @@ from .patterns import (
     pattern_herringbone,
     pattern_checkerboard,
     pattern_chevron,
-    pattern_basketweave,
-    pattern_versailles,
+    pattern_windmill,
+    pattern_hopscotch,
 )
 
 __all__ = [
@@ -27,6 +27,6 @@ __all__ = [
     "pattern_herringbone",
     "pattern_checkerboard",
     "pattern_chevron",
-    "pattern_basketweave",
-    "pattern_versailles",
+    "pattern_windmill",
+    "pattern_hopscotch",
 ]

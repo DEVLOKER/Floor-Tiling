@@ -147,10 +147,10 @@ export function updateTilePreview() {
     { id: "brick", name: "Brique" },
     { id: "herringbone", name: "Chevrons classiques" },
     { id: "chevron", name: "Chevron ∧" },
-    { id: "basketweave", name: "Natte" },
+    { id: "windmill", name: "Moulin" },
     { id: "straightweave", name: "Tissage Droit" },
     { id: "bookmatch", name: "Bookmatch" },
-    { id: "versailles", name: "Versailles" },
+    { id: "hopscotch", name: "Hopscotch" },
     { id: "checkerboard", name: "Damier" },
   ];
 
@@ -226,31 +226,31 @@ export function updateTilePreview() {
         ctx.beginPath();
         ctx.rect(0, 0, 90, 55);
         ctx.clip();
-        
+
         ctx.translate(45, 27.5);
         ctx.rotate(Math.PI / 4.0);
-        
-        // Ensure tiles are actually rectangular to show the zig-zag
+
         const L = Math.max(pW, pH * 2);
         const S = Math.min(pW, pH);
-        
-        ctx.fillStyle = useTexture ? texPatLight || color1 : color1;
+
         ctx.strokeStyle = grout;
         ctx.lineWidth = 1.0;
-        
+
         const span = 120;
-        for (let row = -span; row < span; row += (L + S)) {
-          for (let col = -span; col < span; col += (L + S)) {
-            // H-tile mapping
+        for (let row = -span; row < span; row += L + S) {
+          for (let col = -span; col < span; col += L + S) {
+            // H-tile → primary colour
+            ctx.fillStyle = useTexture ? texPatLight || color1 : color1;
             ctx.fillRect(col, row, L, S);
             ctx.strokeRect(col, row, L, S);
-            
-            // V-tile mapping
+
+            // V-tile → secondary colour
+            ctx.fillStyle = useTexture ? texPatDark || color2 : color2;
             ctx.fillRect(col + L, row, S, L);
             ctx.strokeRect(col + L, row, S, L);
           }
         }
-        
+
         ctx.restore();
         break;
       }
@@ -269,43 +269,47 @@ export function updateTilePreview() {
         );
         break;
       }
-      case "basketweave": {
-        const bW = Math.max(14, Math.round(pW));
-        const bH = Math.max(14, Math.round(pH));
-        const colsB = Math.ceil(90 / bW) + 2;
-        const rowsB = Math.ceil(55 / bH) + 2;
-        for (let row = -1; row < rowsB; row++) {
-          for (let col = -1; col < colsB; col++) {
-            const isH = (((row + col) % 2) + 2) % 2 === 0;
-            const ox = col * bW,
-              oy = row * bH;
-            ctx.fillStyle = useTexture
-              ? isH
-                ? texPatLight || color1
-                : texPatDark || color2
-              : isH
-                ? color1
-                : color2;
-            ctx.fillRect(ox, oy, bW, bH);
-          }
-        }
+      case "windmill": {
+        // Windmill (pinwheel): 4 big rectangular tiles (color1) around a
+        // small centre square (color2).
+        // Cell size = tW + tH (square cell).
+        const tW = Math.max(14, Math.round(pW));
+        const tH = Math.max(7, Math.round(tW / 2));
+        const cellSize = tW + tH;
+        const colsW = Math.ceil(90 / cellSize) + 2;
+        const rowsW = Math.ceil(55 / cellSize) + 2;
         ctx.strokeStyle = grout;
         ctx.lineWidth = 1.0;
-        for (let row = -1; row < rowsB; row++) {
-          for (let col = -1; col < colsB; col++) {
-            const isH = (((row + col) % 2) + 2) % 2 === 0;
-            const ox = col * bW,
-              oy = row * bH;
-            ctx.strokeRect(ox, oy, bW, bH);
-            ctx.beginPath();
-            if (isH) {
-              ctx.moveTo(ox, oy + bH / 2);
-              ctx.lineTo(ox + bW, oy + bH / 2);
-            } else {
-              ctx.moveTo(ox + bW / 2, oy);
-              ctx.lineTo(ox + bW / 2, oy + bH);
+        for (let row = -1; row < rowsW; row++) {
+          for (let col = -1; col < colsW; col++) {
+            const ox = col * cellSize;
+            const oy = row * cellSize;
+            const bigFill = useTexture ? texPatLight || color1 : color1;
+            const ctrFill = useTexture ? texPatDark || color2 : color2;
+            // Top H-tile (ox, oy, tW × tH)
+            ctx.fillStyle = bigFill;
+            ctx.fillRect(ox, oy, tW, tH);
+            ctx.strokeRect(ox, oy, tW, tH);
+            // Right V-tile (ox+tW, oy, tH × tW)
+            ctx.fillStyle = bigFill;
+            ctx.fillRect(ox + tW, oy, tH, tW);
+            ctx.strokeRect(ox + tW, oy, tH, tW);
+            // Bottom H-tile (ox+tH, oy+tW, tW × tH)
+            ctx.fillStyle = bigFill;
+            ctx.fillRect(ox + tH, oy + tW, tW, tH);
+            ctx.strokeRect(ox + tH, oy + tW, tW, tH);
+            // Left V-tile (ox, oy+tH, tH × tW)
+            ctx.fillStyle = bigFill;
+            ctx.fillRect(ox, oy + tH, tH, tW);
+            ctx.strokeRect(ox, oy + tH, tH, tW);
+            // Centre square (ox+tH, oy+tH, tW-tH × tW-tH)  ← (1-inv_a) × (a-1) in tile units
+            const cW = tW - tH;
+            const cH = tW - tH;
+            if (cW > 1) {
+              ctx.fillStyle = ctrFill;
+              ctx.fillRect(ox + tH, oy + tH, cW, cH);
+              ctx.strokeRect(ox + tH, oy + tH, cW, cH);
             }
-            ctx.stroke();
           }
         }
         break;
@@ -316,16 +320,16 @@ export function updateTilePreview() {
         const bH = Math.max(8, Math.round(pH));
         const colsB = Math.ceil(90 / bW) + 2;
         const rowsB = Math.ceil(55 / bH) + 2;
-        
+
         ctx.strokeStyle = grout;
         ctx.lineWidth = 1.0;
-        
+
         for (let row = -1; row < rowsB; row++) {
           for (let col = -1; col < colsB; col++) {
-            const isSecond = (col % 2) !== 0;
+            const isSecond = col % 2 !== 0;
             const ox = col * bW;
             const oy = row * bH;
-            
+
             ctx.fillStyle = useTexture
               ? isSecond
                 ? texPatDark || color2
@@ -333,7 +337,7 @@ export function updateTilePreview() {
               : isSecond
                 ? color2
                 : color1;
-                
+
             ctx.fillRect(ox, oy, bW, bH);
             ctx.strokeRect(ox, oy, bW, bH);
           }
@@ -346,82 +350,69 @@ export function updateTilePreview() {
         const bH = Math.max(12, Math.round(pH));
         const colsB = Math.ceil(90 / bW) + 2;
         const rowsB = Math.ceil(55 / bH) + 2;
-        
+
         ctx.strokeStyle = grout;
         ctx.lineWidth = 1.0;
-        
+
         for (let row = -1; row < rowsB; row++) {
           for (let col = -1; col < colsB; col++) {
             const ox = col * bW;
             const oy = row * bH;
-            
-            const flipX = (col % 2) !== 0;
-            const flipY = (row % 2) !== 0;
-            
+
+            const flipX = col % 2 !== 0;
+            const flipY = row % 2 !== 0;
+
             ctx.save();
             ctx.translate(ox + bW / 2, oy + bH / 2);
             ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-            
+
             ctx.fillStyle = texPatLight || color1;
             ctx.fillRect(-bW / 2, -bH / 2, bW, bH);
             ctx.restore();
-            
+
             ctx.strokeRect(ox, oy, bW, bH);
           }
         }
         break;
       }
-      case "versailles": {
-        const CELL = 90 / 2.5;
-        const u1 = CELL / 4;
-        const v1 = CELL / 4;
+      case "hopscotch": {
+        // Cell = large (L×L) + five small (S×S) where S = L/2.
+        // Layout (3×3 in S units):
+        //   [Large ][Large ][Sm]
+        //   [Large ][Large ][Sm]
+        //   [Sm    ][Sm    ][Sm]
+        const L = Math.max(16, Math.round(pW));
+        const S = Math.round(L / 2);
+        const CELL = L + S;
         const cols = Math.ceil(90 / CELL) + 2;
         const rows = Math.ceil(55 / CELL) + 2;
-        for (let row = -1; row < rows; row++) {
-          for (let col = -1; col < cols; col++) {
-            const ox = col * CELL;
-            const oy = row * CELL;
-            const tiles = [
-              { x: ox + u1, y: oy + v1, w: u1 * 2, h: v1 * 2, second: false },
-              { x: ox + u1, y: oy, w: u1 * 2, h: v1, second: true },
-              { x: ox + u1, y: oy + v1 * 3, w: u1 * 2, h: v1, second: true },
-              { x: ox, y: oy + v1, w: u1, h: v1 * 2, second: true },
-              { x: ox + u1 * 3, y: oy + v1, w: u1, h: v1 * 2, second: true },
-              { x: ox, y: oy, w: u1, h: v1, second: true },
-              { x: ox + u1 * 3, y: oy, w: u1, h: v1, second: true },
-              { x: ox, y: oy + v1 * 3, w: u1, h: v1, second: true },
-              { x: ox + u1 * 3, y: oy + v1 * 3, w: u1, h: v1, second: true },
-            ];
-            tiles.forEach(({ x, y, w, h, second }) => {
-              ctx.fillStyle = useTexture
-                ? second
-                  ? texPatDark || color2
-                  : texPatLight || color1
-                : second
-                  ? color2
-                  : color1;
-              ctx.fillRect(x, y, w, h);
-            });
-          }
-        }
         ctx.strokeStyle = grout;
         ctx.lineWidth = 1.0;
         for (let row = -1; row < rows; row++) {
           for (let col = -1; col < cols; col++) {
             const ox = col * CELL;
             const oy = row * CELL;
-            const tiles = [
-              { x: ox + u1, y: oy + v1, w: u1 * 2, h: v1 * 2 },
-              { x: ox + u1, y: oy, w: u1 * 2, h: v1 },
-              { x: ox + u1, y: oy + v1 * 3, w: u1 * 2, h: v1 },
-              { x: ox, y: oy + v1, w: u1, h: v1 * 2 },
-              { x: ox + u1 * 3, y: oy + v1, w: u1, h: v1 * 2 },
-              { x: ox, y: oy, w: u1, h: v1 },
-              { x: ox + u1 * 3, y: oy, w: u1, h: v1 },
-              { x: ox, y: oy + v1 * 3, w: u1, h: v1 },
-              { x: ox + u1 * 3, y: oy + v1 * 3, w: u1, h: v1 },
-            ];
-            tiles.forEach(({ x, y, w, h }) => ctx.strokeRect(x, y, w, h));
+            // Large tile (primary)
+            ctx.fillStyle = useTexture ? texPatLight || color1 : color1;
+            ctx.fillRect(ox, oy, L, L);
+            ctx.strokeRect(ox, oy, L, L);
+            // Small tiles (secondary) – right column (2 tiles) + bottom row (3 tiles)
+            ctx.fillStyle = useTexture ? texPatDark || color2 : color2;
+            // right-top small
+            ctx.fillRect(ox + L, oy, S, S);
+            ctx.strokeRect(ox + L, oy, S, S);
+            // right-bottom small
+            ctx.fillRect(ox + L, oy + S, S, S);
+            ctx.strokeRect(ox + L, oy + S, S, S);
+            // bottom-left small
+            ctx.fillRect(ox, oy + L, S, S);
+            ctx.strokeRect(ox, oy + L, S, S);
+            // bottom-mid small
+            ctx.fillRect(ox + S, oy + L, S, S);
+            ctx.strokeRect(ox + S, oy + L, S, S);
+            // bottom-right small (corner)
+            ctx.fillRect(ox + L, oy + L, S, S);
+            ctx.strokeRect(ox + L, oy + L, S, S);
           }
         }
         break;
@@ -456,8 +447,9 @@ export function updateTilePreview() {
 export function syncPatternUI() {
   const pattern = val("tilePattern");
   const isChevron = pattern === "chevron";
-  const isBasketweave = pattern === "basketweave" || pattern === "straightweave";
-  const isVersionailles = pattern === "versailles";
+  const isHerringbone = pattern === "herringbone";
+  const isBasketweave = pattern === "windmill" || pattern === "straightweave";
+  const isHopscotch = pattern === "hopscotch";
   const isChecker = isCheckerPattern(pattern);
   const isDual = isDualColorPattern(pattern);
 
@@ -474,12 +466,15 @@ export function syncPatternUI() {
     if (isChevron) {
       lbl1.textContent = "Bras gauche";
       lbl2.textContent = "Bras droit";
+    } else if (isHerringbone) {
+      lbl1.textContent = "Tuile H";
+      lbl2.textContent = "Tuile V";
     } else if (isBasketweave) {
-      lbl1.textContent = "Horizontal";
-      lbl2.textContent = "Vertical";
-    } else if (isVersionailles) {
-      lbl1.textContent = "Grand / Large";
-      lbl2.textContent = "Haut / Petit";
+      lbl1.textContent = "Grand carrelage";
+      lbl2.textContent = "Carreau central";
+    } else if (isHopscotch) {
+      lbl1.textContent = "Grand carrelage";
+      lbl2.textContent = "Petit carrelage";
     } else {
       lbl1.textContent = "Clair";
       lbl2.textContent = "Foncé";
@@ -497,18 +492,26 @@ export function syncPatternUI() {
   if (lightLbl) {
     lightLbl.textContent = isChevron
       ? "Texture bras gauche"
-      : isBasketweave
-        ? "Texture bundle H"
-        : isChecker
-          ? "Texture claire"
-          : "Texture du carrelage";
+      : isHerringbone
+        ? "Texture tuile H"
+        : isBasketweave
+          ? "Texture grand carrelage"
+          : isHopscotch
+            ? "Texture grand carrelage"
+            : isChecker
+              ? "Texture claire"
+              : "Texture du carrelage";
   }
   if (darkLbl) {
     darkLbl.textContent = isChevron
       ? "Texture bras droit"
-      : isBasketweave
-        ? "Texture bundle V"
-        : "Texture foncée";
+      : isHerringbone
+        ? "Texture tuile V"
+        : isBasketweave
+          ? "Texture carreau central"
+          : isHopscotch
+            ? "Texture petit carrelage"
+            : "Texture foncée";
   }
 }
 

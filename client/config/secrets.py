@@ -1,6 +1,6 @@
 import os
 PUBLIC_KEY_PEM = b"""\
 -----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAZxJwnLiz6CuJ+NbKuFbcDm0SQCWLGJPr/+dPdO4wWCw=
+MCowBQYDK2VwAyEArsVRNsePdCtSXFv524NjncJKW9Qviywv34PZ3R3u0Ho=
 -----END PUBLIC KEY-----
 """

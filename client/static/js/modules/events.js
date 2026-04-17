@@ -85,6 +85,21 @@ export function initEventListeners() {
 
   document.getElementById("tilePattern").addEventListener("change", () => {
     syncPatternUI();
+    // Windmill requires a 2:1 rectangular tile to avoid degenerating into a
+    // checkerboard. Auto-enforce height = width / 2 when the pattern is selected.
+    if (val("tilePattern") === "windmill") {
+      const wSlider = document.getElementById("tileWidth");
+      const hSlider = document.getElementById("tileHeight");
+      if (wSlider && hSlider) {
+        const halfW = Math.max(
+          parseInt(hSlider.min || 10),
+          Math.round(parseInt(wSlider.value) / 2 / 5) * 5,
+        );
+        hSlider.value = halfW;
+        document.getElementById("tileHeightValue").textContent = halfW + " cm";
+        hSlider.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }
     updateTilePreview();
   });
 
