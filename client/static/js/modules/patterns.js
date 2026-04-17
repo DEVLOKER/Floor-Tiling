@@ -9,8 +9,9 @@ export function isDualColorPattern(pattern) {
   return [
     "checkerboard",
     "chevron",
-    "basketweave",
+    "herringbone",
+    "windmill",
     "straightweave",
-    "versailles",
+    "hopscotch",
   ].includes(pattern);
 }

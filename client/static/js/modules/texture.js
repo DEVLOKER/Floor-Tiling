@@ -49,12 +49,16 @@ function loadTextureFile(file, which = "light") {
       document
         .getElementById("textureDarkUploadArea")
         .classList.add("has-texture");
+      const nameEl = document.getElementById("textureDarkName");
+      if (nameEl) nameEl.textContent = file.name;
     } else {
       state.tileTextureDataUrl = e.target.result;
       document.getElementById("textureThumb").src = e.target.result;
       document.getElementById("textureEmpty").style.display = "none";
       document.getElementById("texturePreview").style.display = "block";
       document.getElementById("textureUploadArea").classList.add("has-texture");
+      const nameEl = document.getElementById("textureName");
+      if (nameEl) nameEl.textContent = file.name;
     }
     updateTilePreview();
     // Save preferences after texture upload

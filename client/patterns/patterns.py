@@ -185,55 +185,110 @@ def pattern_chevron(
     return (right_arm, on_grout)
 
 
-def pattern_basketweave(
+def pattern_windmill(
     u: np.ndarray, v: np.ndarray,
     grout_h_frac, grout_v_frac,
-    aspect_ratio: float = 1.0,
+    aspect_ratio: float = 2.0,
     uv_step_u=None, uv_step_v=None,
     grout_thickness_v: int = 1, grout_thickness_h: int = 1,
-    du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
     **_,
 ) -> tuple:
-    block_u = np.floor(u / 2.0).astype(int)
-    block_v = np.floor(v / 2.0).astype(int)
-    is_h = (block_u + block_v) % 2 == 0
-    lu = u % 2.0
-    lv = v % 2.0
+    """Windmill (pinwheel) pattern.
+
+    Four rectangular tiles arranged around a centre square in a rotating
+    pinwheel.  Works best with a 2:1 tile aspect ratio.
+
+    Cell layout (a = tw/th, inv_a = 1/a, cell_u = 1+inv_a, cell_v = 1+a)::
+
+        lu →  0          1     1+inv_a
+        lv ↓ ┌──────────┬──────┐
+         0   │  r1 (H)  │      │
+         1   │          │ r2(V)│
+             ├────┬─────┤      │
+             │    │ ctr │      │
+         a   │r4  ├─────┼──────┤
+             │(V) │      r3 (H)│
+        1+a  └────┴────────────┘
+    """
+    # Windmill requires a rectangular tile (long side >= 2x short side).
+    # Clamp to 2:1 minimum so the pattern never degenerates into a checkerboard.
+    a = max(float(aspect_ratio), 2.0)   # tw / th
+    inv_a = 1.0 / a
+    cell_u = 1.0 + inv_a   # (tw + th) / tw
+    cell_v = 1.0 + a       # (tw + th) / th
+
+    lu = u % cell_u
+    lv = v % cell_v
+
     step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
     step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
-    dist_mid_h = np.abs(lv - 1.0)
-    dist_edge_lu = np.minimum(lu, 2.0 - lu)
-    dist_edge_lv = np.minimum(lv, 2.0 - lv)
-    gf_h_mid = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
-    gf_h_edgeU = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
-    gf_h_edgeV = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
-    alpha_h = np.maximum(
-        np.maximum(
-            grout_alpha(dist_mid_h, gf_h_mid / 2.0, step=step_v),
-            grout_alpha(dist_edge_lu, gf_h_edgeU / 2.0, step=step_u),
-        ),
-        grout_alpha(dist_edge_lv, gf_h_edgeV / 2.0, step=step_v),
+
+    gf_u = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
+    gf_v = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
+
+    # ── Region masks ────────────────────────────────────────────────────────
+    r1 = (lu < 1.0) & (lv < 1.0)                                              # Top H
+    r2 = (lu >= 1.0) & (lu < 1.0 + inv_a) & (lv < a)                         # Right V
+    r3 = (lu >= inv_a) & (lu < 1.0 + inv_a) & (lv >= a)                      # Bottom H
+    r4 = (lu < inv_a) & (lv >= 1.0)                                           # Left V
+    # Centre square: lu in [inv_a, 1), lv in [1, a)
+    r_center = (~r1) & (~r2) & (~r3) & (~r4)
+
+    # ── Grout alpha per region ───────────────────────────────────────────────
+    # Region 1 – Top H
+    alpha1 = combine_grout(
+        grout_alpha(np.minimum(lu, 1.0 - lu), gf_u / 2.0, step=step_u),
+        grout_alpha(np.minimum(lv, 1.0 - lv), gf_v / 2.0, step=step_v),
     )
-    dist_mid_v = np.abs(lu - 1.0)
-    dist_edge_vu = np.minimum(lu, 2.0 - lu)
-    dist_edge_vv = np.minimum(lv, 2.0 - lv)
-    gf_v_mid = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
-    gf_v_edgeU = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
-    gf_v_edgeV = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
-    alpha_v = np.maximum(
-        np.maximum(
-            grout_alpha(dist_mid_v, gf_v_mid / 2.0, step=step_u),
-            grout_alpha(dist_edge_vu, gf_v_edgeU / 2.0, step=step_u),
-        ),
-        grout_alpha(dist_edge_vv, gf_v_edgeV / 2.0, step=step_v),
+    # Region 2 – Right V  (lu in [1, 1+inv_a], lv in [0, a])
+    alpha2 = combine_grout(
+        grout_alpha(np.minimum(lu - 1.0, 1.0 + inv_a - lu), gf_u / 2.0, step=step_u),
+        grout_alpha(np.minimum(lv, a - lv), gf_v / 2.0, step=step_v),
     )
-    on_grout = np.where(is_h, alpha_h, alpha_v)
-    is_second = ~is_h
-    
-    # Custom UV logic for texture grain rotation
-    custom_u = np.where(is_h, lu / 2.0, lv / 2.0)
-    custom_v = np.where(is_h, lv % 1.0, 1.0 - (lu % 1.0))
-    
+    # Region 3 – Bottom H  (lu in [inv_a, 1+inv_a], lv in [a, 1+a])
+    alpha3 = combine_grout(
+        grout_alpha(np.minimum(lu - inv_a, 1.0 + inv_a - lu), gf_u / 2.0, step=step_u),
+        grout_alpha(np.minimum(lv - a, 1.0 + a - lv), gf_v / 2.0, step=step_v),
+    )
+    # Region 4 – Left V  (lu in [0, inv_a], lv in [1, 1+a])
+    alpha4 = combine_grout(
+        grout_alpha(np.minimum(lu, inv_a - lu), gf_u / 2.0, step=step_u),
+        grout_alpha(np.minimum(lv - 1.0, 1.0 + a - lv), gf_v / 2.0, step=step_v),
+    )
+    # Centre square – lu in [inv_a, 1), lv in [1, a)
+    alpha_center = combine_grout(
+        grout_alpha(np.minimum(lu - inv_a, 1.0 - lu), gf_u / 2.0, step=step_u),
+        grout_alpha(np.minimum(lv - 1.0, a - lv), gf_v / 2.0, step=step_v),
+    )
+
+    on_grout = np.ones_like(u)   # fallback: full grout (outside any region)
+    on_grout = np.where(r1, alpha1, on_grout)
+    on_grout = np.where(r2, alpha2, on_grout)
+    on_grout = np.where(r3, alpha3, on_grout)
+    on_grout = np.where(r4, alpha4, on_grout)
+    on_grout = np.where(r_center, alpha_center, on_grout)
+
+    # ── Colour / texture assignment ──────────────────────────────────────────
+    # Primary (is_second=False) → 4 big rectangular tiles (r1–r4)
+    # Secondary (is_second=True) → small centre square
+    is_second = r_center
+
+    # ── Custom UV for texture grain (long axis maps to texture X) ────────────
+    cu_r1 = lu                          # H: lu already 0..1
+    cv_r1 = lv                          # H: lv already 0..1
+    cu_r2 = lv / a                      # V: lv 0..a → 0..1
+    cv_r2 = 1.0 - (lu - 1.0) / inv_a   # V: lu 1..1+inv_a → 1..0
+    cu_r3 = lu - inv_a                  # H: 0..1
+    cv_r3 = lv - a                      # H: 0..1
+    cu_r4 = 1.0 - (lv - 1.0) / a       # V: lv 1..1+a → 1..0
+    cv_r4 = lu / inv_a                  # V: lu 0..inv_a → 0..1
+    # Centre square: map to [0,1]×[0,1]
+    cu_rc = (lu - inv_a) / (1.0 - inv_a)
+    cv_rc = (lv - 1.0) / (a - 1.0)
+
+    custom_u = np.where(r2, cu_r2, np.where(r3, cu_r3, np.where(r4, cu_r4, np.where(r_center, cu_rc, cu_r1))))
+    custom_v = np.where(r2, cv_r2, np.where(r3, cv_r3, np.where(r4, cv_r4, np.where(r_center, cv_rc, cv_r1))))
+
     return (is_second, on_grout, custom_u, custom_v)
 
 
@@ -301,39 +356,76 @@ def pattern_bookmatch(
 
 
 
-def pattern_versailles(
+def pattern_hopscotch(
     u: np.ndarray, v: np.ndarray,
     grout_h_frac, grout_v_frac,
     aspect_ratio: float = 1.0,
     uv_step_u=None, uv_step_v=None,
     grout_thickness_v: int = 1, grout_thickness_h: int = 1,
-    du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
     **_,
 ) -> tuple:
-    CELL = 4.0
-    ar = float(aspect_ratio) if aspect_ratio and aspect_ratio > 0 else 1.0
-    uc = u * 2.0 % CELL
-    vc = v * 2.0 * ar % CELL
+    """Hopscotch (Roman / Jack-on-Jack) pattern.
 
-    def dist_to_boundaries(c):
-        d0 = np.minimum(c, CELL - c)
-        d1 = np.abs(c - 1.0)
-        d3 = np.abs(c - 3.0)
-        return np.minimum(d0, np.minimum(d1, d3))
+    Each repeating cell is 1.5 × 1.5 UV units:
 
-    dist_u = dist_to_boundaries(uc)
-    dist_v = dist_to_boundaries(vc)
-    step_u = uv_step_u * 2.0 if uv_step_u is not None else grout_v_frac
-    step_v = uv_step_v * 2.0 * ar if uv_step_v is not None else grout_h_frac
-    gf_u = np.clip(step_u * grout_thickness_v / 2.0, 0.0, 0.4)
-    gf_v = np.clip(step_v * grout_thickness_h / 2.0, 0.0, 0.4)
-    alpha = np.maximum(
-        grout_alpha(dist_u, gf_u / 2.0, step=step_u),
-        grout_alpha(dist_v, gf_v / 2.0, step=step_v),
+        ┌─────────┬─────┐
+        │ Large    │ Sm  │
+        │ (1×1)    │     │
+        ├─────╅────┴─────┤
+        │ Sm  │ Sm  │ Sm  │
+        └─────┴─────┴─────┘
+
+    Large tile (primary)  = 1.0 × 1.0 UV  (= tileWidth × tileHeight)
+    Small tiles (secondary) = 0.5 × 0.5 UV (= half the large tile)
+    The five small tiles fill the right column and bottom row.
+    """
+    CELL = 1.5   # cell side in UV units
+    SMALL = 0.5  # small tile side in UV units
+
+    lu = u % CELL
+    lv = v % CELL
+
+    step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
+    step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
+
+    gf_u = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
+    gf_v = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
+
+    # ── Region masks ─────────────────────────────────────────────────
+    r_large = (lu < 1.0) & (lv < 1.0)          # top-left: large tile
+    r_small = ~r_large                           # rest: five small tiles
+
+    # ── Grout for large tile ───────────────────────────────────────
+    alpha_large = combine_grout(
+        grout_alpha(np.minimum(lu, 1.0 - lu),        gf_u / 2.0, step=step_u),
+        grout_alpha(np.minimum(lv, 1.0 - lv),        gf_v / 2.0, step=step_v),
     )
-    in_center = (uc >= 1.0) & (uc < 3.0) & (vc >= 1.0) & (vc < 3.0)
-    is_second = ~in_center
-    return (is_second, alpha)
+
+    # ── Grout for small tiles (each is SMALL×SMALL UV) ─────────────────
+    # Local coords within each 0.5×0.5 sub-cell
+    local_lu = np.where(lu >= 1.0, (lu - 1.0) % SMALL, lu % SMALL)
+    local_lv = np.where(lv >= 1.0, (lv - 1.0) % SMALL, lv % SMALL)
+
+    alpha_small = combine_grout(
+        grout_alpha(np.minimum(local_lu, SMALL - local_lu), gf_u / 2.0, step=step_u),
+        grout_alpha(np.minimum(local_lv, SMALL - local_lv), gf_v / 2.0, step=step_v),
+    )
+
+    on_grout = np.where(r_large, alpha_large, alpha_small)
+
+    # ── Colour: large → primary, small → secondary ────────────────────────
+    is_second = r_small
+
+    # ── Custom UV for textures ──────────────────────────────────────
+    cu_large = lu         # 0..1 across the large tile
+    cv_large = lv
+    cu_small = local_lu / SMALL   # 0..1 across each small tile
+    cv_small = local_lv / SMALL
+
+    custom_u = np.where(r_large, cu_large, cu_small)
+    custom_v = np.where(r_large, cv_large, cv_small)
+
+    return (is_second, on_grout, custom_u, custom_v)
 
 
 # ─── Registry ─────────────────────────────────────────────────────────────────
@@ -344,10 +436,10 @@ PATTERN_FUNCTIONS: dict = {
     "herringbone": pattern_herringbone,
     "checkerboard": pattern_checkerboard,
     "chevron": pattern_chevron,
-    "basketweave": pattern_basketweave,
+    "windmill": pattern_windmill,
     "straightweave": pattern_straight_weave,
     "bookmatch": pattern_bookmatch,
-    "versailles": pattern_versailles,
+    "hopscotch": pattern_hopscotch,
 }
 
 

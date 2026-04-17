@@ -41,6 +41,8 @@ dist/
 build/
 *.spec.bak
 *.manifest
+*.c
+*.pyd.old
 
 # ── SSL (auto-generated self-signed certs) ───────────────────────────────────
 ssl/

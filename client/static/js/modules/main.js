@@ -34,36 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 2. Load saved state (this triggers the listeners above to update UI)
   loadTilePreferences();
 
-  // 3. Restore any UI components that rely on the loaded state
-  if (state.tileTextureDataUrl) {
-    const thumb = document.getElementById("textureThumb");
-    if (thumb) thumb.src = state.tileTextureDataUrl;
-    const preview = document.getElementById("texturePreview");
-    if (preview) preview.style.display = "block";
-    const empty = document.getElementById("textureEmpty");
-    if (empty) empty.style.display = "none";
-    const area = document.getElementById("textureUploadArea");
-    if (area) area.classList.add("has-texture");
-  }
-
-  const darkGroup = document.getElementById("textureDarkGroup");
-  if (state.tileTextureDarkDataUrl) {
-    const thumb = document.getElementById("textureDarkThumb");
-    if (thumb) thumb.src = state.tileTextureDarkDataUrl;
-    const preview = document.getElementById("textureDarkPreview");
-    if (preview) preview.style.display = "block";
-    const empty = document.getElementById("textureDarkEmpty");
-    if (empty) empty.style.display = "none";
-    const area = document.getElementById("textureDarkUploadArea");
-    if (area) area.classList.add("has-texture");
-  }
-
-  // Always show the dark group if a dark texture is present
-  if (state.tileTextureDarkDataUrl && darkGroup) {
-    darkGroup.style.display = "";
-  }
-
-  // 4. Initial sync and first preview render
+  // 3. Initial sync and first preview render (texture UI already restored inside loadTilePreferences)
   syncPatternUI();
   updateTilePreview();
   // Save preferences on setting changes
