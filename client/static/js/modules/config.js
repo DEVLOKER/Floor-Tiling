@@ -1,4 +1,10 @@
 // Configuration & Defaults
+export const APP_NAME = "Ceramission";
+// export const APP_NAME = "Visualiseur de Carrelage";
+
+// Logo image path — change this once to update the logo everywhere.
+export const APP_LOGO_SRC = "/static/logo.svg";
+
 export const CONFIG = {
   apiUrl: "/api",
   imageMaxWidth: 1000,

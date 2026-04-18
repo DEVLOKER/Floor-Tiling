@@ -28,7 +28,7 @@ GROUT_THICKNESS_MIN = 0
 GROUT_THICKNESS_MAX = 20
 # Depth calculation
 DEPTH_MIN_CM = 50
-DEPTH_MAX_CM = 800   # was probably 800+ — bring it down
+DEPTH_MAX_CM = 900   # depth_ratio ceiling is 2.5 × DEFAULT_REAL_WIDTH_CM (300 cm)
 DEPTH_FAR_RATIO_MIN = 0.05
 DEPTH_FAR_RATIO_MAX = 0.99
 # Image encoding

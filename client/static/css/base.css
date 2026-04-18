@@ -24,6 +24,20 @@
   height: 44px;
 }
 
+/* ── App logo image (SVG wordmark) ─────────────────────────── */
+.app-logo-img {
+  display: block;
+  object-fit: contain;
+}
+.app-logo-img--welcome {
+  width: 120px;
+  height: auto;
+}
+.app-logo-img--header {
+  width: 120px;
+  height: auto;
+}
+
 /* ── Reset ─────────────────────────────────────────────────────── */
 *,
 *::before,
