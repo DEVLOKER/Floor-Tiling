@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Visualiseur de Carrelage</title>
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="shortcut icon" href="/static/favicon.svg" />
+    <title></title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+    <link rel="shortcut icon" href="/static/logo.svg" />
 
     <link rel="stylesheet" href="/static/css/main.css" />
 </head>
@@ -122,11 +122,9 @@
         <div class="welcome-overlay" id="welcomeOverlay">
             <div class="welcome-card">
                 <div class="welcome-icon">
-                    <svg class="app-icon app-icon-xl">
-                        <use href="#ico-layers" />
-                    </svg>
+                    <img data-app-logo class="app-logo-img app-logo-img--welcome" />
                 </div>
-                <h2>Visualiseur de Carrelage</h2>
+                <h2 data-app-name></h2>
                 <p>Téléchargez une photo de pièce, cliquez sur le sol et prévisualisez n'importe quel style de carrelage
                     instantanément.</p>
                 <button class="btn-welcome" id="welcomeUploadBtn">
@@ -214,12 +212,10 @@
         <div class="panel-header">
             <div class="top-bar-left">
                 <span class="app-logo">
-                    <svg class="app-icon app-icon-lg">
-                        <use href="#ico-layers" />
-                    </svg>
+                    <img data-app-logo class="app-logo-img app-logo-img--header" />
                 </span>
                 <div class="app-name">
-                    <div class="app-title">Visualiseur de Carrelage</div>
+                    <div class="app-title" data-app-name></div>
                     <div class="app-subtitle">Propulsé par SCRIPTIHA</div>
                 </div>
             </div>
@@ -241,7 +237,7 @@
                 <select id="tilePattern" class="panel-select">
                     <option value="grid">Grille</option>
                     <option value="brick">Brique (décalée)</option>
-                    <option value="herringbone">Chevrons classiques</option>
+                    <option value="herringbone">Chevrons</option>
                     <option value="chevron">Chevron ∧</option>
                     <option value="windmill">Moulin</option>
                     <option value="straightweave">Tissage Droit</option>
@@ -433,7 +429,9 @@
             <button class="btn-apply-panel" id="applyTilesPanelBtn">
                 <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
                     <use href="#ico-paint" />
-                </svg> Appliquer le carrelage
+                </svg>
+                <!-- Appliquer le carrelage -->
+                Appliquer
             </button>
         </div>
     </aside>

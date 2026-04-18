@@ -40,10 +40,10 @@
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #fff;
   flex-shrink: 0;
-  box-shadow: 0 4px 14px var(--accent-glow);
+  /* background: linear-gradient(135deg, var(--accent), var(--accent-2)); */
+  /* box-shadow: 0 4px 14px var(--accent-glow); */
 }
 .app-name {
   display: flex;

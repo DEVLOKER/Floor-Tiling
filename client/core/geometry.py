@@ -384,7 +384,7 @@ def extract_floor_quad(
 
     top_w = np.linalg.norm(np.array(fr) - np.array(fl))
     bot_w = np.linalg.norm(np.array(nr) - np.array(nl))
-    if bot_w < 10.0 or top_w / bot_w < 0.05 or top_w / bot_w > 1.2:
+    if bot_w < 10.0 or top_w / bot_w < 0.05 or top_w / bot_w > 3.0:
         return _extract_floor_quad_fallback(clean_mask)
 
     return (
@@ -411,9 +411,12 @@ def _extract_floor_quad_fallback(mask: np.ndarray) -> Optional[tuple]:
     top_xs = xs[ys <= y_top20]
     far_cx = float(np.mean(top_xs)) if len(top_xs) else (nl + nr) / 2.0
     far_edge = _far_edge_from_mask(mask, y_far, band=15)
-    far_w = far_edge[1] - far_edge[0] if far_edge else near_w * 0.4
+    far_w = far_edge[1] - far_edge[0] if far_edge else near_w * 0.5
     ratio = far_w / max(near_w, 1.0)
-    far_w = near_w * max(0.12, min(0.88, ratio))
+    # Clamp: far edge should be between 25 % and 110 % of near edge width.
+    # The old minimum of 0.12 caused hyper-convergence (tiles shrinking very
+    # rapidly), and 0.88 max blocked wide / overhead shots.
+    far_w = near_w * max(0.25, min(1.10, ratio))
     half_far = far_w / 2.0
     return (
         np.array([nl, float(y_near)], dtype=np.float32),
@@ -443,18 +446,27 @@ def estimate_floor_geometry(
     x4, y4 = float(near_right[0]), float(near_right[1])
     near_y = (y2 + y4) / 2.0
     far_y = (y1 + y3) / 2.0
+    # Ensure the vanishing point is far enough above the far edge so the
+    # depth_ratio doesn't blow up.  Minimum separation = 12 % of the floor's
+    # pixel height (near_y – far_y).
+    floor_px_height = max(near_y - far_y, 1.0)
     denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
     if abs(denom) > 1e-6:
         t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
         vp_y = float(y1 + t * (y2 - y1))
+        # Clamp vp_y so it is at least 12 % of floor height above far_y.
+        # This prevents the depth_ratio from becoming unrealistically large
+        # when the horizon is detected very close to the floor far edge.
+        min_vp_distance = 0.12 * floor_px_height
+        vp_y = min(vp_y, far_y - min_vp_distance)
         denom_y = far_y - vp_y
         if abs(denom_y) > 0.001:
             depth_ratio = float(
-                np.clip(abs((near_y - far_y) / denom_y), 0.45, 1.8)
+                np.clip(abs((near_y - far_y) / denom_y), 0.45, 2.5)
             )
             real_depth_cm = float(
                 np.clip(real_width_cm * depth_ratio, DEPTH_MIN_CM, DEPTH_MAX_CM)
             )
             return (vp_y, real_depth_cm, depth_ratio)
-    vp_y = far_y - (near_y - far_y)
+    vp_y = far_y - floor_px_height
     return (vp_y, real_width_cm, 1.0)

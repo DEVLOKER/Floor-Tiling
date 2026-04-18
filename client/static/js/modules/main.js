@@ -1,5 +1,5 @@
 // Main entry point for the app
-import { CONFIG } from "./config.js";
+import { CONFIG, APP_NAME, APP_LOGO_SRC } from "./config.js";
 import { state } from "./state.js";
 import { val, applyDefaults } from "./helpers.js";
 import { saveTilePreferences, loadTilePreferences } from "./persistence.js";
@@ -24,6 +24,18 @@ import { initTextureUpload } from "./texture.js";
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  // Inject app name everywhere from single source of truth
+  document.title = APP_NAME;
+  document
+    .querySelectorAll("[data-app-name]")
+    .forEach((el) => (el.textContent = APP_NAME));
+
+  // Inject logo src everywhere from single source of truth
+  document.querySelectorAll("img[data-app-logo]").forEach((img) => {
+    img.src = APP_LOGO_SRC;
+    img.alt = APP_NAME;
+  });
+
   applyDefaults(CONFIG);
 
   // 1. Initialize listeners and basic modules first
