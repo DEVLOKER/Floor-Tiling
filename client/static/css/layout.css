@@ -259,7 +259,7 @@ body.fullscreen-mode .top-btn-close {
 
 /* ── Loading overlay ───────────────────────────────────────────── */
 .loading-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(8, 8, 15, 0.6);
   display: flex;
@@ -268,6 +268,7 @@ body.fullscreen-mode .top-btn-close {
   z-index: 150;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  pointer-events: all;
 }
 .loading-card {
   background: #16151f;
@@ -671,4 +672,17 @@ body.fullscreen-mode .top-btn-close {
   .welcome-card h2 {
     font-size: 1.3rem;
   }
+}
+
+/* ── Onboarding: hide side UI for first-time welcome ───────────── */
+body.welcome-first-mode aside.side-panel,
+body.welcome-first-mode .fab-group,
+body.welcome-first-mode .floor-badge,
+body.welcome-first-mode .hud-pill {
+  display: none !important;
+}
+/* Expand canvas to use full width while onboarding */
+body.welcome-first-mode .canvas-workspace {
+  flex: 1 1 100% !important;
+  width: 100% !important;
 }

@@ -1,17 +1,15 @@
 // Main entry point for the app
 import { CONFIG, APP_NAME, APP_LOGO_SRC } from "./config.js";
 import { state } from "./state.js";
-import { val, applyDefaults } from "./helpers.js";
+import { applyDefaults } from "./helpers.js";
 import { saveTilePreferences, loadTilePreferences } from "./persistence.js";
 import {
-  showStatus,
   updateTilePreview,
   syncPatternUI,
   initFullscreenDetection,
   openPanel,
   closePanel,
   setTileMode,
-  redrawWithFloorHighlight,
   updateTogglePreviewVisibility,
   drawAutoLabels,
 } from "./ui.js";
@@ -21,6 +19,7 @@ import {
   downloadResultImage,
 } from "./events.js";
 import { initTextureUpload } from "./texture.js";
+import { initOnboarding } from "./onboarding.js";
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -126,4 +125,10 @@ document.addEventListener("DOMContentLoaded", () => {
   } else {
     window.addEventListener("resize", updateTogglePreviewVisibility);
   }
+
+  // Initialize onboarding module (keeps feature wiring in events.js)
+  initOnboarding({
+    welcomeSelector: "#welcomeOverlay",
+    fileInputSelector: "#fileInput",
+  });
 });

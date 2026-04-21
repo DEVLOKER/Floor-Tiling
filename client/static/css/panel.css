@@ -113,7 +113,7 @@
 
 /* ── Sections ──────────────────────────────────────────────────── */
 .panel-section {
-  padding: 14px 16px;
+  padding: 14px 16px 10px 16px;
   background: var(--panel-bg);
 }
 .panel-divider {
@@ -130,7 +130,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--txt-muted);
-  margin-bottom: 11px;
+  margin-bottom: 6px;
 }
 
 /* ── Pattern select (hidden — thumbnails used) ─────────────────── */
@@ -417,6 +417,36 @@ input[type="range"]::-moz-range-progress {
 }
 .texture-pair-row.dual {
   grid-template-columns: 1fr 1fr;
+}
+
+/* Force equal width for both texture upload areas */
+#textureLightGroup,
+#textureDarkGroup {
+  min-width: 0;
+}
+.texture-upload-area {
+  width: 100%;
+  min-width: 0;
+  max-width: 180px;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Make sure the parent row doesn't stretch them unevenly */
+.texture-pair-row.dual > div {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Truncate long file names */
+.texture-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  max-width: 100%;
 }
 .texture-slot-label {
   font-size: 0.7em;

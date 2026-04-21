@@ -114,9 +114,17 @@
 
 <!-- ── Full-page canvas ────────────────────────────────────── -->
 <main class="app-layout">
-    <div class="canvas-workspace">
+    <div class="canvas-workspace" style="position:relative;">
         <canvas id="mainCanvas"></canvas>
         <div id="markersOverlay"></div>
+
+        <!-- ── Loading overlay (now inside canvas-workspace) ────── -->
+        <div class="loading-overlay" id="loadingOverlay" style="display:none">
+            <div class="loading-card">
+                <div class="loading-ring"></div>
+                <div class="loading-text" id="loadingText">Traitement en cours…</div>
+            </div>
+        </div>
 
         <!-- ── Welcome state (pre-upload) ─────────────────────────── -->
         <div class="welcome-overlay" id="welcomeOverlay">
@@ -156,7 +164,7 @@
         <!-- ── Floor selection badge ──────────────────────────────── -->
         <!-- ── Info sidebar (fixed left) ───────────────────────────── -->
 
-        <!-- ── Loading overlay ───────────────────────────────────── -->
+        <!-- ── Loading overlay (now inside canvas-workspace) ────── -->
         <div class="loading-overlay" id="loadingOverlay" style="display:none">
             <div class="loading-card">
                 <div class="loading-ring"></div>

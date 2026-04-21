@@ -2,18 +2,13 @@ import { badge, val, syncSliderTrack } from "./helpers.js";
 import {
   updateTilePreview,
   syncPatternUI,
-  updateFloorList,
   showStatus,
   updateTogglePreviewVisibility,
-  drawAutoLabels,
-  clearAutoLabels,
-  redrawWithFloorHighlight,
 } from "./ui.js";
 import {
   handleImageUpload,
   originalImageToBlob,
   dataUrlToBlob,
-  runAutoDetection,
 } from "./image.js";
 import { state } from "./state.js";
 import { isDualColorPattern } from "./patterns.js";
@@ -53,14 +48,84 @@ export function initEventListeners() {
     if (f && f.type.startsWith("image/")) handleImageUpload(f);
   });
 
+  // --- Pattern-based tile ratio enforcement ---
+  function getPatternTileRatio(pattern) {
+    switch (pattern) {
+      case "windmill":
+        return { type: "ratio", ratio: 2 };
+      case "herringbone":
+        return { type: "ratio", ratio: 3 };
+      case "chevron":
+        return { type: "square" };
+      case "hopscotch":
+        return { type: "square" };
+      case "checkerboard":
+      case "grid":
+        return { type: "square" };
+      case "brick":
+        return { type: "ratio", ratio: 2 };
+      default:
+        return null;
+    }
+  }
+
+  function enforcePatternTileRatio(pattern, changed) {
+    const wSlider = document.getElementById("tileWidth");
+    const hSlider = document.getElementById("tileHeight");
+    if (!wSlider || !hSlider) return;
+    const minW = parseInt(wSlider.min || 10);
+    const maxW = parseInt(wSlider.max || 200);
+    const minH = parseInt(hSlider.min || 10);
+    const maxH = parseInt(hSlider.max || 200);
+    let width = parseInt(wSlider.value);
+    let height = parseInt(hSlider.value);
+    const constraint = getPatternTileRatio(pattern);
+    if (!constraint) return;
+    if (constraint.type === "square") {
+      if (changed === "width") {
+        height = Math.max(minH, Math.min(maxH, width));
+        hSlider.value = height;
+        badge("tileHeightValue", height + " cm");
+        hSlider.dispatchEvent(new Event("input", { bubbles: true }));
+      } else if (changed === "height") {
+        width = Math.max(minW, Math.min(maxW, height));
+        wSlider.value = width;
+        badge("tileWidthValue", width + " cm");
+        wSlider.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    } else if (constraint.type === "ratio") {
+      if (changed === "width") {
+        height = Math.max(
+          minH,
+          Math.min(maxH, Math.round(width / constraint.ratio / 5) * 5),
+        );
+        hSlider.value = height;
+        badge("tileHeightValue", height + " cm");
+        hSlider.dispatchEvent(new Event("input", { bubbles: true }));
+      } else if (changed === "height") {
+        width = Math.max(
+          minW,
+          Math.min(maxW, Math.round((height * constraint.ratio) / 5) * 5),
+        );
+        wSlider.value = width;
+        badge("tileWidthValue", width + " cm");
+        wSlider.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }
+  }
+
   document.getElementById("tileWidth").addEventListener("input", (e) => {
     badge("tileWidthValue", e.target.value + " cm");
     syncSliderTrack(e.target);
+    // const pattern = val("tilePattern");
+    // enforcePatternTileRatio(pattern, "width");
     updateTilePreview();
   });
   document.getElementById("tileHeight").addEventListener("input", (e) => {
     badge("tileHeightValue", e.target.value + " cm");
     syncSliderTrack(e.target);
+    // const pattern = val("tilePattern");
+    // enforcePatternTileRatio(pattern, "height");
     updateTilePreview();
   });
   document.getElementById("gridRotation").addEventListener("input", (e) => {
@@ -85,21 +150,8 @@ export function initEventListeners() {
 
   document.getElementById("tilePattern").addEventListener("change", () => {
     syncPatternUI();
-    // Windmill requires a 2:1 rectangular tile to avoid degenerating into a
-    // checkerboard. Auto-enforce height = width / 2 when the pattern is selected.
-    if (val("tilePattern") === "windmill") {
-      const wSlider = document.getElementById("tileWidth");
-      const hSlider = document.getElementById("tileHeight");
-      if (wSlider && hSlider) {
-        const halfW = Math.max(
-          parseInt(hSlider.min || 10),
-          Math.round(parseInt(wSlider.value) / 2 / 5) * 5,
-        );
-        hSlider.value = halfW;
-        document.getElementById("tileHeightValue").textContent = halfW + " cm";
-        hSlider.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    }
+    const pattern = val("tilePattern");
+    enforcePatternTileRatio(pattern, "width");
     updateTilePreview();
   });
 
