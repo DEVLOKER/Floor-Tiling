@@ -125,8 +125,7 @@ function _showToast(msg, type) {
   }, dur);
 }
 
-// ── Fixed neutral palette used by ALL pattern previews ───────────────────────
-// These never change — previews are static schematic diagrams, not live colour previews.
+// ── Neutral palette used by ALL pattern previews ───────────────────────
 const _PRV = {
   tile1: "#c8c8c8", // main tile — medium gray
   tile2: "#a0a0a0", // secondary tile — darker gray
