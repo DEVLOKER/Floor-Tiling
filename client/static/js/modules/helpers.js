@@ -40,6 +40,9 @@ export function applyDefaults(CONFIG) {
   set("translateY", CONFIG.defaultTranslateY);
   badge("translateXValue", CONFIG.defaultTranslateX);
   badge("translateYValue", CONFIG.defaultTranslateY);
+  // Perspective
+  set("perspectiveCompression", CONFIG.defaultPerspectiveCompression);
+  badge("perspectiveCompressionValue", CONFIG.defaultPerspectiveCompression + "%");
   // Pattern
   set("tilePattern", CONFIG.defaultPattern);
   // Sync slider tracks after values are set
@@ -50,6 +53,7 @@ export function applyDefaults(CONFIG) {
     "translateX",
     "translateY",
     "gridRotation",
+    "perspectiveCompression",
   ].forEach((id) => {
     const el = document.getElementById(id);
     if (el) syncSliderTrack(el);

@@ -12,6 +12,7 @@ from typing import Optional
 from config.settings import (
     DEFAULT_GROUT_THICKNESS,
     DEFAULT_PATTERN,
+    DEFAULT_PERSPECTIVE_COMPRESSION,
     DEFAULT_ROTATION,
     DEFAULT_TILE_HEIGHT,
     DEFAULT_TILE_WIDTH,
@@ -48,6 +49,7 @@ async def apply_tiles(
     translate_y: float = Form(DEFAULT_TRANSLATE_Y),
     rotation: float = Form(DEFAULT_ROTATION),
     pattern: str = Form(DEFAULT_PATTERN),
+    perspective_compression: float = Form(DEFAULT_PERSPECTIVE_COMPRESSION),
     tile_texture: Optional[UploadFile] = File(None),
     tile_texture2: Optional[UploadFile] = File(None),
 ):
@@ -125,6 +127,7 @@ async def apply_tiles(
             texture_arr2,
             translate_x=translate_x,
             translate_y=translate_y,
+            perspective_compression=perspective_compression,
         )
 
         # ── Encode and return ──────────────────────────────────────────────

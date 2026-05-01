@@ -55,12 +55,6 @@
         <polyline points="7 10 12 15 17 10" />
         <line x1="12" y1="15" x2="12" y2="3" />
     </symbol>
-    <!-- paint brush / apply tiles -->
-    <symbol id="ico-paint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-        stroke-linejoin="round">
-        <path d="M18 3a3 3 0 0 1 0 6L9 18l-6 1 1-6z" />
-        <path d="M16 5l3 3" />
-    </symbol>
     <!-- close / X -->
     <symbol id="ico-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
         stroke-linecap="round">
@@ -198,12 +192,6 @@
                     </svg>
                 </button>
             </div>
-            <button class="fab fab-main" id="applyTilesBtn" style="display:none">
-                <svg class="app-icon">
-                    <use href="#ico-paint" />
-                </svg>
-                <span class="fab-label">Appliquer</span>
-            </button>
         </div>
 
         <!-- Hidden file input -->
@@ -411,6 +399,19 @@
 
             <div class="panel-divider"></div>
 
+            <!-- Perspective Compression -->
+            <div class="panel-section">
+                <div class="section-label">Compression de la perspective <span class="value-badge"
+                        id="perspectiveCompressionValue">65%</span>
+                </div>
+                <input type="range" id="perspectiveCompression" min="0" max="100" step="5" value="65" />
+                <div class="help-text" style="font-size: 11px; color: #888; margin-top: 4px;">
+                    Augmente les carreaux lointains sans agrandir les carreaux proches
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
             <!-- Tile size -->
             <div class="panel-section">
                 <div class="section-label">Taille du carrelage</div>
@@ -435,9 +436,6 @@
 
         <div class="panel-footer" id="panelFooter">
             <button class="btn-apply-panel" id="applyTilesPanelBtn">
-                <svg class="app-icon app-icon-sm" style="vertical-align:middle;margin-right:4px">
-                    <use href="#ico-paint" />
-                </svg>
                 <!-- Appliquer le carrelage -->
                 Appliquer
             </button>

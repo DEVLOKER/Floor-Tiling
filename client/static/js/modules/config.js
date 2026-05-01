@@ -14,6 +14,7 @@ export const CONFIG = {
   defaultGrout: 1,
   defaultTranslateX: 0,
   defaultTranslateY: 0,
+  defaultPerspectiveCompression: 65,
   defaultPattern: "grid",
   defaultTileColor: "#E8D1B5",
   defaultGroutColor: "#A9A9A9",

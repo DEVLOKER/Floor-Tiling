@@ -19,6 +19,8 @@ DEFAULT_PATTERN = "grid"
 DEFAULT_ROTATION = 0.0
 DEFAULT_TRANSLATE_X = 0.0
 DEFAULT_TRANSLATE_Y = 0.0
+# Perspective compression (0.0 = linear, 1.0 = maximum compression)
+DEFAULT_PERSPECTIVE_COMPRESSION = 0.65
 # Tile size constraints
 TILE_WIDTH_MIN = 5.0
 TILE_WIDTH_MAX = 200.0

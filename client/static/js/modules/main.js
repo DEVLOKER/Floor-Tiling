@@ -58,6 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "groutColorTexture",
     "tilePattern",
     "gridRotation",
+    "perspectiveCompression",
     "tileWidth",
     "tileHeight",
     "groutThickness",
@@ -96,9 +97,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   // Canvas click for floor selection
   // Clear/apply floor selection
-  document
-    .getElementById("applyTilesBtn")
-    ?.addEventListener("click", applyTilesToFloor);
   document
     .getElementById("applyTilesPanelBtn")
     ?.addEventListener("click", applyTilesToFloor);
