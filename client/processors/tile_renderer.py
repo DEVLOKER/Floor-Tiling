@@ -15,8 +15,9 @@ from core import hex_to_bgr, extract_floor_quad, estimate_floor_geometry
 from patterns import get_pattern
 
 
-# â”€â”€â”€ Blending helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
+# These functions operate on the original image and the tile-rendered floor to create a seamless composite.
+# They are not used by the pattern generation or tile rendering logic, 
+# which only produce the "ideal" tiled floor without any lighting/shadow effects or blending.
 def _feather_mask(mask: np.ndarray, radius: int = 6) -> np.ndarray:
     """Create a soft-edged alpha mask using distance transform.
 
@@ -50,7 +51,6 @@ def _extract_shadow_map(image_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray:
     L = lab[:, :, 0]  # 0-255 range in LAB
     h, w = L.shape
 
-    # â”€â”€ Prevent edge contamination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Replace non-floor pixels with the floor's mean luminance BEFORE
     # blurring.  Without this, dark walls / furniture bleed across the
     # mask boundary during the large-kernel Gaussian blur, producing
@@ -67,7 +67,6 @@ def _extract_shadow_map(image_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray:
     floor_mean = max(floor_mean_L, 1.0)
     shadow_map = L_smooth / floor_mean
 
-    # â”€â”€ Neutralise shadow near mask edges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # The blur kernel is very large (min(h,w)//6 â‰ˆ 600+ px on hi-res).
     # Near walls/furniture the original floor is naturally darker (base-
     # boards, corners) â€” transferring that darkening to new tiles looks
@@ -183,9 +182,9 @@ def _laplacian_pyramid_blend(
     return np.clip(result, 0, 255)
 
 
-# â”€â”€â”€ Main tile rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0) -> np.ndarray:
+# The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern, 
+# applies shadow/tint from the original floor, and blends the result seamlessly back onto the original image.
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.65) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
     tile_bgr = np.array(hex_to_bgr(tile_color), dtype=np.float32)
     tile2_bgr = np.array(hex_to_bgr(tile_color2), dtype=np.float32)
@@ -195,11 +194,24 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     if quad is None:
         return image
     near_left, near_right, far_left, far_right = quad
+    
     if np.linalg.norm(near_right - near_left) <= 0:
         return image
     vp_y, real_depth_cm, depth_ratio = estimate_floor_geometry(near_left, near_right, far_left, far_right, DEFAULT_REAL_WIDTH_CM)
+    
+    # ── Perspective compression: increase perceived tile size ────────────────
+    # Instead of geometric manipulation, we directly reduce the tile count by
+    # scaling up the "virtual tile size" used for depth calculation.
+    # This makes ALL tiles larger but preserves perspective geometry.
+    effective_tile_height = tile_height_cm
+    if perspective_compression > 0.001:
+        # Scale up the tile size: 0% = no change, 100% = 2.5x larger tiles
+        # 65% compression → 1.85x larger tiles
+        scale_factor = 1.0 + perspective_compression * 1.5
+        effective_tile_height = tile_height_cm * scale_factor
+    
     n_tiles_x = max(2, int(round(DEFAULT_REAL_WIDTH_CM / tile_width_cm)))
-    n_tiles_y = max(2, int(round(real_depth_cm / tile_height_cm)))
+    n_tiles_y = max(2, int(round(real_depth_cm / effective_tile_height)))
     plane_w = float(n_tiles_x)
     plane_h = float(n_tiles_y)
     plane_pts = np.array([[0, 0], [plane_w, 0], [plane_w, plane_h], [0, plane_h]], dtype=np.float32)
@@ -214,7 +226,6 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     wdiv = np.where(np.abs(pc[:, 2]) < 1e-09, 1e-09, pc[:, 2])
     u_all = (pc[:, 0] / wdiv).reshape(h_img, w_img)
     v_all = (pc[:, 1] / wdiv).reshape(h_img, w_img)
-    v_all = v_all * (n_tiles_y / plane_h)
     
     if abs(rotation_deg) > 0.001:
         theta = np.radians(rotation_deg)
@@ -225,7 +236,9 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
         v_rot = u_shifted * np.sin(theta) + v_shifted * np.cos(theta) + cy
         u_all, v_all = u_rot, v_rot
 
-    # â”€â”€ Translation (direct tile-unit offset) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Translation (direct tile-unit offset) ──────────────────────────────────────────────
+    # This is a simple shift in the tile UV space, which can be used to fine-tune the tile alignment by eye.  
+    # It is NOT a pixel offset in the image space, which would produce non-uniform shifts across the perspective floor.
     if abs(translate_x) > 0.001 or abs(translate_y) > 0.001:
         u_all = u_all + translate_x
         v_all = v_all + translate_y
@@ -269,7 +282,7 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     else:
         tile_fill = np.where(is_second[:, :, None], tile2_bgr[None, None, :], tile_bgr[None, None, :]).astype(np.float32)
 
-    # â”€â”€ Grout compositing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Grout compositing ──────────────────────────────────────────────
     step_max = np.maximum(uv_step_u, uv_step_v)
     fade_raw = 1.0 - np.clip((step_max - 0.25) / (0.5 - 0.25), 0.0, 1.0)
     grout_fade = fade_raw * fade_raw * (3.0 - 2.0 * fade_raw)
@@ -277,7 +290,7 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     grout_f = grout_bgr[None, None, :].astype(np.float32)
     colour_img = grout_alpha * grout_f + (1.0 - grout_alpha) * tile_fill
 
-    # â”€â”€ Shadow & lighting recovery (LAB-based) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Shadow & lighting recovery (LAB-based) ──────────────────────────────────────────────
     shadow_map = _extract_shadow_map(image, mask)
     ambient_tint = _extract_ambient_tint(image, mask)
 
@@ -296,7 +309,7 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     colour_img = colour_img * sat_factor + gray_ch * (1.0 - sat_factor)
     colour_img = np.clip(colour_img, 0, 255).astype(np.uint8)
 
-    # â”€â”€ Seamless compositing (direct alpha blend) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Seamless compositing (direct alpha blend) ──────────────────────────────────────────────
     # Simple alpha compositing with a small feathered mask for anti-aliased
     # edges.  Laplacian pyramid blending was removed because it spreads
     # the mask boundary across coarse scales, leaking the original floor's

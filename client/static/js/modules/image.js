@@ -5,6 +5,7 @@ import {
   updateFloorList,
   redrawWithFloorHighlight,
   updateTogglePreviewVisibility,
+  invalidateCachedResult,
   clearAutoLabels,
   drawAutoLabels,
 } from "./ui.js";
@@ -34,6 +35,8 @@ export async function handleImageUpload(file) {
       state.imageDimensions = { width: w, height: h };
       state.ctx.drawImage(img, 0, 0, w, h);
       state.originalImage = img;
+      // Invalidate any cached result from previous image
+      invalidateCachedResult();
       updateTogglePreviewVisibility();
       state.floorMask = null;
       clearAutoLabels();
@@ -292,4 +295,6 @@ export function updateCombinedMask() {
   });
 
   state.floorMask = combined;
+  // Invalidate cached result when floor selection changes
+  invalidateCachedResult();
 }

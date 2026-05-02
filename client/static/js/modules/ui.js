@@ -97,6 +97,30 @@ export function updateTogglePreviewVisibility() {
   wrap.style.display = state.originalImage && state.resultUrl ? "" : "none";
 }
 
+// ── Invalidate cached result ──
+export function invalidateCachedResult() {
+  // Clear the cached result URL when settings change
+  if (state.resultUrl) {
+    URL.revokeObjectURL(state.resultUrl);
+    state.resultUrl = null;
+  }
+  state.showingTiledResult = false;
+  // Hide the toggle preview button and download button
+  updateTogglePreviewVisibility();
+  const downloadWrap = document.getElementById("downloadFabWrap");
+  if (downloadWrap) downloadWrap.style.display = "none";
+  // Redraw original image if it exists
+  if (state.originalImage && state.ctx) {
+    state.ctx.drawImage(
+      state.originalImage,
+      0,
+      0,
+      state.canvas.width,
+      state.canvas.height,
+    );
+  }
+}
+
 // UI-related functions (to be filled in next steps)
 export function showStatus(msg, type) {
   const overlay = document.getElementById("loadingOverlay");

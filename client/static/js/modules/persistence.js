@@ -15,6 +15,7 @@ const ELEMENT_KEYS = [
   "groutColorTexture",
   "tilePattern",
   "gridRotation",
+  "perspectiveCompression",
   "tileWidth",
   "tileHeight",
   "groutThickness",
