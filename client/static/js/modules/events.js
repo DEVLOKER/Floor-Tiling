@@ -132,10 +132,12 @@ export function initEventListeners() {
     badge("gridRotationValue", e.target.value + "°");
     syncSliderTrack(e.target);
   });
-  document.getElementById("perspectiveCompression").addEventListener("input", (e) => {
-    badge("perspectiveCompressionValue", e.target.value + "%");
-    syncSliderTrack(e.target);
-  });
+  document
+    .getElementById("perspectiveCompression")
+    .addEventListener("input", (e) => {
+      badge("perspectiveCompressionValue", e.target.value + "%");
+      syncSliderTrack(e.target);
+    });
   document.getElementById("translateX").addEventListener("input", (e) => {
     badge("translateXValue", e.target.value);
     syncSliderTrack(e.target);
@@ -263,7 +265,10 @@ export async function applyTilesToFloor() {
     fd.append("translate_x", val("translateX") || 0);
     fd.append("translate_y", val("translateY") || 0);
     fd.append("rotation", val("gridRotation") || 0);
-    fd.append("perspective_compression", (val("perspectiveCompression") || 45) / 100.0);
+    fd.append(
+      "perspective_compression",
+      (val("perspectiveCompression") || 45) / 100.0,
+    );
     fd.append("pattern", val("tilePattern"));
     if (state.tileMode === "texture" && state.tileTextureDataUrl) {
       fd.append(

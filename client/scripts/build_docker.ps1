@@ -40,7 +40,7 @@ try {
     $ImageName = "floor-tiling"
 
     if ($ModelSource -eq "local") {
-        Write-Warning "Local model mode -- make sure 'sam2/models/*.pt' is NOT excluded in .dockerignore"
+        Write-Warning "Local model mode -- make sure 'mask2former/models/*.safetensors' is NOT excluded in .dockerignore"
     }
 
     Write-Host ""

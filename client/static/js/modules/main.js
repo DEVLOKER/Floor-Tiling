@@ -11,6 +11,7 @@ import {
   closePanel,
   setTileMode,
   updateTogglePreviewVisibility,
+  invalidateCachedResult,
   drawAutoLabels,
 } from "./ui.js";
 import {
@@ -68,14 +69,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const el = document.getElementById(id);
     if (el) {
       const eventType = el.tagName === "SELECT" ? "change" : "input";
-      el.addEventListener(eventType, saveTilePreferences);
+      el.addEventListener(eventType, () => {
+        // invalidateCachedResult();
+        saveTilePreferences();
+      });
     }
   });
   // Buttons are handled explicitly at the bottom to ensure state is updated first
   // Save textures after upload
   ["textureFileInput", "textureDarkFileInput"].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener("change", saveTilePreferences);
+    if (el)
+      el.addEventListener("change", () => {
+        invalidateCachedResult();
+        saveTilePreferences();
+      });
   });
   // Wire up panel and tile mode controls
   document
@@ -89,10 +97,12 @@ document.addEventListener("DOMContentLoaded", () => {
     ?.addEventListener("click", closePanel);
   document.getElementById("btnModeColor")?.addEventListener("click", () => {
     setTileMode("color");
+    invalidateCachedResult();
     saveTilePreferences();
   });
   document.getElementById("btnModeTexture")?.addEventListener("click", () => {
     setTileMode("texture");
+    invalidateCachedResult();
     saveTilePreferences();
   });
   // Canvas click for floor selection
