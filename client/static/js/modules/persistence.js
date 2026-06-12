@@ -5,6 +5,12 @@ import { state } from "./state.js";
 // partially-restored state (e.g. wiping texture data URLs before they are applied).
 let _restoring = false;
 
+// Preferences schema version. Bump when a stored default becomes invalid so
+// loadTilePreferences() can migrate old saves. v2: drop the legacy
+// perspectiveCompression (old default 65 made tiles huge/flat) so the new 0
+// default takes effect for returning users without wiping their other prefs.
+const PREFS_VERSION = 2;
+
 // ── Element-backed keys (restored via el.value + event dispatch) ──────────
 const ELEMENT_KEYS = [
   "tileColor",
@@ -42,6 +48,7 @@ export function saveTilePreferences() {
     if (el) data[k] = el.value;
   });
 
+  data.__v = PREFS_VERSION;
   localStorage.setItem("tilePreferences", JSON.stringify(data));
 }
 
@@ -55,6 +62,14 @@ export function loadTilePreferences() {
     data = JSON.parse(raw);
   } catch (e) {
     return;
+  }
+
+  // ── Migrate old saves ──────────────────────────────────────────────────
+  // Pre-v2 saves carry the legacy perspectiveCompression (default 65) which
+  // makes tiles look huge & flat.  Drop it so the new 0 default from
+  // applyDefaults() stands; everything else (colours, textures, sizes) is kept.
+  if ((data.__v ?? 0) < 2) {
+    delete data.perspectiveCompression;
   }
 
   _restoring = true;

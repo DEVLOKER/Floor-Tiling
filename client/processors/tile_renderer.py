@@ -83,16 +83,22 @@ def _extract_shadow_map(image_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray:
     return np.clip(shadow_map, 0.70, 1.30).astype(np.float32)
 
 
+# How much of the original floor's colour cast to transfer to the new tiles.
+# The old floor's mean colour is dominated by its *material* (e.g. brown wood),
+# not the room lighting, so applying it at full strength recolours neutral tiles
+# (grey → orange).  Keep this small: just a hint of the room's warmth/coolness.
+AMBIENT_TINT_STRENGTH = 0.25
+
+
 def _extract_ambient_tint(image_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    """Extract the color temperature of the original floor lighting.
+    """Extract a *subtle* warm/cool cast from the original floor lighting.
 
-    Returns a per-channel multiplier [B, G, R] so tiles inherit the room's
-    warm/cool cast (e.g. yellow tungsten, blue daylight).
+    Returns a per-channel multiplier [B, G, R].  We can't truly separate light
+    colour from the floor's material colour in a single photo, so we only apply
+    a fraction (``AMBIENT_TINT_STRENGTH``) of the detected cast — enough to sit
+    the tiles in the room's ambiance without repainting them the old floor's
+    colour.
     """
-    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
-    L = lab[:, :, 0]
-
-    # Get floor pixels mean color in BGR
     if not mask.any():
         return np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
@@ -103,10 +109,11 @@ def _extract_ambient_tint(image_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray
     if gray_val < 1.0:
         return np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
-    # Tint is the ratio of each channel to the gray mean
-    # Clamped to avoid extreme tints
-    tint = np.clip(mean_bgr / gray_val, 0.8, 1.2).astype(np.float32)
-    return tint
+    # Raw cast = per-channel deviation from neutral grey, then pulled mostly
+    # back toward 1.0 and clamped tight so it can never recolour the tiles.
+    raw = mean_bgr / gray_val
+    tint = 1.0 + (raw - 1.0) * AMBIENT_TINT_STRENGTH
+    return np.clip(tint, 0.95, 1.05).astype(np.float32)
 
 
 def _laplacian_pyramid_blend(
@@ -182,9 +189,108 @@ def _laplacian_pyramid_blend(
     return np.clip(result, 0, 255)
 
 
-# The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern, 
+# ─────────────────────────────────────────────────────────────────────────────
+# Photorealism helpers
+#
+# These take the "ideal" flat tiled floor and add the subtle imperfections that
+# make a real photographed floor read as real instead of computer-generated:
+#   - mip-mapped / bilinear texture sampling      → kills shimmer & moiré in depth
+#   - per-tile tonal variation                    → breaks obvious CG repetition
+#   - grout ambient-occlusion / recessed bevel    → tiles sit *in* the floor
+#   - clear-coat gloss sheen                       → glazed/polished reflection
+#   - micro surface grain                          → no dead-flat banding
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Strength knobs (all tuned conservative — realism, not a filter look)
+TILE_BRIGHT_VARIATION = 0.05   # ± fraction of per-tile brightness jitter
+TILE_COLOR_VARIATION = 0.018   # ± fraction of per-tile warm/cool jitter
+GROUT_AO_STRENGTH = 0.28       # how dark the recessed joint shadow gets
+GROUT_BEVEL_HIGHLIGHT = 0.10   # bright catch-light on the tile-edge bevel
+GLOSS_SHEEN = 38.0             # additive specular boost in lit areas (0-255)
+MICRO_GRAIN_STD = 1.8          # std-dev of surface grain for solid colours
+
+
+def _hash01(a: np.ndarray, b: np.ndarray, sx: float, sy: float) -> np.ndarray:
+    """Deterministic per-cell pseudo-random value in [0, 1).
+
+    Classic GLSL-style hash — stable across runs so the same floor always
+    renders identically (important for live preview / undo).
+    """
+    n = np.sin(a * sx + b * sy) * 43758.5453
+    return n - np.floor(n)
+
+
+def _bilinear_sample_pts(img: np.ndarray, u: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """Bilinearly sample *img* at fractional (u, v) coords given as 1-D arrays.
+
+    u, v are in [0, 1] tile space.  Edges are clamped (grout hides the seam).
+    """
+    th, tw = img.shape[:2]
+    fx = np.clip(u, 0.0, 1.0) * (tw - 1)
+    fy = np.clip(v, 0.0, 1.0) * (th - 1)
+    x0 = np.floor(fx).astype(np.int32)
+    y0 = np.floor(fy).astype(np.int32)
+    x1 = np.minimum(x0 + 1, tw - 1)
+    y1 = np.minimum(y0 + 1, th - 1)
+    wx = (fx - x0)[:, None]
+    wy = (fy - y0)[:, None]
+    Ia = img[y0, x0]
+    Ib = img[y0, x1]
+    Ic = img[y1, x0]
+    Id = img[y1, x1]
+    top = Ia * (1.0 - wx) + Ib * wx
+    bot = Ic * (1.0 - wx) + Id * wx
+    return top * (1.0 - wy) + bot * wy
+
+
+def _build_mips(tex: np.ndarray, levels: int = 5) -> list:
+    """Build a Gaussian mip pyramid of a texture (float32 BGR)."""
+    mips = [tex.astype(np.float32)]
+    cur = mips[0]
+    for _ in range(levels):
+        if min(cur.shape[:2]) <= 2:
+            break
+        cur = cv2.pyrDown(cur)
+        mips.append(cur)
+    return mips
+
+
+def _sample_texture_aa(
+    mips: list,
+    u_frac: np.ndarray,
+    v_frac: np.ndarray,
+    uv_step_u: np.ndarray,
+    uv_step_v: np.ndarray,
+) -> np.ndarray:
+    """Anti-aliased texture lookup with per-pixel level-of-detail selection.
+
+    Far-away tiles span many texels per screen pixel; sampling the full-res
+    texture there produces shimmering moiré.  We pick a mip level so roughly
+    one texel maps to one pixel, then bilinearly sample within it — the same
+    trick GPUs use for textured floors.
+    """
+    base_h, base_w = mips[0].shape[:2]
+    # Texels covered by one screen pixel along each tile axis.
+    texels_per_px = np.maximum(uv_step_u * base_w, uv_step_v * base_h)
+    lod = np.log2(np.maximum(texels_per_px, 1.0))
+    lvl = np.clip(np.rint(lod), 0, len(mips) - 1).astype(np.int32)
+
+    out = np.empty(u_frac.shape + (3,), dtype=np.float32)
+    uf = u_frac.ravel()
+    vf = v_frac.ravel()
+    lv = lvl.ravel()
+    flat = out.reshape(-1, 3)
+    for L in range(len(mips)):
+        m = lv == L
+        if not m.any():
+            continue
+        flat[m] = _bilinear_sample_pts(mips[L], uf[m], vf[m])
+    return out
+
+
+# The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern,
 # applies shadow/tint from the original floor, and blends the result seamlessly back onto the original image.
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.65) -> np.ndarray:
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
     tile_bgr = np.array(hex_to_bgr(tile_color), dtype=np.float32)
     tile2_bgr = np.array(hex_to_bgr(tile_color2), dtype=np.float32)
@@ -266,29 +372,59 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
         v_frac = v_all - np.floor(v_all)
 
     # ─── Texture / color fill ────────────────────────────────────────────────
+    # Textures are sampled with mip-mapped bilinear filtering so distant tiles
+    # don't shimmer/moiré (the classic give-away of a fake floor).
     if tile_texture is not None:
-        th, tw = tile_texture.shape[:2]
-        tx = np.clip((u_frac * tw).astype(np.int32), 0, tw - 1)
-        ty = np.clip((v_frac * th).astype(np.int32), 0, th - 1)
-        tex1 = tile_texture[ty, tx].astype(np.float32)
+        mips1 = _build_mips(tile_texture)
+        tex1 = _sample_texture_aa(mips1, u_frac, v_frac, uv_step_u, uv_step_v)
         if tile_texture2 is not None:
-            th2, tw2 = tile_texture2.shape[:2]
-            tx2 = np.clip((u_frac * tw2).astype(np.int32), 0, tw2 - 1)
-            ty2 = np.clip((v_frac * th2).astype(np.int32), 0, th2 - 1)
-            tex2 = tile_texture2[ty2, tx2].astype(np.float32)
+            mips2 = _build_mips(tile_texture2)
+            tex2 = _sample_texture_aa(mips2, u_frac, v_frac, uv_step_u, uv_step_v)
             tile_fill = np.where(is_second[:, :, None], tex2, tex1)
         else:
             tile_fill = tex1
     else:
         tile_fill = np.where(is_second[:, :, None], tile2_bgr[None, None, :], tile_bgr[None, None, :]).astype(np.float32)
 
+    # ── Per-tile tonal variation ────────────────────────────────────────────
+    # Real tiles (especially stone / wood / fired ceramic) are never perfectly
+    # identical — each piece has a slightly different shade and warmth.  A
+    # stable per-cell hash gives every tile its own subtle tone so the floor
+    # stops looking like one stamped, repeating texture.
+    cell_u = np.floor(u_all)
+    cell_v = np.floor(v_all)
+    rnd_b = _hash01(cell_u, cell_v, 12.9898, 78.233)
+    rnd_c = _hash01(cell_u, cell_v, 39.346, 11.135)
+    bright_var = (1.0 + (rnd_b - 0.5) * 2.0 * TILE_BRIGHT_VARIATION)[:, :, None]
+    # Warm/cool push: nudge R up & B down (or vice-versa) per tile.
+    warm = (rnd_c - 0.5) * 2.0 * TILE_COLOR_VARIATION
+    colour_shift = np.stack([1.0 - warm, np.ones_like(warm), 1.0 + warm], axis=-1)  # BGR
+    tile_fill = tile_fill * bright_var * colour_shift
+
     # ── Grout compositing ──────────────────────────────────────────────
     step_max = np.maximum(uv_step_u, uv_step_v)
     fade_raw = 1.0 - np.clip((step_max - 0.25) / (0.5 - 0.25), 0.0, 1.0)
     grout_fade = fade_raw * fade_raw * (3.0 - 2.0 * fade_raw)
-    grout_alpha = np.clip(on_grout * grout_fade, 0.0, 1.0)[:, :, None]
+    grout_geom = np.clip(on_grout * grout_fade, 0.0, 1.0)
+    grout_alpha = grout_geom[:, :, None]
     grout_f = grout_bgr[None, None, :].astype(np.float32)
     colour_img = grout_alpha * grout_f + (1.0 - grout_alpha) * tile_fill
+
+    # ── Recessed-grout ambient occlusion + bevel catch-light ────────────────
+    # Grout sits *below* the tile surface, so the tile pixels bordering a joint
+    # fall into shadow (ambient occlusion) while the chamfered tile edge just
+    # inside catches a thin highlight.  We derive both, pattern-agnostically,
+    # by blurring the grout mask in screen space (so the effect auto-scales
+    # with perspective — tight near the camera, soft in the distance).
+    ao_k = max(3, min(h_img, w_img) // 220) | 1
+    grout_soft = cv2.GaussianBlur(grout_geom.astype(np.float32), (ao_k, ao_k), 0)
+    edge_halo = np.clip(grout_soft - grout_geom, 0.0, 1.0)
+    tile_side = 1.0 - grout_geom  # don't shade the grout itself
+    ao_shade = 1.0 - GROUT_AO_STRENGTH * edge_halo * tile_side
+    # A thinner, brighter bevel highlight sits just inside the AO band.
+    bevel = np.clip(edge_halo - grout_soft * 0.5, 0.0, 1.0)
+    bevel_light = 1.0 + GROUT_BEVEL_HIGHLIGHT * bevel * tile_side
+    colour_img = colour_img * ao_shade[:, :, None] * bevel_light[:, :, None]
 
     # ── Shadow & lighting recovery (LAB-based) ──────────────────────────────────────────────
     shadow_map = _extract_shadow_map(image, mask)
@@ -300,8 +436,26 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     # Apply ambient color temperature tint
     colour_img = colour_img * ambient_tint[None, None, :]
 
-    # Clamp to valid range (shadow + tint can push values beyond 255)
+    # ── Clear-coat gloss sheen ──────────────────────────────────────────────
+    # Glazed/polished tiles bounce the room light back at the camera.  We reuse
+    # the recovered lighting (shadow_map > 1 = brighter-than-average areas,
+    # i.e. where light pools) to add a soft additive specular sheen there, only
+    # on the tile faces (not in the grout joints).
+    gloss = np.clip(shadow_map - 1.0, 0.0, None)
+    gloss = cv2.GaussianBlur(gloss.astype(np.float32), (ao_k, ao_k), 0)
+    colour_img = colour_img + (gloss * GLOSS_SHEEN)[:, :, None] * (1.0 - grout_alpha)
+
+    # Clamp to valid range (shadow + tint + gloss can push values beyond 255)
     colour_img = np.clip(colour_img, 0, 255)
+
+    # ── Micro surface grain (solid colours only) ───────────────────────────
+    # A flat fill is a dead give-away — even matte tiles have faint surface
+    # noise.  Add a touch of stable grain on the tile faces (textures already
+    # carry their own detail, so skip them).
+    if tile_texture is None and MICRO_GRAIN_STD > 0:
+        grain = np.random.default_rng(12345).standard_normal((h_img, w_img, 1)).astype(np.float32)
+        colour_img = colour_img + grain * MICRO_GRAIN_STD * (1.0 - grout_alpha)
+        colour_img = np.clip(colour_img, 0, 255)
 
     # Mild desaturation to match real-world appearance
     sat_factor = 0.90

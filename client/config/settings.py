@@ -19,8 +19,11 @@ DEFAULT_PATTERN = "grid"
 DEFAULT_ROTATION = 0.0
 DEFAULT_TRANSLATE_X = 0.0
 DEFAULT_TRANSLATE_Y = 0.0
-# Perspective compression (0.0 = linear, 1.0 = maximum compression)
-DEFAULT_PERSPECTIVE_COMPRESSION = 0.65
+# Perspective compression (0.0 = natural/linear perspective, 1.0 = maximum).
+# Default 0.0 keeps real-world foreshortening — tiles shrink naturally into
+# depth.  Higher values enlarge tiles & reduce row count, which reads as fake
+# (giant tiles, flat-looking floor), so it's opt-in via the UI slider.
+DEFAULT_PERSPECTIVE_COMPRESSION = 0.0
 # Tile size constraints
 TILE_WIDTH_MIN = 5.0
 TILE_WIDTH_MAX = 200.0

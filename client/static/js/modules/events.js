@@ -267,7 +267,7 @@ export async function applyTilesToFloor() {
     fd.append("rotation", val("gridRotation") || 0);
     fd.append(
       "perspective_compression",
-      (val("perspectiveCompression") || 45) / 100.0,
+      (val("perspectiveCompression") || 0) / 100.0,
     );
     fd.append("pattern", val("tilePattern"));
     if (state.tileMode === "texture" && state.tileTextureDataUrl) {
