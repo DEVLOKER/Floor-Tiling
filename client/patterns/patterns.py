@@ -163,9 +163,13 @@ def pattern_checkerboard(
     frac_v = v - np.floor(v)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
     dist_v = np.minimum(frac_v, 1.0 - frac_v)
+    # Use the same grout half-width as the grid pattern (/2.0).  The previous
+    # /4.0 made the joints so thin they never reached full opacity and broke up
+    # into a dashed/discontinuous line under perspective; /2.0 stays thin but
+    # renders as one continuous grout line.
     alpha = combine_grout(
-        grout_alpha(dist_u, grout_v_frac / 4.0, step=uv_step_u),
-        grout_alpha(dist_v, grout_h_frac / 4.0, step=uv_step_v),
+        grout_alpha(dist_u, grout_v_frac / 2.0, step=uv_step_u),
+        grout_alpha(dist_v, grout_h_frac / 2.0, step=uv_step_v),
     )
     cell_u = np.floor(u).astype(np.int32)
     cell_v = np.floor(v).astype(np.int32)
@@ -339,10 +343,12 @@ def pattern_straight_weave(
     frac_v = v - np.floor(v)
     dist_u = np.minimum(frac_u, 1.0 - frac_u)
     dist_v = np.minimum(frac_v, 1.0 - frac_v)
-    
-    step_u = uv_step_u * 2.0 if uv_step_u is not None else grout_v_frac
-    step_v = uv_step_v * 2.0 if uv_step_v is not None else grout_h_frac
-    
+
+    # Use the grid's feather (the raw uv_step), not a doubled one — the ×2 here
+    # made the grout edges soft/blurry instead of crisp like the grid pattern.
+    step_u = uv_step_u if uv_step_u is not None else grout_v_frac
+    step_v = uv_step_v if uv_step_v is not None else grout_h_frac
+
     alpha = combine_grout(
         grout_alpha(dist_u, grout_v_frac / 2.0, step=step_u),
         grout_alpha(dist_v, grout_h_frac / 2.0, step=step_v),
