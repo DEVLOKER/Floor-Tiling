@@ -16,6 +16,11 @@ export function initTextureUpload() {
     document.getElementById("textureDarkFileInput"),
     "dark",
   );
+  _bindTextureSlot(
+    document.getElementById("paintTextureUploadArea"),
+    document.getElementById("paintTextureFileInput"),
+    "paint",
+  );
 }
 
 function _bindTextureSlot(area, input, which) {
@@ -41,6 +46,19 @@ function _bindTextureSlot(area, input, which) {
 function loadTextureFile(file, which = "light") {
   const reader = new FileReader();
   reader.onload = (e) => {
+    if (which === "paint") {
+      state.paintTextureDataUrl = e.target.result;
+      document.getElementById("paintTextureThumb").src = e.target.result;
+      document.getElementById("paintTextureEmpty").style.display = "none";
+      document.getElementById("paintTexturePreview").style.display = "block";
+      document
+        .getElementById("paintTextureUploadArea")
+        .classList.add("has-texture");
+      const nameEl = document.getElementById("paintTextureName");
+      if (nameEl) nameEl.textContent = file.name;
+      saveTilePreferences();
+      return;
+    }
     if (which === "dark") {
       state.tileTextureDarkDataUrl = e.target.result;
       document.getElementById("textureDarkThumb").src = e.target.result;

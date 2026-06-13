@@ -23,6 +23,7 @@ export const CONFIG = {
   defaultGroutColorChecker: "#888888",
   defaultGroutColorTexture: "#A9A9A9",
   defaultPaintColor: "#C8D6E5",
+  defaultPaintTextureScale: 130,
   previewColorFallback: "#cccccc",
   textureFallbackDark: "#666666",
   textureFallbackLight: "#d4b896",

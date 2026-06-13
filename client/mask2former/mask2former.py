@@ -12,7 +12,10 @@ class Mask2FormerManager:
     _instance = None
     _model = None
     _processor = None
-    _model_id = "facebook/mask2former-swin-base-IN21k-ade-semantic"
+    # Swin-LARGE ADE20K gives noticeably cleaner wall/floor/ceiling masks than
+    # the base model (fewer confusions like wardrobes→wall, crisper edges).
+    # Downloaded once into the local ``models/`` dir, then loaded offline.
+    _model_id = "facebook/mask2former-swin-large-ade-semantic"
     
     def __new__(cls):
         if cls._instance is None:
@@ -75,21 +78,23 @@ class Mask2FormerManager:
 
     def predict(self, image_np: np.ndarray):
         """
-        Perform semantic segmentation to find floors and walls.
-        
+        Perform semantic segmentation to find floors, walls and the ceiling.
+
         ADE20K IDs (0-indexed in Transformers):
         0: wall
         3: floor
-        
+        5: ceiling
+
         Args:
             image_np: RGB image as numpy array [H, W, 3]
-            
+
         Returns:
-            floor_mask: Binary numpy array [H, W]
-            wall_mask: Binary numpy array [H, W]
+            floor_mask:   Binary numpy array [H, W]
+            wall_mask:    Binary numpy array [H, W]
+            ceiling_mask: Binary numpy array [H, W]
         """
         inputs = self._processor(images=image_np, return_tensors="pt")
-        
+
         with torch.no_grad():
             outputs = self._model(**inputs)
 
@@ -98,14 +103,15 @@ class Mask2FormerManager:
         predicted_semantic_map = self._processor.post_process_semantic_segmentation(
             outputs, target_sizes=target_sizes
         )[0]
-        
+
         semantic_map = predicted_semantic_map.cpu().numpy()
 
         # Extract specific classes
         wall_mask = (semantic_map == 0).astype(np.uint8)
         floor_mask = (semantic_map == 3).astype(np.uint8)
+        ceiling_mask = (semantic_map == 5).astype(np.uint8)
 
-        return floor_mask, wall_mask
+        return floor_mask, wall_mask, ceiling_mask
 
 def get_mask2former_predictor() -> Mask2FormerManager:
     """Get singleton Mask2Former predictor instance."""

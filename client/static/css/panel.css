@@ -356,11 +356,15 @@ input[type="range"]::-moz-range-progress {
 
 /* ── Color / Texture mode panels ───────────────────────────────── */
 #colorModePanel,
-#textureModePanel {
+#textureModePanel,
+#paintColorPanel,
+#paintTexturePanel {
   display: none;
 }
 #colorModePanel.active,
-#textureModePanel.active {
+#textureModePanel.active,
+#paintColorPanel.active,
+#paintTexturePanel.active {
   display: block;
 }
 

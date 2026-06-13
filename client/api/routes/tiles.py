@@ -52,6 +52,7 @@ async def apply_tiles(
     perspective_compression: float = Form(DEFAULT_PERSPECTIVE_COMPRESSION),
     tile_texture: Optional[UploadFile] = File(None),
     tile_texture2: Optional[UploadFile] = File(None),
+    source: Optional[UploadFile] = File(None),
 ):
     """Apply a perspective-correct tile pattern onto the segmented floor region.
 
@@ -110,6 +111,13 @@ async def apply_tiles(
             tex_bytes2 = await tile_texture2.read()
             texture_arr2 = cv2.imdecode(np.frombuffer(tex_bytes2, np.uint8), cv2.IMREAD_COLOR)
 
+        # ── Decode optional lighting source (pristine original) ────────────
+        # Sampling shadows/geometry from the original keeps re-tiling idempotent.
+        lighting_source = None
+        if source is not None:
+            src_bytes = await source.read()
+            lighting_source = cv2.imdecode(np.frombuffer(src_bytes, np.uint8), cv2.IMREAD_COLOR)
+
         # ── Render tiles ───────────────────────────────────────────────────
         result = apply_perspective_tiles(
             img,
@@ -128,6 +136,7 @@ async def apply_tiles(
             translate_x=translate_x,
             translate_y=translate_y,
             perspective_compression=perspective_compression,
+            lighting_source=lighting_source,
         )
 
         # ── Encode and return ──────────────────────────────────────────────

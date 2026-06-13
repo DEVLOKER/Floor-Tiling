@@ -14,6 +14,8 @@ from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from PIL import Image
 
+from core.planes import split_wall_planes
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["detection"])
@@ -63,12 +65,12 @@ async def auto_detect_features(
                 raise ValueError(f"Image trop petite ({w}×{h}). Minimum requis\u00a0: 64×64 px.")
             await asyncio.sleep(0)   # yield control to the event loop
 
-            # ── Step 3: AI segmentation (floor + walls) ───────────────────
-            yield _sse({"step": 3, "total": 5, "message": "Segmentation IA du sol et des murs en cours…"})
-            floor_mask, wall_mask = await asyncio.to_thread(predictor.predict, image_np)
+            # ── Step 3: AI segmentation (floor + walls + ceiling) ─────────
+            yield _sse({"step": 3, "total": 5, "message": "Segmentation IA du sol, des murs et du plafond en cours…"})
+            floor_mask, wall_mask, ceiling_mask = await asyncio.to_thread(predictor.predict, image_np)
             logger.info(
-                "Segmentation done — floor px: %d, wall px: %d",
-                int(floor_mask.sum()), int(wall_mask.sum()),
+                "Segmentation done — floor px: %d, wall px: %d, ceiling px: %d",
+                int(floor_mask.sum()), int(wall_mask.sum()), int(ceiling_mask.sum()),
             )
 
             # ── Step 4: Extract regions & centroids ───────────────────────
@@ -85,30 +87,64 @@ async def auto_detect_features(
                     "id": "floor",
                 })
 
-            num_labels, labeled_walls, stats, centroids = cv2.connectedComponentsWithStats(
-                wall_mask.astype(np.uint8), connectivity=8
-            )
+            # ── Split walls into individual planes ────────────────────────
+            # A depth model gives per-pixel normals so the single semantic
+            # "wall" blob is separated into its real planes (left/back/right).
+            # If depth isn't available, fall back to connected components
+            # (which can only separate visually disconnected walls).
+            depth_predictor = getattr(request.app.state, "depth_predictor", None)
+            labeled_walls = None
+            if depth_predictor is not None:
+                try:
+                    depth = await asyncio.to_thread(depth_predictor.predict, image_np)
+                    labeled_walls, _ = split_wall_planes(wall_mask, depth)
+                except Exception as exc:
+                    logger.warning("Wall-plane split failed, using fallback: %s", exc)
+                    labeled_walls = None
+            if labeled_walls is None:
+                _, cc = cv2.connectedComponents(wall_mask.astype(np.uint8), connectivity=8)
+                labeled_walls = cc.astype(np.uint8)
+
             wall_count = 0
-            for i in range(1, num_labels):
-                if stats[i, cv2.CC_STAT_AREA] < 500:
+            for pid in np.unique(labeled_walls):
+                if pid == 0:
                     continue
+                piece = labeled_walls == pid
+                area = int(piece.sum())
+                if area < 500:
+                    continue
+                ys, xs = np.where(piece)
                 wall_count += 1
                 labels.append({
                     "text": "Mur",
-                    "x": float(centroids[i][0]),
-                    "y": float(centroids[i][1]),
+                    "x": float(xs.mean()),
+                    "y": float(ys.mean()),
                     "type": "wall",
-                    "id": str(i),
+                    "id": str(int(pid)),
                 })
-            logger.info("Regions: 1 floor, %d wall(s)", wall_count)
+
+            ceiling_center = _get_centroid(ceiling_mask)
+            if ceiling_center:
+                labels.append({
+                    "text": "Plafond",
+                    "x": ceiling_center["x"],
+                    "y": ceiling_center["y"],
+                    "type": "ceiling",
+                    "id": "ceiling",
+                })
+            logger.info(
+                "Regions: 1 floor, %d wall(s), %d ceiling",
+                wall_count, 1 if ceiling_center else 0,
+            )
 
             # ── Step 5: Compress & encode binary payload ──────────────────
             yield _sse({"step": 5, "total": 5, "message": "Compression et envoi des résultats…"})
             labels_json = json.dumps(labels).encode("utf-8")
             floor_bytes = floor_mask.astype(np.uint8).tobytes()
             wall_bytes = labeled_walls.astype(np.uint8).tobytes()
+            ceiling_bytes = ceiling_mask.astype(np.uint8).tobytes()
             header = struct.pack("<III", len(labels_json), h, w)
-            raw = header + labels_json + floor_bytes + wall_bytes
+            raw = header + labels_json + floor_bytes + wall_bytes + ceiling_bytes
             compressed = gzip.compress(raw, compresslevel=1)
             b64 = base64.b64encode(compressed).decode("ascii")
             logger.info("Payload: %d bytes (raw) → %d bytes (compressed)", len(raw), len(compressed))

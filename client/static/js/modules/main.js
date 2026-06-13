@@ -10,6 +10,7 @@ import {
   openPanel,
   closePanel,
   setTileMode,
+  setPaintMode,
   updateTogglePreviewVisibility,
   drawAutoLabels,
 } from "./ui.js";
@@ -65,6 +66,9 @@ document.addEventListener("DOMContentLoaded", () => {
     "groutThickness",
     "translateX",
     "translateY",
+    "wallPaintColor",
+    "wallPaintFinish",
+    "paintTextureScale",
   ].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
@@ -106,6 +110,17 @@ document.addEventListener("DOMContentLoaded", () => {
     setTileMode("texture");
     saveTilePreferences();
   });
+  // Paint fill-style tabs (colour / texture)
+  document.getElementById("btnPaintModeColor")?.addEventListener("click", () => {
+    setPaintMode("color");
+    saveTilePreferences();
+  });
+  document
+    .getElementById("btnPaintModeTexture")
+    ?.addEventListener("click", () => {
+      setPaintMode("texture");
+      saveTilePreferences();
+    });
   // Canvas click for floor selection
   // Clear/apply floor selection
   // Activity tabs → switch selection mode + footer CTA

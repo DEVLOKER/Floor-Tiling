@@ -14,7 +14,25 @@
       "Bash(find . -iname \"Room-steven*\" -not -path \"*/dist/*\")",
       "Bash(python -c \"import torch, transformers; print\\('torch', torch.__version__, 'cuda', torch.cuda.is_available\\(\\)\\); print\\('transformers', transformers.__version__\\)\")",
       "Bash(python _diag_tiles.py)",
-      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python _diag_tiles.py)"
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python _diag_tiles.py)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python _diag_seg.py)",
+      "Bash(grep -vi \"warning\\\\|deprecat\\\\|verbose\\\\|symlink\\\\|future\\\\|return self\\\\|^\\\\s*$\")",
+      "Bash(ls -la mask2former/models/*.safetensors mask2former/models/.model_id)",
+      "Bash(cat mask2former/models/.model_id)",
+      "Bash(python -c \"import json;c=json.load\\(open\\('mask2former/models/config.json'\\)\\);print\\('backbone:',c.get\\('backbone_config',{}\\).get\\('embed_dim'\\),'depths',c.get\\('backbone_config',{}\\).get\\('depths'\\)\\)\")",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python _diag_planes.py)",
+      "Bash(PYTHONUTF8=1 python -c ' *)",
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _diag_seg.py _diag_planes.py _seg_*.jpg _planes_*.jpg && echo \"cleaned\" && git status --short | grep -v \"^??\" | head -40 && echo \"--- untracked ---\" && git status --short | grep \"^??\")",
+      "Bash(git check-ignore *)",
+      "Bash(git add *)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(node --check image.js)",
+      "Bash(ls -la __tests__/textures/painting/)",
+      "Bash(ls __tests__/textures/)",
+      "Bash(python -c \"import ast;ast.parse\\(open\\('processors/wall_painter.py',encoding='utf-8'\\).read\\(\\)\\);print\\('py OK'\\)\")"
+    ],
+    "additionalDirectories": [
+      "D:\\Projects\\Python Projects\\Floor Tiling\\client"
     ]
   }
 }

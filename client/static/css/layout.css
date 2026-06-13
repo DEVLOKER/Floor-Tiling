@@ -554,7 +554,8 @@ body.fullscreen-mode .top-btn-close {
   border-color: rgba(210, 210, 210, 0.9);
 }
 .surface-marker.floor,
-.surface-marker.wall {
+.surface-marker.wall,
+.surface-marker.ceiling {
   background: #fff;
   border: 4px solid rgba(200, 200, 200, 0.65);
 }

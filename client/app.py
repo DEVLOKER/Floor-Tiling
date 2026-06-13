@@ -23,6 +23,7 @@ from api.routes.paint import router as paint_router
 from api.routes.tiles import router as tiles_router
 from config.settings import CORS_ORIGINS, MAX_UPLOAD_SIZE_BYTES
 from mask2former.mask2former import get_mask2former_predictor
+from depth.depth import get_depth_predictor
 from utils import verify_license, LicenseError
 
 # Add repo root to sys.path so the `shared` package is importable
@@ -61,6 +62,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("Failed to load Mask2Former: %s", exc, exc_info=True)
         app.state.mask2former_predictor = None
+
+    # ── Load depth model (for per-wall plane separation) ──────────────────
+    # Best-effort: if it fails, detection falls back to connected components.
+    try:
+        app.state.depth_predictor = await asyncio.to_thread(get_depth_predictor)
+        logger.info("Depth model ready.")
+    except Exception as exc:
+        logger.error("Failed to load depth model: %s", exc, exc_info=True)
+        app.state.depth_predictor = None
 
     yield  # ── server is running ─────────────────────────────────────────
 

@@ -8,6 +8,7 @@ import {
 import {
   handleImageUpload,
   baseImageToBlob,
+  originalImageToBlob,
   dataUrlToBlob,
 } from "./image.js";
 import { state } from "./state.js";
@@ -146,6 +147,10 @@ export function initEventListeners() {
     badge("translateYValue", e.target.value);
     syncSliderTrack(e.target);
   });
+  document.getElementById("paintTextureScale")?.addEventListener("input", (e) => {
+    badge("paintTextureScaleValue", e.target.value + " cm");
+    syncSliderTrack(e.target);
+  });
   document.getElementById("groutThickness").addEventListener("input", (e) => {
     badge("groutValue", e.target.value + " px");
     syncSliderTrack(e.target);
@@ -226,42 +231,60 @@ export function applyActiveAction() {
   return applyTilesToFloor();
 }
 
-// ── Apply paint (walls) ──
+// ── Apply paint (walls / ceiling) ──
 export async function applyPaintToWalls() {
   if (!state.originalImage) {
     showStatus("Veuillez d'abord importer une image", "error");
     return;
   }
-  // Paint targets the selected *walls* only (floor is handled by tiling).
-  const wallIds = [...state.selectedSurfaces].filter((id) => id !== "floor");
-  if (wallIds.length === 0) {
-    showStatus("Veuillez d'abord sélectionner un mur", "error");
+  // In paint mode the combined mask holds exactly the selected paint surfaces
+  // (walls and/or ceiling) — the floor can't be selected in this mode.
+  if (!state.floorMask) {
+    showStatus("Veuillez d'abord sélectionner un mur ou le plafond", "error");
     return;
   }
-  const wallMask = state.autoMasks.wall;
-  if (!wallMask) {
-    showStatus("Aucun mur détecté", "error");
+  if (state.paintMode === "texture" && !state.paintTextureDataUrl) {
+    showStatus("Veuillez d'abord importer une texture de peinture", "error");
     return;
   }
 
-  // Build a flat uint8 mask from the labeled wall mask for the selected walls.
-  const idSet = new Set(wallIds.map((i) => parseInt(i)));
-  const height = state.canvas.height;
+  // Build a LABELED mask: each selected surface (wall plane / ceiling) gets a
+  // distinct id so the backend can map textures per plane (perspective + corners).
   const width = state.canvas.width;
+  const height = state.canvas.height;
   const maskData = new Uint8Array(width * height);
-  let count = 0;
-  for (let y = 0; y < height; y++) {
-    const row = wallMask[y];
-    if (!row) continue;
-    for (let x = 0; x < width; x++) {
-      if (idSet.has(row[x])) {
-        maskData[y * width + x] = 1;
-        count++;
+  let pid = 0;
+  let total = 0;
+  for (const id of state.selectedSurfaces) {
+    if (id === "floor") continue;
+    pid += 1;
+    if (id === "ceiling") {
+      const cm = state.autoMasks.ceiling;
+      if (!cm) continue;
+      for (let y = 0; y < height; y++) {
+        if (!cm[y]) continue;
+        for (let x = 0; x < width; x++)
+          if (cm[y][x] > 0) {
+            maskData[y * width + x] = pid;
+            total++;
+          }
+      }
+    } else {
+      const wm = state.autoMasks.wall;
+      if (!wm) continue;
+      const wid = parseInt(id);
+      for (let y = 0; y < height; y++) {
+        if (!wm[y]) continue;
+        for (let x = 0; x < width; x++)
+          if (wm[y][x] === wid) {
+            maskData[y * width + x] = pid;
+            total++;
+          }
       }
     }
   }
-  if (count === 0) {
-    showStatus("Le mur sélectionné est vide", "error");
+  if (total === 0) {
+    showStatus("Veuillez d'abord sélectionner un mur ou le plafond", "error");
     return;
   }
 
@@ -269,12 +292,23 @@ export async function applyPaintToWalls() {
   state.isLoading = true;
   try {
     const blob = await baseImageToBlob(state);
+    const sourceBlob = await originalImageToBlob(state);
     const maskBlob = new Blob([maskData], { type: "application/octet-stream" });
     const fd = new FormData();
     fd.append("image", blob, "room.jpg");
+    fd.append("source", sourceBlob, "source.jpg");
     fd.append("mask", maskBlob, "mask.bin");
     fd.append("paint_color", val("wallPaintColor"));
     fd.append("finish", val("wallPaintFinish") || "matte");
+    if (state.paintMode === "texture" && state.paintTextureDataUrl) {
+      fd.append(
+        "paint_texture",
+        await dataUrlToBlob(state.paintTextureDataUrl),
+        "paint_texture.jpg",
+      );
+      // cm → metres for the real-world texture repeat size
+      fd.append("texture_scale", (val("paintTextureScale") || 130) / 100.0);
+    }
     const res = await fetch(`${CONFIG.apiUrl}/apply-paint`, {
       method: "POST",
       body: fd,
@@ -337,10 +371,12 @@ export async function applyTilesToFloor() {
         : val("groutColor");
   try {
     const blob = await baseImageToBlob(state);
+    const sourceBlob = await originalImageToBlob(state);
     const maskData = new Uint8Array(state.floorMask.flat());
     const maskBlob = new Blob([maskData], { type: "application/octet-stream" });
     const fd = new FormData();
     fd.append("image", blob, "room.jpg");
+    fd.append("source", sourceBlob, "source.jpg");
     fd.append("mask", maskBlob, "mask.bin");
     fd.append("tile_width", val("tileWidth"));
     fd.append("tile_height", val("tileHeight"));

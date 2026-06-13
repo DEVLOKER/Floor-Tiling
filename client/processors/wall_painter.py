@@ -29,56 +29,260 @@ SHADING_MAX = 1.55             # clamp on relative luminance (brightest catch-li
 SHEEN_GAIN = {"matte": 0.0, "satin": 30.0, "gloss": 65.0}  # additive specular
 
 
+def _tile_texture(texture: np.ndarray, h: int, w: int) -> np.ndarray:
+    """Tile ``texture`` to cover an [h, w] canvas (screen-space repeat).
+
+    The texture is scaled so it repeats ~3 times across the width — a sensible
+    density for a wall finish / wallpaper without needing per-plane geometry.
+    """
+    th, tw = texture.shape[:2]
+    target_w = max(64, w // 3)
+    scale = target_w / float(tw)
+    rw = max(1, int(round(tw * scale)))
+    rh = max(1, int(round(th * scale)))
+    tex = cv2.resize(texture, (rw, rh), interpolation=cv2.INTER_AREA)
+    # Mirror into a 2×2 block so tiling has no hard seams (edges match).
+    block = np.concatenate([tex, tex[:, ::-1]], axis=1)
+    block = np.concatenate([block, block[::-1, :]], axis=0)
+    bh, bw = block.shape[:2]
+    reps_y = int(np.ceil(h / bh))
+    reps_x = int(np.ceil(w / bw))
+    tiled = np.tile(block, (reps_y, reps_x, 1))[:h, :w]
+    return tiled.astype(np.float32)
+
+
+# Real-world size of one texture repeat on the wall, in metres. Larger = the
+# pattern looks bigger / repeats less often.
+TEXTURE_REPEAT_M = 1.3
+CORNER_AO_STRENGTH = 0.22  # how much to darken where two planes meet
+
+
+def _reflect01(x: np.ndarray) -> np.ndarray:
+    """Map any real coordinate into [0, 1] with a mirror (triangle wave).
+
+    Reflecting at each repeat boundary makes neighbouring tiles share an
+    identical edge, so an ordinary (non-seamless) photo tiles without the hard
+    grid seams that plain wrapping (sawtooth) produces.
+    """
+    q = np.mod(x, 2.0)
+    return np.where(q > 1.0, 2.0 - q, q)
+
+
+def _bilinear_clamp(tex: np.ndarray, u: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """Bilinearly sample ``tex`` at (u, v) in [0,1], clamping at the edges.
+
+    Used with reflected coordinates, so clamping (not wrapping) is correct —
+    the mirror already guarantees continuity across tile boundaries.
+    """
+    th, tw = tex.shape[:2]
+    fx = np.clip(u, 0.0, 1.0) * (tw - 1)
+    fy = np.clip(v, 0.0, 1.0) * (th - 1)
+    x0 = np.floor(fx).astype(np.int64)
+    y0 = np.floor(fy).astype(np.int64)
+    x1 = np.minimum(x0 + 1, tw - 1)
+    y1 = np.minimum(y0 + 1, th - 1)
+    wx = (fx - x0)[:, None]
+    wy = (fy - y0)[:, None]
+    Ia, Ib = tex[y0, x0], tex[y0, x1]
+    Ic, Id = tex[y1, x0], tex[y1, x1]
+    return (Ia * (1 - wx) + Ib * wx) * (1 - wy) + (Ic * (1 - wx) + Id * wx) * wy
+
+
+def _texture_planes_fill(
+    labeled: np.ndarray,
+    depth: np.ndarray,
+    texture: np.ndarray,
+    repeat_m: float = TEXTURE_REPEAT_M,
+) -> np.ndarray:
+    """Perspective-map ``texture`` onto each plane of ``labeled`` using depth.
+
+    Each plane id is back-projected to a 3D point cloud, a gravity-aligned plane
+    basis is built, and the texture is sampled in that plane's metric
+    coordinates — so it foreshortens with depth and, because every plane has its
+    own basis, the pattern breaks at corners (which makes the room read as 3D).
+
+    Distant parts of a plane are blended toward a pre-filtered (downsampled)
+    copy of the texture to suppress the shimmer/aliasing that otherwise betrays
+    a fake surface receding into depth.
+    """
+    h, w = depth.shape
+    focal = float(max(h, w))
+    cx, cy = w / 2.0, h / 2.0
+    tex = texture.astype(np.float32)
+    tex_half = cv2.pyrDown(tex)  # prefiltered mip for far pixels
+    repeat_m = max(0.2, float(repeat_m))
+    fill = np.zeros((h, w, 3), np.float32)
+    covered = np.zeros((h, w), bool)
+
+    for pid in np.unique(labeled):
+        if pid == 0:
+            continue
+        ys, xs = np.where(labeled == pid)
+        if len(xs) < 50:
+            continue
+        Z = depth[ys, xs].astype(np.float64)
+        X = (xs - cx) / focal * Z
+        Y = (ys - cy) / focal * Z
+        P = np.stack([X, Y, Z], axis=1)
+        c = P.mean(axis=0)
+        Pc = P - c
+        try:
+            # Plane normal = smallest singular vector of the point cloud.
+            _, _, vt = np.linalg.svd(Pc, full_matrices=False)
+        except np.linalg.LinAlgError:
+            continue
+        normal = vt[2]
+
+        # Gravity-aligned in-plane axes so the texture runs vertically on walls
+        # (not along the PCA principal direction, which looks diagonal/streaky).
+        # Camera space has +Y pointing down, so world-up is (0, -1, 0).
+        up = np.array([0.0, -1.0, 0.0])
+        if abs(float(np.dot(up, normal))) > 0.85:
+            # Near-horizontal plane (ceiling): up ∥ normal is degenerate, so
+            # orient with the camera's horizontal axis instead.
+            ref = np.array([1.0, 0.0, 0.0])
+        else:
+            ref = up
+        v_axis = ref - np.dot(ref, normal) * normal
+        nv = np.linalg.norm(v_axis)
+        v_axis = vt[0] if nv < 1e-6 else v_axis / nv
+        u_axis = np.cross(normal, v_axis)
+        u_axis = u_axis / (np.linalg.norm(u_axis) + 1e-8)
+
+        s = Pc @ u_axis
+        t = Pc @ v_axis
+        # Mirror-tile so non-seamless photos repeat without visible grid seams.
+        u = _reflect01(s / repeat_m)
+        v = _reflect01(t / repeat_m)
+
+        # Anti-alias: blend toward the prefiltered mip on far parts of the
+        # plane (texel density grows with depth, so far ≈ aliasing-prone).
+        col_full = _bilinear_clamp(tex, u, v)
+        col_half = _bilinear_clamp(tex_half, u, v)
+        z_lo, z_hi = np.percentile(Z, 10), np.percentile(Z, 95)
+        w_far = np.clip((Z - z_lo) / max(z_hi - z_lo, 1e-6), 0.0, 1.0)[:, None]
+        fill[ys, xs] = col_full * (1.0 - w_far) + col_half * w_far
+        covered[ys, xs] = True
+
+    # Any plane too small to map → fall back to a screen-space tile there.
+    if not covered.all():
+        tiled = _tile_texture(texture, h, w)
+        miss = (labeled > 0) & (~covered)
+        fill[miss] = tiled[miss]
+    return fill
+
+
+def _corner_ao(labeled: np.ndarray, k: int) -> np.ndarray:
+    """Soft darkening map along boundaries between different plane ids.
+
+    Real wall/wall and wall/ceiling junctions sit in slight shadow; adding it
+    makes the corners read even when both planes have the same texture/tone.
+    """
+    lab = labeled.astype(np.int32)
+    edge = np.zeros(lab.shape, np.float32)
+    for dy, dx in ((1, 0), (0, 1)):
+        a = lab[:-dy or None, :-dx or None]
+        b = lab[dy:, dx:]
+        diff = (a != b) & (a > 0) & (b > 0)
+        edge[:-dy or None, :-dx or None][diff] = 1.0
+        edge[dy:, dx:][diff] = 1.0
+    return cv2.GaussianBlur(edge, (k, k), 0)
+
+
 def apply_wall_paint(
     image: np.ndarray,
     mask: np.ndarray,
     paint_color: str,
     finish: str = "matte",
     opacity: float = 1.0,
+    lighting_source: np.ndarray = None,
+    texture: np.ndarray = None,
+    depth: np.ndarray = None,
+    texture_scale: float = TEXTURE_REPEAT_M,
 ) -> np.ndarray:
-    """Repaint the masked wall region with ``paint_color``.
+    """Repaint the masked wall region with a colour or a texture.
 
     Args:
-        image:       Room photo, BGR uint8 [H, W, 3].
-        mask:        Wall mask, any non-zero value = wall.
+        image:       Image to composite the paint ONTO, BGR uint8 [H, W, 3].
+                     This may be an already-edited composite (tiled floor,
+                     other painted walls) so previous edits are preserved.
+        mask:        Paint mask.  For texture painting this should be a LABELED
+                     mask (each plane a distinct id) so the texture is mapped
+                     per plane; for colour, any non-zero value = paint.
+        depth:       Optional depth map [H, W]; enables per-plane perspective
+                     texture mapping (with corner shading) instead of a flat
+                     screen-space tile.
         paint_color: CSS hex colour of the new paint, e.g. ``"#C8D6E5"``.
         finish:      ``"matte"`` | ``"satin"`` | ``"gloss"`` — controls sheen.
         opacity:     0-1.  <1 lets the original wall colour show through
                      (useful for translucent / wash effects).
+        lighting_source: Image to sample the wall's lighting/texture FROM
+                     (the pristine original).  Keeping this separate from
+                     ``image`` makes re-applying paint idempotent — the shading
+                     is always derived from the real wall, never from a
+                     previously-painted result (which would stack artefacts).
+        texture:     Optional BGR texture image.  When given, the wall is
+                     covered with the tiled texture (modulated by the wall's
+                     real lighting) instead of a flat colour.
 
     Returns:
         BGR uint8 image with the wall repainted and seamlessly blended.
     """
-    mask = (mask > 0).astype(np.uint8)
-    if not mask.any():
+    # Keep plane labels (for per-plane texture); derive a binary mask for
+    # shading/feathering.
+    labeled = mask
+    binmask = (mask > 0).astype(np.uint8)
+    if not binmask.any():
         return image
+    h_img, w_img = image.shape[:2]
+
+    # Lighting/texture always comes from the original; compositing happens onto
+    # the (possibly already-edited) ``image``.
+    src = image if lighting_source is None else lighting_source
+    if src.shape[:2] != image.shape[:2]:
+        src = cv2.resize(src, (image.shape[1], image.shape[0]))
 
     paint_bgr = np.array(hex_to_bgr(paint_color), dtype=np.float32)
     img_f = image.astype(np.float32)
+    src_f = src.astype(np.float32)
 
     # ── Relative luminance (LAB L*) drives the shading ──────────────────────
     # LAB is perceptually uniform, so L* tracks how the eye reads brightness.
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB).astype(np.float32)
+    lab = cv2.cvtColor(src, cv2.COLOR_BGR2LAB).astype(np.float32)
     L = lab[:, :, 0]  # 0-255 range
 
-    wall_mean_L = float(np.mean(L[mask > 0]))
+    wall_mean_L = float(np.mean(L[binmask > 0]))
     wall_mean_L = max(wall_mean_L, 1.0)
 
     # Relative shading: 1.0 = average wall brightness, <1 shadow, >1 highlight.
-    # Multiplying the flat paint colour by this keeps every shadow and lit
-    # gradient of the real wall, so the paint "sits" on the actual surface.
+    # Multiplying the fill by this keeps every shadow and lit gradient of the
+    # real wall, so the new finish "sits" on the actual surface.
     shading = np.clip(L / wall_mean_L, SHADING_MIN, SHADING_MAX)
-    painted = paint_bgr[None, None, :] * shading[:, :, None]
+    k = max(3, min(h_img, w_img) // 50) | 1
 
-    # ── Fine surface detail ─────────────────────────────────────────────────
-    # The broad shading above misses small stuff (orange-peel, plaster bumps,
-    # the thin shadow under a light switch).  Recover it as the high-frequency
-    # residual of luminance and add it equally to all channels so the paint
-    # hue is unchanged while the surface stops looking dead-flat.
-    k = max(3, min(image.shape[:2]) // 50) | 1
-    L_blur = cv2.GaussianBlur(L, (k, k), 0)
-    detail = L - L_blur
-    painted += detail[:, :, None] * WALL_DETAIL_STRENGTH
+    # ── Corner shading (both colour & texture) ──────────────────────────────
+    # Darken the junctions between adjacent painted planes so corners read even
+    # when neighbouring planes share the same colour/tone. Needs only the
+    # labeled mask (no depth), so it's free for colour mode too.
+    if int(labeled.max()) > 1:
+        ao = _corner_ao(labeled, k)
+        shading = shading * (1.0 - CORNER_AO_STRENGTH * ao)
+
+    if texture is not None:
+        # Texture finish modulated by the wall's lighting (texture carries its
+        # own surface detail, so no extra detail term).
+        if depth is not None and depth.shape[:2] == (h_img, w_img):
+            # Per-plane perspective mapping → reads as 3D.
+            fill = _texture_planes_fill(labeled, depth, texture, repeat_m=texture_scale)
+        else:
+            fill = _tile_texture(texture, h_img, w_img)
+        painted = fill * shading[:, :, None]
+    else:
+        # Solid colour finish + recovered fine surface detail so it isn't flat.
+        painted = paint_bgr[None, None, :] * shading[:, :, None]
+        L_blur = cv2.GaussianBlur(L, (k, k), 0)
+        detail = L - L_blur
+        painted += detail[:, :, None] * WALL_DETAIL_STRENGTH
 
     # ── Finish sheen (satin / gloss) ────────────────────────────────────────
     # Glossier paints bounce light back at the camera where the wall is already
@@ -94,10 +298,11 @@ def apply_wall_paint(
     # ── Opacity: let the original wall bleed through for wash effects ────────
     opacity = float(np.clip(opacity, 0.0, 1.0))
     if opacity < 1.0:
-        painted = opacity * painted + (1.0 - opacity) * img_f
+        painted = opacity * painted + (1.0 - opacity) * src_f
 
     # ── Seamless composite with a feathered edge ────────────────────────────
-    alpha = _feather_mask(mask, radius=3)[:, :, None]
+    # Composite onto ``image`` (the accumulated result) so other surfaces stay.
+    alpha = _feather_mask(binmask, radius=3)[:, :, None]
     result = alpha * painted + (1.0 - alpha) * img_f
 
     return np.clip(result, 0, 255).astype(np.uint8)

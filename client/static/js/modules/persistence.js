@@ -21,6 +21,7 @@ const ELEMENT_KEYS = [
   "groutColorTexture",
   "wallPaintColor",
   "wallPaintFinish",
+  "paintTextureScale",
   "tilePattern",
   "gridRotation",
   "perspectiveCompression",
@@ -43,6 +44,12 @@ export function saveTilePreferences() {
   data.textureName = document.getElementById("textureName")?.textContent ?? "";
   data.textureDarkName =
     document.getElementById("textureDarkName")?.textContent ?? "";
+
+  // Wall paint fill style (mirrors the tile texture persistence)
+  data.paintMode = state?.paintMode ?? "color";
+  data.paintTextureDataUrl = state?.paintTextureDataUrl ?? null;
+  data.paintTextureName =
+    document.getElementById("paintTextureName")?.textContent ?? "";
 
   // Element-backed fields
   ELEMENT_KEYS.forEach((k) => {
@@ -96,11 +103,31 @@ export function loadTilePreferences() {
         ?.classList.toggle("active", savedMode === "texture");
     }
 
+    // ── Wall paint fill style ──────────────────────────────────────────────
+    const savedPaintMode = data.paintMode;
+    if (savedPaintMode) {
+      if (state) state.paintMode = savedPaintMode;
+      document
+        .getElementById("btnPaintModeColor")
+        ?.classList.toggle("active", savedPaintMode === "color");
+      document
+        .getElementById("btnPaintModeTexture")
+        ?.classList.toggle("active", savedPaintMode === "texture");
+      document
+        .getElementById("paintColorPanel")
+        ?.classList.toggle("active", savedPaintMode === "color");
+      document
+        .getElementById("paintTexturePanel")
+        ?.classList.toggle("active", savedPaintMode === "texture");
+    }
+
     // Texture data URLs (must be in state before listeners read them)
     if (data.tileTextureDataUrl && state)
       state.tileTextureDataUrl = data.tileTextureDataUrl;
     if (data.tileTextureDarkDataUrl && state)
       state.tileTextureDarkDataUrl = data.tileTextureDarkDataUrl;
+    if (data.paintTextureDataUrl && state)
+      state.paintTextureDataUrl = data.paintTextureDataUrl;
 
     // Texture display names (cosmetic)
     if (data.textureName) {
@@ -136,6 +163,21 @@ export function loadTilePreferences() {
         ?.classList.add("has-texture");
       const darkGroup = document.getElementById("textureDarkGroup");
       if (darkGroup) darkGroup.style.display = "";
+    }
+    if (data.paintTextureName) {
+      const el = document.getElementById("paintTextureName");
+      if (el) el.textContent = data.paintTextureName;
+    }
+    if (data.paintTextureDataUrl) {
+      const thumb = document.getElementById("paintTextureThumb");
+      if (thumb) thumb.src = data.paintTextureDataUrl;
+      const preview = document.getElementById("paintTexturePreview");
+      if (preview) preview.style.display = "block";
+      const empty = document.getElementById("paintTextureEmpty");
+      if (empty) empty.style.display = "none";
+      document
+        .getElementById("paintTextureUploadArea")
+        ?.classList.add("has-texture");
     }
 
     // ── Phase 2: Restore element values and fire events ────────────────────

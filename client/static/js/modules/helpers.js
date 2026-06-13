@@ -72,6 +72,10 @@ export function applyDefaults(CONFIG) {
   set("groutColorChecker", CONFIG.defaultGroutColorChecker);
   set("groutColorTexture", CONFIG.defaultGroutColorTexture);
   set("wallPaintColor", CONFIG.defaultPaintColor);
+  set("paintTextureScale", CONFIG.defaultPaintTextureScale);
+  badge("paintTextureScaleValue", CONFIG.defaultPaintTextureScale + " cm");
+  const pts = document.getElementById("paintTextureScale");
+  if (pts) syncSliderTrack(pts);
 }
 
 // Ensure only val and badge are exported from here

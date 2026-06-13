@@ -43,6 +43,10 @@ models/*.pt
 mask2former/models/*.bin
 mask2former/models/*.safetensors
 
+# Depth Anything model files (large — downloaded at runtime)
+depth/models/*.bin
+depth/models/*.safetensors
+
 # Cache
 .cache/
 *.cache

@@ -61,7 +61,7 @@ export function drawAutoLabels(labels, onToggle) {
     group.setAttribute("data-id", l.id);
 
     // Text Label
-    const labelTranslations = { floor: "Sol", wall: "Mur" };
+    const labelTranslations = { floor: "Sol", wall: "Mur", ceiling: "Plafond" };
     const labelText = document.createElement("span");
     labelText.className = "surface-label";
     labelText.textContent = labelTranslations[l.type] || l.text;
@@ -69,7 +69,12 @@ export function drawAutoLabels(labels, onToggle) {
     // The circular marker point
     const marker = document.createElement("div");
     marker.className = `surface-marker ${l.type}`;
-    marker.title = `Sélectionner ${l.type === "floor" ? "le sol" : "les murs"}`;
+    const titleMap = {
+      floor: "Sélectionner le sol",
+      wall: "Sélectionner ce mur",
+      ceiling: "Sélectionner le plafond",
+    };
+    marker.title = titleMap[l.type] || "Sélectionner";
 
     // Percentage-based positioning for zero-drift responsive scaling
     const px = (l.x / imgW) * 100;
@@ -519,8 +524,8 @@ export function updateFooterHint() {
     const n = state.selectedSurfaces.size;
     hint.textContent =
       n > 0
-        ? `${n} mur${n > 1 ? "s" : ""} sélectionné${n > 1 ? "s" : ""} — prêt à appliquer`
-        : "Sélectionnez un ou plusieurs murs sur l'image";
+        ? `${n} surface${n > 1 ? "s" : ""} sélectionnée${n > 1 ? "s" : ""} — prêt à appliquer`
+        : "Sélectionnez les murs ou le plafond sur l'image";
   } else {
     hint.textContent = state.selectedSurfaces.has("floor")
       ? "Sol sélectionné — prêt à appliquer"
@@ -571,6 +576,23 @@ export function setTileMode(mode) {
     .getElementById("textureModePanel")
     .classList.toggle("active", mode === "texture");
   updateTilePreview();
+}
+
+// ── Paint fill-mode toggle (colour / texture) ──
+export function setPaintMode(mode) {
+  state.paintMode = mode;
+  document
+    .getElementById("btnPaintModeColor")
+    ?.classList.toggle("active", mode === "color");
+  document
+    .getElementById("btnPaintModeTexture")
+    ?.classList.toggle("active", mode === "texture");
+  document
+    .getElementById("paintColorPanel")
+    ?.classList.toggle("active", mode === "color");
+  document
+    .getElementById("paintTexturePanel")
+    ?.classList.toggle("active", mode === "texture");
 }
 
 // ── Floor highlight overlay ──

@@ -300,13 +300,20 @@ def _sample_texture_aa(
 
 # The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern,
 # applies shadow/tint from the original floor, and blends the result seamlessly back onto the original image.
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0) -> np.ndarray:
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
+    # Lighting/geometry are sampled from ``light`` (the pristine original) while
+    # the tiles are composited onto ``image`` (the accumulated result).  Keeping
+    # these separate makes re-tiling idempotent — the shadow/tint is never read
+    # back from a previously-tiled floor.
+    light = image if lighting_source is None else lighting_source
+    if light.shape[:2] != image.shape[:2]:
+        light = cv2.resize(light, (image.shape[1], image.shape[0]))
     tile_bgr = np.array(hex_to_bgr(tile_color), dtype=np.float32)
     tile2_bgr = np.array(hex_to_bgr(tile_color2), dtype=np.float32)
     grout_bgr = np.array(hex_to_bgr(grout_color), dtype=np.float32)
     h_img, w_img = image.shape[:2]
-    quad = extract_floor_quad(mask, image=image)
+    quad = extract_floor_quad(mask, image=light)
     if quad is None:
         return image
     near_left, near_right, far_left, far_right = quad
@@ -437,8 +444,10 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     colour_img = colour_img * ao_shade[:, :, None] * bevel_light[:, :, None]
 
     # ── Shadow & lighting recovery (LAB-based) ──────────────────────────────────────────────
-    shadow_map = _extract_shadow_map(image, mask)
-    ambient_tint = _extract_ambient_tint(image, mask)
+    # Sampled from the pristine original (``light``), not the composite, so
+    # re-tiling never re-bakes the previous tiles' shading.
+    shadow_map = _extract_shadow_map(light, mask)
+    ambient_tint = _extract_ambient_tint(light, mask)
 
     # Apply shadow map (preserves original room shadows on new tiles)
     colour_img = colour_img * shadow_map[:, :, None]

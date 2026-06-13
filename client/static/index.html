@@ -245,7 +245,7 @@
             </button>
             <button type="button" class="panel-tab" id="tabPaintBtn" role="tab" aria-selected="false">
                 <svg class="app-icon app-icon-sm"><use href="#ico-roller" /></svg>
-                <span>Peinture des murs</span>
+                <span>Peinture murs &amp; plafond</span>
             </button>
         </div>
 
@@ -463,19 +463,59 @@
             <!-- ══ Tab: Wall painting ════════════════════════════════ -->
             <div class="tab-panel" id="tabPaintPanel" role="tabpanel">
                 <div class="panel-section">
-                    <div class="paint-lead">Sélectionnez un ou plusieurs murs sur l'image, choisissez une couleur, puis appliquez.</div>
-                    <div class="color-row">
-                        <div class="color-swatch-group">
-                            <label>Couleur</label>
-                            <input type="color" id="wallPaintColor" />
+                    <div class="paint-lead">Sélectionnez un ou plusieurs murs (ou le plafond) sur l'image, puis choisissez une couleur ou une texture.</div>
+
+                    <!-- Color / texture toggle -->
+                    <div class="tile-source-toggle">
+                        <button class="tile-source-btn active" id="btnPaintModeColor">
+                            <svg class="app-icon app-icon-sm"><use href="#ico-palette" /></svg> Couleur
+                        </button>
+                        <button class="tile-source-btn" id="btnPaintModeTexture">
+                            <svg class="app-icon app-icon-sm"><use href="#ico-image" /></svg> Texture
+                        </button>
+                    </div>
+
+                    <!-- Color panel -->
+                    <div id="paintColorPanel" class="active">
+                        <div class="color-row">
+                            <div class="color-swatch-group">
+                                <label>Couleur</label>
+                                <input type="color" id="wallPaintColor" />
+                            </div>
+                            <div class="color-swatch-group paint-finish-group">
+                                <label>Finition</label>
+                                <select id="wallPaintFinish" class="panel-select">
+                                    <option value="matte">Mat</option>
+                                    <option value="satin">Satiné</option>
+                                    <option value="gloss">Brillant</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="color-swatch-group paint-finish-group">
-                            <label>Finition</label>
-                            <select id="wallPaintFinish" class="panel-select">
-                                <option value="matte">Mat</option>
-                                <option value="satin">Satiné</option>
-                                <option value="gloss">Brillant</option>
-                            </select>
+                    </div>
+
+                    <!-- Texture panel -->
+                    <div id="paintTexturePanel">
+                        <div class="texture-slot-label">Texture de la peinture</div>
+                        <div class="texture-upload-area" id="paintTextureUploadArea">
+                            <div id="paintTextureEmpty">
+                                <div class="tex-icon">
+                                    <svg class="app-icon app-icon-lg"><use href="#ico-image" /></svg>
+                                </div>
+                                <div class="texture-hint">Cliquer pour importer</div>
+                                <div class="texture-hint muted">JPG · PNG · WebP</div>
+                            </div>
+                            <div id="paintTexturePreview" style="display:none">
+                                <img id="paintTextureThumb" class="texture-thumb" alt="aperçu texture" />
+                                <div class="texture-name" id="paintTextureName"></div>
+                                <div class="texture-hint">Cliquer pour changer</div>
+                            </div>
+                            <input type="file" id="paintTextureFileInput" accept="image/*" style="display:none" />
+                        </div>
+                        <div class="range-item" style="margin-top:12px">
+                            <div class="range-label">
+                                Échelle de la texture <span class="value-badge" id="paintTextureScaleValue">130 cm</span>
+                            </div>
+                            <input type="range" id="paintTextureScale" min="40" max="300" step="10" value="130" />
                         </div>
                     </div>
                 </div>

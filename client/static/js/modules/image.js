@@ -166,28 +166,27 @@ export async function runAutoDetection() {
     );
     const resultLabels = JSON.parse(labelsJson);
 
-    const floorFlat = decompressed.slice(
-      headerSize + labelsLen,
-      headerSize + labelsLen + h * w,
-    );
-    const wallFlat = decompressed.slice(
-      headerSize + labelsLen + h * w,
-      headerSize + labelsLen + 2 * h * w,
-    );
+    const base = headerSize + labelsLen;
+    const floorFlat = decompressed.slice(base, base + h * w);
+    const wallFlat = decompressed.slice(base + h * w, base + 2 * h * w);
+    const ceilingFlat = decompressed.slice(base + 2 * h * w, base + 3 * h * w);
 
     // Convert flat buffers to 2D arrays (backward compat with mask[y][x])
     const floorMask2D = [];
     const wallMask2D = [];
+    const ceilingMask2D = [];
     for (let y = 0; y < h; y++) {
       const offset = y * w;
       floorMask2D.push(Array.from(floorFlat.subarray(offset, offset + w)));
       wallMask2D.push(Array.from(wallFlat.subarray(offset, offset + w)));
+      ceilingMask2D.push(Array.from(ceilingFlat.subarray(offset, offset + w)));
     }
 
     const result = {
       labels: resultLabels,
       floor_mask: floorMask2D,
       wall_mask: wallMask2D,
+      ceiling_mask: ceilingMask2D,
     };
 
     if (!result.labels || result.labels.length === 0) {
@@ -197,6 +196,7 @@ export async function runAutoDetection() {
       );
       state.autoMasks.floor = null;
       state.autoMasks.wall = null;
+      state.autoMasks.ceiling = null;
       state.selectedSurfaces.clear();
       state.floorMask = null;
       const overlay = document.getElementById("markersOverlay");
@@ -215,6 +215,7 @@ export async function runAutoDetection() {
       );
       state.autoMasks.floor = null;
       state.autoMasks.wall = null;
+      state.autoMasks.ceiling = null;
       state.selectedSurfaces.clear();
       state.floorMask = null;
       const overlay = document.getElementById("markersOverlay");
@@ -224,9 +225,18 @@ export async function runAutoDetection() {
 
     state.autoMasks.floor = result.floor_mask;
     state.autoMasks.wall = result.wall_mask;
+    state.autoMasks.ceiling = result.ceiling_mask;
 
-    // Cache labels + the (mode-aware) click handler, then let the active
-    // activity decide the initial selection (floor for tiling by default).
+    // Fresh image → reset to the default: floor auto-selected for tiling,
+    // walls & ceiling deselected. We clear the live selection and the per-tab
+    // memory, and null out activeMode so setActiveMode doesn't save the
+    // previous image's (now stale) selection.
+    state.selectedSurfaces.clear();
+    state.surfaceSelections = { tile: null, paint: null };
+    state.activeMode = null;
+
+    // Cache labels + the (mode-aware) click handler, then open the floor tab
+    // with the floor selected.
     try {
       drawAutoLabels(result.labels, toggleSurface);
     } catch (err) {
@@ -234,7 +244,7 @@ export async function runAutoDetection() {
     }
 
     try {
-      setActiveMode(state.activeMode || "tile");
+      setActiveMode("tile");
     } catch (err) {
       console.error("❌ setActiveMode fail:", err);
     }
@@ -266,8 +276,9 @@ export function updateCombinedMask() {
   );
 
   state.selectedSurfaces.forEach((id) => {
-    if (id === "floor") {
-      const mask = state.autoMasks.floor;
+    if (id === "floor" || id === "ceiling") {
+      // Single-region surfaces (binary masks).
+      const mask = id === "floor" ? state.autoMasks.floor : state.autoMasks.ceiling;
       if (!mask) return;
       for (let y = 0; y < height; y++) {
         if (!mask[y]) continue;
@@ -319,9 +330,16 @@ export function toggleSurface(id) {
   updateFooterHint();
 }
 
-// ── Activity switch (accordion ↔ selection ↔ footer CTA) ────────────────
+// ── Activity switch (tabs ↔ selection ↔ footer CTA) ─────────────────────
 export function setActiveMode(mode) {
   if (mode !== "tile" && mode !== "paint") mode = "tile";
+
+  // Remember the selection of the tab we're leaving so it's restored when the
+  // user comes back (otherwise switching to paint and back loses the walls).
+  const prev = state.activeMode;
+  if (prev && state.surfaceSelections) {
+    state.surfaceSelections[prev] = new Set(state.selectedSurfaces);
+  }
   state.activeMode = mode;
 
   // Tabs: activate the chosen activity's tab + panel.
@@ -338,10 +356,14 @@ export function setActiveMode(mode) {
     .getElementById("tabPaintPanel")
     ?.classList.toggle("active", mode === "paint");
 
-  // Selection follows the activity: tiling pre-selects the floor, painting
-  // starts empty so the user explicitly picks the wall(s) to paint.
+  // Restore this tab's previously-selected surfaces. The first time a tab is
+  // opened (saved === null) we apply its default: tiling pre-selects the
+  // floor; painting starts empty so the user picks the wall(s)/ceiling.
+  const saved = state.surfaceSelections ? state.surfaceSelections[mode] : null;
   state.selectedSurfaces.clear();
-  if (mode === "tile" && state.autoMasks.floor) {
+  if (saved) {
+    saved.forEach((id) => state.selectedSurfaces.add(id));
+  } else if (mode === "tile" && state.autoMasks.floor) {
     state.selectedSurfaces.add("floor");
   }
   updateCombinedMask();
