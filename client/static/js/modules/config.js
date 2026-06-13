@@ -22,6 +22,7 @@ export const CONFIG = {
   defaultTileColorDark: "#2C2C2C",
   defaultGroutColorChecker: "#888888",
   defaultGroutColorTexture: "#A9A9A9",
+  defaultPaintColor: "#C8D6E5",
   previewColorFallback: "#cccccc",
   textureFallbackDark: "#666666",
   textureFallbackLight: "#d4b896",

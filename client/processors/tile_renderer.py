@@ -80,7 +80,13 @@ def _extract_shadow_map(image_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray:
     edge_blend = t * t * (3.0 - 2.0 * t)
     shadow_map = edge_blend * shadow_map + (1.0 - edge_blend) * 1.0
 
-    return np.clip(shadow_map, 0.70, 1.30).astype(np.float32)
+    # Asymmetric clamp.  Shadows (darker-than-average) are genuine room
+    # lighting and may be deep, so allow them down to 0.80.  Bright spots,
+    # however, are usually *specular* glare bouncing off a glossy original
+    # floor (e.g. a window reflection) — not diffuse room light — and baking
+    # them onto new matte tiles produces a fake washed-out patch.  Cap the
+    # highlight side tightly so reflections don't transfer.
+    return np.clip(shadow_map, 0.80, 1.12).astype(np.float32)
 
 
 # How much of the original floor's colour cast to transfer to the new tiles.
@@ -202,11 +208,15 @@ def _laplacian_pyramid_blend(
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Strength knobs (all tuned conservative — realism, not a filter look)
-TILE_BRIGHT_VARIATION = 0.05   # ± fraction of per-tile brightness jitter
-TILE_COLOR_VARIATION = 0.018   # ± fraction of per-tile warm/cool jitter
+# Per-tile variation is intentionally subtle: enough to avoid a dead-flat CG
+# look, but not so much that a single-colour grid reads as "different colours".
+# The hue (warm/cool) jitter is kept very small because a hue shift between
+# neighbouring tiles is far more noticeable than a brightness shift.
+TILE_BRIGHT_VARIATION = 0.022  # ± fraction of per-tile brightness jitter
+TILE_COLOR_VARIATION = 0.005   # ± fraction of per-tile warm/cool jitter
 GROUT_AO_STRENGTH = 0.28       # how dark the recessed joint shadow gets
 GROUT_BEVEL_HIGHLIGHT = 0.10   # bright catch-light on the tile-edge bevel
-GLOSS_SHEEN = 38.0             # additive specular boost in lit areas (0-255)
+GLOSS_SHEEN = 18.0             # additive specular boost in lit areas (0-255)
 MICRO_GRAIN_STD = 1.8          # std-dev of surface grain for solid colours
 
 

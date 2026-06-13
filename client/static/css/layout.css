@@ -497,12 +497,23 @@ body.fullscreen-mode .top-btn-close {
 .surface-marker-group {
   position: absolute;
   pointer-events: auto;
+  cursor: pointer;
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   transition: opacity 0.35s ease;
   z-index: 1001;
+}
+/* Dimmed: surface that belongs to the other activity (e.g. walls while
+   tiling). Still clickable — doing so switches to its activity. */
+.surface-marker-group.inactive {
+  opacity: 0.5;
+  filter: grayscale(0.6);
+}
+.surface-marker-group.inactive:hover {
+  opacity: 0.85;
+  filter: none;
 }
 .surface-label {
   background: rgba(12, 11, 22, 0.88);

@@ -104,6 +104,18 @@
             d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-11.314l.707.707m11.314 11.314l.707.707" />
         <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
     </symbol>
+    <!-- chevron down -->
+    <symbol id="ico-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9" />
+    </symbol>
+    <!-- paint roller -->
+    <symbol id="ico-roller" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="14" height="6" rx="1.5" />
+        <path d="M17 7h2.5A1.5 1.5 0 0 1 21 8.5V11a1.5 1.5 0 0 1-1.5 1.5H11a1.5 1.5 0 0 0-1.5 1.5V16" />
+        <rect x="8" y="16" width="3" height="5" rx="1" />
+    </symbol>
 </svg>
 
 <!-- ── Full-page canvas ────────────────────────────────────── -->
@@ -225,7 +237,22 @@
             </div>
         </div>
 
+        <!-- ── Activity tabs ─────────────────────────────────────── -->
+        <div class="panel-tabs" role="tablist">
+            <button type="button" class="panel-tab active" id="tabTileBtn" role="tab" aria-selected="true">
+                <svg class="app-icon app-icon-sm"><use href="#ico-tile" /></svg>
+                <span>Carrelage du sol</span>
+            </button>
+            <button type="button" class="panel-tab" id="tabPaintBtn" role="tab" aria-selected="false">
+                <svg class="app-icon app-icon-sm"><use href="#ico-roller" /></svg>
+                <span>Peinture des murs</span>
+            </button>
+        </div>
+
         <div class="panel-body">
+
+            <!-- ══ Tab: Floor tiling ═════════════════════════════════ -->
+            <div class="tab-panel active" id="tabTilePanel" role="tabpanel">
 
             <!-- Pattern selector -->
             <div class="panel-section">
@@ -431,13 +458,35 @@
                 </div>
             </div>
 
+            </div><!-- /tabTilePanel -->
+
+            <!-- ══ Tab: Wall painting ════════════════════════════════ -->
+            <div class="tab-panel" id="tabPaintPanel" role="tabpanel">
+                <div class="panel-section">
+                    <div class="paint-lead">Sélectionnez un ou plusieurs murs sur l'image, choisissez une couleur, puis appliquez.</div>
+                    <div class="color-row">
+                        <div class="color-swatch-group">
+                            <label>Couleur</label>
+                            <input type="color" id="wallPaintColor" />
+                        </div>
+                        <div class="color-swatch-group paint-finish-group">
+                            <label>Finition</label>
+                            <select id="wallPaintFinish" class="panel-select">
+                                <option value="matte">Mat</option>
+                                <option value="satin">Satiné</option>
+                                <option value="gloss">Brillant</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /tabPaintPanel -->
 
         </div><!-- /panel-body -->
 
         <div class="panel-footer" id="panelFooter">
-            <button class="btn-apply-panel" id="applyTilesPanelBtn">
-                <!-- Appliquer le carrelage -->
-                Appliquer
+            <div class="footer-hint" id="footerHint">Sélectionnez le sol sur l'image</div>
+            <button class="btn-apply-panel" id="applyActionBtn">
+                Appliquer le carrelage
             </button>
         </div>
     </aside>

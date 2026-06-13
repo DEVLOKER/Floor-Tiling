@@ -7,7 +7,7 @@ import {
 } from "./ui.js";
 import {
   handleImageUpload,
-  originalImageToBlob,
+  baseImageToBlob,
   dataUrlToBlob,
 } from "./image.js";
 import { state } from "./state.js";
@@ -220,6 +220,92 @@ export function togglePreview() {
   state.showingTiledResult = !state.showingTiledResult;
 }
 
+// ── Footer CTA dispatcher (depends on the open activity) ──
+export function applyActiveAction() {
+  if (state.activeMode === "paint") return applyPaintToWalls();
+  return applyTilesToFloor();
+}
+
+// ── Apply paint (walls) ──
+export async function applyPaintToWalls() {
+  if (!state.originalImage) {
+    showStatus("Veuillez d'abord importer une image", "error");
+    return;
+  }
+  // Paint targets the selected *walls* only (floor is handled by tiling).
+  const wallIds = [...state.selectedSurfaces].filter((id) => id !== "floor");
+  if (wallIds.length === 0) {
+    showStatus("Veuillez d'abord sélectionner un mur", "error");
+    return;
+  }
+  const wallMask = state.autoMasks.wall;
+  if (!wallMask) {
+    showStatus("Aucun mur détecté", "error");
+    return;
+  }
+
+  // Build a flat uint8 mask from the labeled wall mask for the selected walls.
+  const idSet = new Set(wallIds.map((i) => parseInt(i)));
+  const height = state.canvas.height;
+  const width = state.canvas.width;
+  const maskData = new Uint8Array(width * height);
+  let count = 0;
+  for (let y = 0; y < height; y++) {
+    const row = wallMask[y];
+    if (!row) continue;
+    for (let x = 0; x < width; x++) {
+      if (idSet.has(row[x])) {
+        maskData[y * width + x] = 1;
+        count++;
+      }
+    }
+  }
+  if (count === 0) {
+    showStatus("Le mur sélectionné est vide", "error");
+    return;
+  }
+
+  showStatus("🎨 Application de la peinture…", "info");
+  state.isLoading = true;
+  try {
+    const blob = await baseImageToBlob(state);
+    const maskBlob = new Blob([maskData], { type: "application/octet-stream" });
+    const fd = new FormData();
+    fd.append("image", blob, "room.jpg");
+    fd.append("mask", maskBlob, "mask.bin");
+    fd.append("paint_color", val("wallPaintColor"));
+    fd.append("finish", val("wallPaintFinish") || "matte");
+    const res = await fetch(`${CONFIG.apiUrl}/apply-paint`, {
+      method: "POST",
+      body: fd,
+    });
+    if (!res.ok)
+      throw new Error(`Échec de l'application de la peinture : ${res.status}`);
+    const resultBlob = await res.blob();
+    if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
+    state.resultUrl = URL.createObjectURL(resultBlob);
+    updateTogglePreviewVisibility();
+    const img = new Image();
+    img.onload = () => {
+      state.editedImage = img;
+      state.ctx.drawImage(img, 0, 0, state.canvas.width, state.canvas.height);
+      document.getElementById("downloadFabWrap").style.display = "";
+      showStatus(
+        "✅ Peinture appliquée ! Cliquez sur l'icône ⬇ pour télécharger.",
+        "success",
+      );
+      state.isLoading = false;
+      state.showingTiledResult = true;
+    };
+    img.src = state.resultUrl;
+  } catch (err) {
+    console.error(err);
+    showStatus(`Erreur lors de l'application : ${err.message}`, "error");
+  } finally {
+    state.isLoading = false;
+  }
+}
+
 // ── Apply tiles ──
 export async function applyTilesToFloor() {
   if (!state.originalImage) {
@@ -250,7 +336,7 @@ export async function applyTilesToFloor() {
         ? val("groutColorChecker")
         : val("groutColor");
   try {
-    const blob = await originalImageToBlob(state);
+    const blob = await baseImageToBlob(state);
     const maskData = new Uint8Array(state.floorMask.flat());
     const maskBlob = new Blob([maskData], { type: "application/octet-stream" });
     const fd = new FormData();
@@ -296,6 +382,7 @@ export async function applyTilesToFloor() {
     updateTogglePreviewVisibility();
     const img = new Image();
     img.onload = () => {
+      state.editedImage = img;
       state.ctx.drawImage(img, 0, 0, state.canvas.width, state.canvas.height);
       document.getElementById("downloadFabWrap").style.display = "";
       showStatus(

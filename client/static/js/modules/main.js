@@ -11,14 +11,14 @@ import {
   closePanel,
   setTileMode,
   updateTogglePreviewVisibility,
-  invalidateCachedResult,
   drawAutoLabels,
 } from "./ui.js";
 import {
-  applyTilesToFloor,
+  applyActiveAction,
   initEventListeners,
   downloadResultImage,
 } from "./events.js";
+import { setActiveMode } from "./image.js";
 import { initTextureUpload } from "./texture.js";
 import { initOnboarding } from "./onboarding.js";
 
@@ -81,7 +81,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const el = document.getElementById(id);
     if (el)
       el.addEventListener("change", () => {
-        invalidateCachedResult();
+        // Don't wipe the applied result — the texture only affects the NEXT
+        // apply. The composite stays on screen until the user re-applies.
         saveTilePreferences();
       });
   });
@@ -95,21 +96,33 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("panelBackdrop")
     ?.addEventListener("click", closePanel);
+  // Fill-style tabs only change which inputs feed the NEXT apply — they must
+  // NOT clear the already-applied result from the canvas.
   document.getElementById("btnModeColor")?.addEventListener("click", () => {
     setTileMode("color");
-    invalidateCachedResult();
     saveTilePreferences();
   });
   document.getElementById("btnModeTexture")?.addEventListener("click", () => {
     setTileMode("texture");
-    invalidateCachedResult();
     saveTilePreferences();
   });
   // Canvas click for floor selection
   // Clear/apply floor selection
+  // Activity tabs → switch selection mode + footer CTA
   document
-    .getElementById("applyTilesPanelBtn")
-    ?.addEventListener("click", applyTilesToFloor);
+    .getElementById("tabTileBtn")
+    ?.addEventListener("click", () => setActiveMode("tile"));
+  document
+    .getElementById("tabPaintBtn")
+    ?.addEventListener("click", () => setActiveMode("paint"));
+
+  // Single context-aware apply button (tiles in tiling mode, paint in paint mode)
+  document
+    .getElementById("applyActionBtn")
+    ?.addEventListener("click", applyActiveAction);
+
+  // Initialise the panel to the default activity (footer label + accordion state)
+  setActiveMode("tile");
 
   document
     .getElementById("downloadBtn")

@@ -3,7 +3,18 @@
     "allow": [
       "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
       "Bash(PYTHONIOENCODING=utf-8 python _proto3.py)",
-      "Bash(PYTHONIOENCODING=utf-8 python _proto4.py)"
+      "Bash(PYTHONIOENCODING=utf-8 python _proto4.py)",
+      "Bash(findstr /V \"dist\")",
+      "Bash(findstr /V \"_internal\")",
+      "Bash(grep -iE \"\\\\.\\(html|js|jsx|ts|tsx|vue|css\\)$\")",
+      "Bash(git checkout *)",
+      "Bash(python -c \"import ast; [ast.parse\\(open\\(f,encoding='utf-8'\\).read\\(\\)\\) for f in ['processors/wall_painter.py','api/routes/paint.py','app.py','config/settings.py']]; print\\('syntax OK'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(ls __tests__/rooms/dz/)",
+      "Bash(find . -iname \"Room-steven*\" -not -path \"*/dist/*\")",
+      "Bash(python -c \"import torch, transformers; print\\('torch', torch.__version__, 'cuda', torch.cuda.is_available\\(\\)\\); print\\('transformers', transformers.__version__\\)\")",
+      "Bash(python _diag_tiles.py)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python _diag_tiles.py)"
     ]
   }
 }

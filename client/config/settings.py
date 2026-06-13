@@ -31,6 +31,10 @@ TILE_HEIGHT_MIN = 5.0
 TILE_HEIGHT_MAX = 200.0
 GROUT_THICKNESS_MIN = 0
 GROUT_THICKNESS_MAX = 20
+# Wall painting
+DEFAULT_PAINT_COLOR = "#C8D6E5"
+DEFAULT_PAINT_FINISH = "matte"
+PAINT_FINISHES = ("matte", "satin", "gloss")
 # Depth calculation
 DEPTH_MIN_CM = 50
 DEPTH_MAX_CM = 900   # depth_ratio ceiling is 2.5 × DEFAULT_REAL_WIDTH_CM (300 cm)

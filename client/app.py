@@ -19,6 +19,7 @@ import torch
 
 from api.dependencies import require_license
 from api.routes.detection import router as detection_router
+from api.routes.paint import router as paint_router
 from api.routes.tiles import router as tiles_router
 from config.settings import CORS_ORIGINS, MAX_UPLOAD_SIZE_BYTES
 from mask2former.mask2former import get_mask2former_predictor
@@ -101,6 +102,7 @@ def create_app() -> FastAPI:
     # ── API routers ───────────────────────────────────────────────────────
     _app.include_router(detection_router)
     _app.include_router(tiles_router)
+    _app.include_router(paint_router)
 
     # ── Utility routes ────────────────────────────────────────────────────
 

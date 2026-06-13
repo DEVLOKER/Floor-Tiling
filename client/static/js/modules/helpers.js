@@ -71,6 +71,7 @@ export function applyDefaults(CONFIG) {
   set("tileColorDark", CONFIG.defaultTileColorDark);
   set("groutColorChecker", CONFIG.defaultGroutColorChecker);
   set("groutColorTexture", CONFIG.defaultGroutColorTexture);
+  set("wallPaintColor", CONFIG.defaultPaintColor);
 }
 
 // Ensure only val and badge are exported from here

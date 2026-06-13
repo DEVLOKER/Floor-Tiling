@@ -19,6 +19,8 @@ const ELEMENT_KEYS = [
   "tileColorDark",
   "groutColorChecker",
   "groutColorTexture",
+  "wallPaintColor",
+  "wallPaintFinish",
   "tilePattern",
   "gridRotation",
   "perspectiveCompression",

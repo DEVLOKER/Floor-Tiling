@@ -8,6 +8,7 @@ import {
   invalidateCachedResult,
   clearAutoLabels,
   drawAutoLabels,
+  updateFooterHint,
 } from "./ui.js";
 
 export async function handleImageUpload(file) {
@@ -71,6 +72,21 @@ export function originalImageToBlob(state) {
 export async function dataUrlToBlob(dataUrl) {
   const res = await fetch(dataUrl);
   return res.blob();
+}
+
+// Returns the image edits should build upon: the accumulated composite if one
+// exists (so floor tiles + wall paint stack into one result), otherwise the
+// pristine original.
+export async function baseImageToBlob(state) {
+  if (state.resultUrl) {
+    try {
+      const res = await fetch(state.resultUrl);
+      return await res.blob();
+    } catch (e) {
+      /* fall back to original */
+    }
+  }
+  return originalImageToBlob(state);
 }
 
 // ── Canvas click → floor segmentation ──
@@ -209,40 +225,18 @@ export async function runAutoDetection() {
     state.autoMasks.floor = result.floor_mask;
     state.autoMasks.wall = result.wall_mask;
 
-    // Reset selection and default to floor
-    state.selectedSurfaces.clear();
-    state.selectedSurfaces.add("floor");
-    updateCombinedMask();
-
-    // Safety: individual try-catch blocks for rendering
+    // Cache labels + the (mode-aware) click handler, then let the active
+    // activity decide the initial selection (floor for tiling by default).
     try {
-      drawAutoLabels(result.labels, (id) => {
-        if (state.selectedSurfaces.has(id)) {
-          state.selectedSurfaces.delete(id);
-        } else {
-          state.selectedSurfaces.add(id);
-        }
-        updateCombinedMask();
-        redrawWithFloorHighlight();
-        // Update UI markers active state
-        const markers = document.querySelectorAll(".surface-marker-group");
-        markers.forEach((m) => {
-          const mId = m.getAttribute("data-id");
-          if (state.selectedSurfaces.has(mId)) {
-            m.classList.add("active");
-          } else {
-            m.classList.remove("active");
-          }
-        });
-      });
+      drawAutoLabels(result.labels, toggleSurface);
     } catch (err) {
       console.error("❌ drawAutoLabels fail:", err);
     }
 
     try {
-      redrawWithFloorHighlight();
+      setActiveMode(state.activeMode || "tile");
     } catch (err) {
-      console.error("❌ redrawWithFloorHighlight fail:", err);
+      console.error("❌ setActiveMode fail:", err);
     }
     updateFloorList();
 
@@ -295,6 +289,70 @@ export function updateCombinedMask() {
   });
 
   state.floorMask = combined;
-  // Invalidate cached result when floor selection changes
-  invalidateCachedResult();
+  // NOTE: we intentionally do NOT clear the accumulated composite here.
+  // Changing which surface is selected must keep previously applied edits
+  // (e.g. selecting a wall to paint must not discard the tiled floor).
+}
+
+// ── Surface selection (mode-aware) ──────────────────────────────────────
+// Toggling respects the active activity so floor and walls can never be
+// selected at the same time: floor is selectable only while tiling, walls
+// only while painting (and several walls may be picked at once).
+export function toggleSurface(id) {
+  const isFloor = id === "floor";
+  const neededMode = isFloor ? "tile" : "paint";
+
+  // Clicking a surface that belongs to the other activity switches to it
+  // (and selects the clicked surface) — floor and walls are never mixed.
+  if (state.activeMode !== neededMode) {
+    setActiveMode(neededMode); // tiling pre-selects floor; painting starts empty
+    if (!isFloor) state.selectedSurfaces.add(id);
+  } else if (state.selectedSurfaces.has(id)) {
+    state.selectedSurfaces.delete(id);
+  } else {
+    state.selectedSurfaces.add(id);
+  }
+
+  updateCombinedMask();
+  redrawWithFloorHighlight();
+  drawAutoLabels(); // refresh active / inactive marker states
+  updateFooterHint();
+}
+
+// ── Activity switch (accordion ↔ selection ↔ footer CTA) ────────────────
+export function setActiveMode(mode) {
+  if (mode !== "tile" && mode !== "paint") mode = "tile";
+  state.activeMode = mode;
+
+  // Tabs: activate the chosen activity's tab + panel.
+  const tileBtn = document.getElementById("tabTileBtn");
+  const paintBtn = document.getElementById("tabPaintBtn");
+  tileBtn?.classList.toggle("active", mode === "tile");
+  paintBtn?.classList.toggle("active", mode === "paint");
+  tileBtn?.setAttribute("aria-selected", String(mode === "tile"));
+  paintBtn?.setAttribute("aria-selected", String(mode === "paint"));
+  document
+    .getElementById("tabTilePanel")
+    ?.classList.toggle("active", mode === "tile");
+  document
+    .getElementById("tabPaintPanel")
+    ?.classList.toggle("active", mode === "paint");
+
+  // Selection follows the activity: tiling pre-selects the floor, painting
+  // starts empty so the user explicitly picks the wall(s) to paint.
+  state.selectedSurfaces.clear();
+  if (mode === "tile" && state.autoMasks.floor) {
+    state.selectedSurfaces.add("floor");
+  }
+  updateCombinedMask();
+
+  // Footer CTA label tracks the activity.
+  const btn = document.getElementById("applyActionBtn");
+  if (btn)
+    btn.textContent =
+      mode === "tile" ? "Appliquer le carrelage" : "Appliquer la peinture";
+
+  redrawWithFloorHighlight();
+  drawAutoLabels();
+  updateFooterHint();
 }

@@ -47,9 +47,17 @@ export function drawAutoLabels(labels, onToggle) {
   activeLabels.forEach((l) => {
     // Container group: Centers label + marker
     const group = document.createElement("div");
+    // A surface belongs to one activity: floor → tiling, walls → painting.
+    // Surfaces not part of the open activity are dimmed (but still clickable —
+    // clicking one switches to its activity and selects it).
+    const isFloor = l.type === "floor" || l.id === "floor";
+    const inactive =
+      (state.activeMode === "tile" && !isFloor) ||
+      (state.activeMode === "paint" && isFloor);
     group.className =
       "surface-marker-group" +
-      (state.selectedSurfaces.has(l.id) ? " active" : "");
+      (state.selectedSurfaces.has(l.id) ? " active" : "") +
+      (inactive ? " inactive" : "");
     group.setAttribute("data-id", l.id);
 
     // Text Label
@@ -82,8 +90,8 @@ export function drawAutoLabels(labels, onToggle) {
     group.appendChild(marker);
     overlay.appendChild(group);
 
-    // Interactivity
-    marker.onclick = (e) => {
+    // Interactivity: the whole group is a click target (the bare dot is tiny).
+    group.onclick = (e) => {
       e.stopPropagation();
       if (activeOnToggle) activeOnToggle(l.id);
     };
@@ -104,6 +112,7 @@ export function invalidateCachedResult() {
     URL.revokeObjectURL(state.resultUrl);
     state.resultUrl = null;
   }
+  state.editedImage = null;
   state.showingTiledResult = false;
   // Hide the toggle preview button and download button
   updateTogglePreviewVisibility();
@@ -498,6 +507,27 @@ export function updateFloorList() {
   // For now, just a stub to fix import error
 }
 
+// ── Contextual footer hint (guides the current activity) ──────────────
+export function updateFooterHint() {
+  const hint = document.getElementById("footerHint");
+  if (!hint) return;
+  if (!state.originalImage) {
+    hint.textContent = "Importez une photo pour commencer";
+    return;
+  }
+  if (state.activeMode === "paint") {
+    const n = state.selectedSurfaces.size;
+    hint.textContent =
+      n > 0
+        ? `${n} mur${n > 1 ? "s" : ""} sélectionné${n > 1 ? "s" : ""} — prêt à appliquer`
+        : "Sélectionnez un ou plusieurs murs sur l'image";
+  } else {
+    hint.textContent = state.selectedSurfaces.has("floor")
+      ? "Sol sélectionné — prêt à appliquer"
+      : "Sélectionnez le sol sur l'image";
+  }
+}
+
 // ── Fullscreen / kiosk detection ──
 export function initFullscreenDetection() {
   function updateFullscreenClass() {
@@ -545,14 +575,14 @@ export function setTileMode(mode) {
 
 // ── Floor highlight overlay ──
 export function redrawWithFloorHighlight() {
-  if (!state.originalImage || !state.floorMask) return;
-  state.ctx.drawImage(
-    state.originalImage,
-    0,
-    0,
-    state.canvas.width,
-    state.canvas.height,
-  );
+  if (!state.originalImage || !state.ctx) return;
+  // Draw the accumulated composite (if any) so previously applied tiles/paint
+  // stay visible while the user selects another surface to edit.
+  const base = state.editedImage || state.originalImage;
+  state.ctx.drawImage(base, 0, 0, state.canvas.width, state.canvas.height);
+  // No active selection → just the clean base (this also clears any stale
+  // highlight left over from a surface the user just deselected).
+  if (!state.floorMask) return;
   const imageData = state.ctx.getImageData(
     0,
     0,
