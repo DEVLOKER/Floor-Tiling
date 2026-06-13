@@ -58,6 +58,8 @@ def pattern_herringbone(
     u: np.ndarray, v: np.ndarray,
     grout_h_frac, grout_v_frac,
     aspect_ratio: float = 3.0,
+    du_dx=None, du_dy=None, dv_dx=None, dv_dy=None,
+    grout_thickness_v: int = 1, grout_thickness_h: int = 1,
     **_,
 ) -> tuple:
     """Mathematical Herringbone pattern.
@@ -118,10 +120,27 @@ def pattern_herringbone(
     # Convert distances back to original u, v space for the caller's grout fractions.
     dist_u = dist_x / L
     dist_v = dist_y
-    
+
+    # The plank edges run at 45° in the (X, Y) frame, which mixes u and v and
+    # is scaled by L — so their on-screen width is governed by the gradients of
+    # X and Y, NOT by the axis-aligned uv_step the caller used for grout_*_frac.
+    # Using the latter made the grout ~2× too thick.  Derive the grout width
+    # from the true |∇X|/|∇Y| so it matches an axis-aligned grid line.
+    if du_dx is not None:
+        dX_dx = c * L * du_dx - s * dv_dx
+        dX_dy = c * L * du_dy - s * dv_dy
+        dY_dx = s * L * du_dx + c * dv_dx
+        dY_dy = s * L * du_dy + c * dv_dy
+        step_du = np.clip(np.sqrt(dX_dx ** 2 + dX_dy ** 2) / L, 1e-6, 10.0)
+        step_dv = np.clip(np.sqrt(dY_dx ** 2 + dY_dy ** 2), 1e-6, 10.0)
+        gv = np.clip(step_du * grout_thickness_v, 0.0, 0.45)
+        gh = np.clip(step_dv * grout_thickness_h, 0.0, 0.45)
+    else:
+        gv, gh = grout_v_frac, grout_h_frac
+
     alpha = combine_grout(
-        grout_alpha(dist_u, grout_v_frac / 2.0),
-        grout_alpha(dist_v, grout_h_frac / 2.0),
+        grout_alpha(dist_u, gv / 2.0),
+        grout_alpha(dist_v, gh / 2.0),
     )
     
     # Texture UV mappings (0 to 1).
@@ -174,14 +193,30 @@ def pattern_chevron(
     dist_t = np.minimum(t_raw, 1.0 - t_raw)
     step_u = uv_step_u if uv_step_u is not None else np.full_like(u, 0.02)
     step_v = uv_step_v if uv_step_v is not None else np.full_like(v, 0.02)
-    gf_long = np.clip(step_v * grout_thickness_h, 0.0, 0.45)
+
+    # The "long" plank edges run diagonally (the sheared s-coordinate
+    # s = v ∓ u_arm), so their on-screen width is governed by the gradient of
+    # *s*, not of v.  Using uv_step_v there made the diagonal grout look thick.
+    # Compute |∇s| from the real UV gradients so the diagonal grout renders the
+    # same width as an axis-aligned grid line of the same thickness.
+    if du_dx is not None:
+        # left arm: s = v - u_arm → ∇s = ∇v - ∇u;  right arm: s = v + u_arm.
+        ds_dx = np.where(right_arm, dv_dx + du_dx, dv_dx - du_dx)
+        ds_dy = np.where(right_arm, dv_dy + du_dy, dv_dy - du_dy)
+        step_s = np.clip(np.sqrt(ds_dx ** 2 + ds_dy ** 2), 1e-6, 10.0)
+    else:
+        step_s = step_v
+
+    gf_long = np.clip(step_s * grout_thickness_h, 0.0, 0.45)
     gf_end = np.clip(step_u * grout_thickness_v, 0.0, 0.45)
-    alpha_long = grout_alpha(dist_s, gf_long / 2.0, step=step_v)
-    alpha_end = grout_alpha(dist_t, gf_end / 2.0, step=step_u)
-    dist_seam = np.abs(u_mod - 1.0)
-    gf_seam = np.clip(step_u * grout_thickness_v * 0.8, 0.0, 0.3)
-    alpha_seam = grout_alpha(dist_seam, gf_seam / 2.0, step=step_u)
-    on_grout = np.maximum(np.maximum(alpha_long, alpha_end), alpha_seam)
+    # Use the default (thin) feather like the herringbone pattern, rather than a
+    # step-based one — the step-based feather made the diagonal grout soft & wide.
+    alpha_long = grout_alpha(dist_s, gf_long / 2.0)
+    alpha_end = grout_alpha(dist_t, gf_end / 2.0)
+    # The arm seam (u_mod == 1) and column joins are already covered by the
+    # "end" grout (t_raw == 0/1 there), so no separate seam line is needed —
+    # adding one doubled the grout at every chevron point.
+    on_grout = np.maximum(alpha_long, alpha_end)
     return (right_arm, on_grout)
 
 
