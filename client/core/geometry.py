@@ -465,11 +465,12 @@ def _validate_floor_quad(nl, nr, fl, fr, clean_mask) -> bool:
     """Sanity-check a candidate quad before trusting it over the heuristic."""
     h, w = clean_mask.shape
     pts = [nl, nr, fl, fr]
-    # Guard only against numerical blow-ups — near corners are LEGITIMATELY far
-    # off-frame for close-up shots where the floor fills the frame, so we allow
-    # generous overshoot and rely on coverage/orientation below instead.
+    # Near corners are LEGITIMATELY off-frame for close-up shots where the floor
+    # fills the frame, so allow moderate overshoot (~2.5×).  Beyond that the quad
+    # is skewed/degenerate (a spurious VP throwing a side line far off) — reject
+    # so we fall back to the legacy heuristic instead of rendering a rotated grid.
     for p in pts:
-        if not (-8.0 * w <= p[0] <= 8.0 * w and -8.0 * h <= p[1] <= 8.0 * h):
+        if not (-2.5 * w <= p[0] <= 2.5 * w and -2.5 * h <= p[1] <= 2.5 * h):
             return False
     near_y = (nl[1] + nr[1]) / 2.0
     far_y = (fl[1] + fr[1]) / 2.0
