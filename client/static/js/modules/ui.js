@@ -595,6 +595,20 @@ export function setPaintMode(mode) {
     ?.classList.toggle("active", mode === "texture");
 }
 
+// ── Paint finish segmented control (Mat / Satiné / Brillant) ──
+export function setPaintFinish(value) {
+  const valid = ["matte", "satin", "gloss"];
+  if (!valid.includes(value)) value = "matte";
+  const hidden = document.getElementById("wallPaintFinish");
+  if (hidden && hidden.value !== value) {
+    hidden.value = value;
+    hidden.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  document
+    .querySelectorAll("#paintFinishToggle .tile-source-btn")
+    .forEach((b) => b.classList.toggle("active", b.dataset.finish === value));
+}
+
 // ── Floor highlight overlay ──
 export function redrawWithFloorHighlight() {
   if (!state.originalImage || !state.ctx) return;

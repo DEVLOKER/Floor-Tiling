@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from PIL import Image
 
 from core.planes import split_wall_planes
+from core.masks import refine_mask
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,19 @@ async def auto_detect_features(
             # ── Step 3: AI segmentation (floor + walls + ceiling) ─────────
             yield _sse({"step": 3, "total": 5, "message": "Segmentation IA du sol, des murs et du plafond en cours…"})
             floor_mask, wall_mask, ceiling_mask = await asyncio.to_thread(predictor.predict, image_np)
+
+            # ── Edge-aware mask refinement ────────────────────────────────
+            # Snap jagged model boundaries to the photo's real edges and clean
+            # specks/holes so painted/tiled regions have smooth, natural edges.
+            def _refine_all(img, f, wl, c):
+                return (
+                    refine_mask(f, img, single_region=True),
+                    refine_mask(wl, img),
+                    refine_mask(c, img, single_region=True),
+                )
+            floor_mask, wall_mask, ceiling_mask = await asyncio.to_thread(
+                _refine_all, image_np, floor_mask, wall_mask, ceiling_mask
+            )
             logger.info(
                 "Segmentation done — floor px: %d, wall px: %d, ceiling px: %d",
                 int(floor_mask.sum()), int(wall_mask.sum()), int(ceiling_mask.sum()),

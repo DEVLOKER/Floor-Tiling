@@ -11,6 +11,7 @@ import {
   closePanel,
   setTileMode,
   setPaintMode,
+  setPaintFinish,
   updateTogglePreviewVisibility,
   drawAutoLabels,
 } from "./ui.js";
@@ -121,6 +122,17 @@ document.addEventListener("DOMContentLoaded", () => {
       setPaintMode("texture");
       saveTilePreferences();
     });
+  // Paint finish segmented badges (Mat / Satiné / Brillant)
+  document
+    .querySelectorAll("#paintFinishToggle .tile-source-btn")
+    .forEach((btn) =>
+      btn.addEventListener("click", () => {
+        setPaintFinish(btn.dataset.finish);
+        saveTilePreferences();
+      }),
+    );
+  // Sync the badges to the restored value after preferences load
+  setPaintFinish(document.getElementById("wallPaintFinish")?.value || "matte");
   // Canvas click for floor selection
   // Clear/apply floor selection
   // Activity tabs → switch selection mode + footer CTA

@@ -477,20 +477,17 @@
 
                     <!-- Color panel -->
                     <div id="paintColorPanel" class="active">
-                        <div class="color-row">
-                            <div class="color-swatch-group">
-                                <label>Couleur</label>
-                                <input type="color" id="wallPaintColor" />
-                            </div>
-                            <div class="color-swatch-group paint-finish-group">
-                                <label>Finition</label>
-                                <select id="wallPaintFinish" class="panel-select">
-                                    <option value="matte">Mat</option>
-                                    <option value="satin">Satiné</option>
-                                    <option value="gloss">Brillant</option>
-                                </select>
-                            </div>
+                        <div class="color-swatch-group">
+                            <label>Couleur</label>
+                            <input type="color" id="wallPaintColor" />
                         </div>
+                        <label class="finish-label">Finition</label>
+                        <div class="tile-source-toggle" id="paintFinishToggle">
+                            <button class="tile-source-btn active" data-finish="matte">Mat</button>
+                            <button class="tile-source-btn" data-finish="satin">Satiné</button>
+                            <button class="tile-source-btn" data-finish="gloss">Brillant</button>
+                        </div>
+                        <input type="hidden" id="wallPaintFinish" value="matte" />
                     </div>
 
                     <!-- Texture panel -->
