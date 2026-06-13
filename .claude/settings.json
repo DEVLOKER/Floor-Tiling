@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)"
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python _proto3.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python _proto4.py)"
     ]
   }
 }
