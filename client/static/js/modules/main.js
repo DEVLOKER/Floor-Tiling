@@ -17,6 +17,7 @@ import {
 } from "./ui.js";
 import {
   applyActiveAction,
+  liveApply,
   initEventListeners,
   downloadResultImage,
 } from "./events.js";
@@ -83,6 +84,23 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   });
+
+  // ── Live apply: re-render on release of ANY tile/paint control ───────────
+  // `change` fires on mouse release (sliders) / close (colour) / select, so it
+  // updates the result without firing continuously during a drag.
+  [
+    // tiling
+    "tileColor", "groutColor", "tileColorLight", "tileColorDark",
+    "groutColorChecker", "groutColorTexture", "tilePattern", "gridRotation",
+    "perspectiveCompression", "tileWidth", "tileHeight", "groutThickness",
+    "translateX", "translateY",
+    // painting
+    "wallPaintColor", "wallPaintFinish", "wallPaintOpacity", "wallPaintLight",
+    "wallPaintSat", "paintTextureScale",
+  ].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", liveApply);
+  });
+
   // Buttons are handled explicitly at the bottom to ensure state is updated first
   // Save textures after upload
   ["textureFileInput", "textureDarkFileInput"].forEach((id) => {
@@ -109,21 +127,25 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btnModeColor")?.addEventListener("click", () => {
     setTileMode("color");
     saveTilePreferences();
+    liveApply();
   });
   document.getElementById("btnModeTexture")?.addEventListener("click", () => {
     setTileMode("texture");
     saveTilePreferences();
+    liveApply();
   });
   // Paint fill-style tabs (colour / texture)
   document.getElementById("btnPaintModeColor")?.addEventListener("click", () => {
     setPaintMode("color");
     saveTilePreferences();
+    liveApply();
   });
   document
     .getElementById("btnPaintModeTexture")
     ?.addEventListener("click", () => {
       setPaintMode("texture");
       saveTilePreferences();
+      liveApply();
     });
   // Paint finish segmented badges (Mat / Satiné / Brillant)
   document
@@ -152,15 +174,27 @@ document.addEventListener("DOMContentLoaded", () => {
     ?.addEventListener("click", applyActiveAction);
 
   // Rapid surface selection (paint tab)
-  document
-    .getElementById("qsWalls")
-    ?.addEventListener("click", () => quickSelectPaint("walls"));
-  document
-    .getElementById("qsWallsCeiling")
-    ?.addEventListener("click", () => quickSelectPaint("walls_ceiling"));
+  document.getElementById("qsWalls")?.addEventListener("click", () => {
+    quickSelectPaint("walls");
+    liveApply(); // select-and-paint in one click
+  });
+  document.getElementById("qsWallsCeiling")?.addEventListener("click", () => {
+    quickSelectPaint("walls_ceiling");
+    liveApply();
+  });
   document
     .getElementById("qsClear")
     ?.addEventListener("click", () => quickSelectPaint("clear"));
+
+  // Live-preview toggle (off = apply only via the button)
+  const liveToggle = document.getElementById("liveApplyToggle");
+  if (liveToggle) {
+    liveToggle.checked = state.liveApply;
+    liveToggle.addEventListener("change", () => {
+      state.liveApply = liveToggle.checked;
+      saveTilePreferences();
+    });
+  }
 
   // Initialise the panel to the default activity (footer label + accordion state)
   setActiveMode("tile");

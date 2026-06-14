@@ -48,6 +48,8 @@ export function saveTilePreferences() {
   data.textureDarkName =
     document.getElementById("textureDarkName")?.textContent ?? "";
 
+  data.liveApply = state?.liveApply ?? true;
+
   // Wall paint fill style (mirrors the tile texture persistence)
   data.paintMode = state?.paintMode ?? "color";
   data.paintTextureDataUrl = state?.paintTextureDataUrl ?? null;
@@ -104,6 +106,12 @@ export function loadTilePreferences() {
       document
         .getElementById("textureModePanel")
         ?.classList.toggle("active", savedMode === "texture");
+    }
+
+    if (typeof data.liveApply === "boolean" && state) {
+      state.liveApply = data.liveApply;
+      const lt = document.getElementById("liveApplyToggle");
+      if (lt) lt.checked = data.liveApply;
     }
 
     // ── Wall paint fill style ──────────────────────────────────────────────

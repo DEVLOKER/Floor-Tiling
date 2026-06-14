@@ -162,28 +162,9 @@ export function initEventListeners() {
     });
   });
 
-  // ── Live update: re-apply paint when a paint control is released ─────────
-  // (sliders/colour/finish are "apply parameters"; auto-applying on `change`
-  // gives instant feedback without spamming the backend during a drag).
-  [
-    "wallPaintColor",
-    "wallPaintFinish",
-    "wallPaintOpacity",
-    "wallPaintLight",
-    "wallPaintSat",
-    "paintTextureScale",
-  ].forEach((id) => {
-    document.getElementById(id)?.addEventListener("change", () => {
-      if (
-        state.activeMode === "paint" &&
-        state.floorMask &&
-        state.originalImage &&
-        !state.isLoading
-      ) {
-        applyPaintToWalls();
-      }
-    });
-  });
+  // Live-apply when a texture is (re)loaded — fired from texture.js.
+  document.addEventListener("liveapply", liveApply);
+
   document.getElementById("groutThickness").addEventListener("input", (e) => {
     badge("groutValue", e.target.value + " px");
     syncSliderTrack(e.target);
@@ -262,6 +243,26 @@ export function togglePreview() {
 export function applyActiveAction() {
   if (state.activeMode === "paint") return applyPaintToWalls();
   return applyTilesToFloor();
+}
+
+// ── Live apply: re-render on any control change, for the active activity ──
+// Silently skips when not ready (no selection, missing texture, mid-render) so
+// it never spams errors or stacks calls. Called on `change` (mouse release), so
+// it doesn't fire continuously during a drag.
+export function liveApply() {
+  if (!state.liveApply) return; // user turned live preview off → apply via button only
+  if (!state.originalImage || state.isLoading || !state.floorMask) return;
+  if (state.activeMode === "paint") {
+    if (state.paintMode === "texture" && !state.paintTextureDataUrl) return;
+    applyPaintToWalls();
+  } else {
+    if (state.tileMode === "texture") {
+      if (!state.tileTextureDataUrl) return;
+      if (isDualColorPattern(val("tilePattern")) && !state.tileTextureDarkDataUrl)
+        return;
+    }
+    applyTilesToFloor();
+  }
 }
 
 // ── Apply paint (walls / ceiling) ──

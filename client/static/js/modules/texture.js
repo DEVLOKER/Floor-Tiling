@@ -57,6 +57,7 @@ function loadTextureFile(file, which = "light") {
       const nameEl = document.getElementById("paintTextureName");
       if (nameEl) nameEl.textContent = file.name;
       saveTilePreferences();
+      document.dispatchEvent(new Event("liveapply"));
       return;
     }
     if (which === "dark") {
@@ -81,6 +82,7 @@ function loadTextureFile(file, which = "light") {
     updateTilePreview();
     // Save preferences after texture upload
     saveTilePreferences();
+    document.dispatchEvent(new Event("liveapply"));
   };
   reader.readAsDataURL(file);
 }

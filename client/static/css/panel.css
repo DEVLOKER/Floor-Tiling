@@ -775,6 +775,58 @@ input[type="range"]::-moz-range-progress {
   margin-bottom: 12px;
 }
 
+/* ── Live-preview toggle ────────────────────────────────────── */
+.live-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 10px;
+}
+.live-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.live-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--section-bg);
+  border: 1px solid var(--panel-border);
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.live-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--txt-muted);
+  transition:
+    transform 0.2s var(--ease-spring),
+    background 0.2s;
+}
+.live-toggle input:checked + .live-switch {
+  background: rgba(var(--accent-rgb), 0.25);
+  border-color: transparent;
+}
+.live-toggle input:checked + .live-switch::after {
+  transform: translateX(16px);
+  background: var(--accent);
+}
+.live-toggle-label {
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--txt-secondary);
+}
+
 /* ── Footer hint ────────────────────────────────────────────── */
 .footer-hint {
   font-size: 0.75em;

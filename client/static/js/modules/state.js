@@ -17,6 +17,7 @@ export let state = {
   showingTiledResult: false, // tracks which image is shown on canvas in toggle preview
   autoMasks: { floor: null, wall: null, ceiling: null },
   activeMode: "tile", // "tile" (floor) | "paint" (walls) — drives selection rules
+  liveApply: true, // auto re-render on control change; off = apply only via button
   selectedSurfaces: new Set(), // Set of "floor" | "wall"
   // Per-tab selection memory so switching tabs doesn't lose the other tab's
   // picks. null = "not visited yet" → apply that tab's default.
