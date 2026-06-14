@@ -23,8 +23,10 @@ class Mask2FormerManager:
         return cls._instance
 
     def __init__(self):
-        # Resolve local path relative to project root
-        self.local_path = Path(__file__).resolve().parent / "models"
+        # Model directory: env override (e.g. a mounted volume for the
+        # download-once cache) falling back to the in-package ``models`` dir.
+        default_dir = Path(__file__).resolve().parent / "models"
+        self.local_path = Path(os.environ.get("MASK2FORMER_DIR", str(default_dir)))
         if self._model is None:
             self._load_model()
 

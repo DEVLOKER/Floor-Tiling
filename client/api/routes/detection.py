@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from PIL import Image
 
 from core.planes import split_wall_planes
-from core.masks import refine_mask
+from core.masks import refine_mask, fill_surface_gaps
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +118,14 @@ async def auto_detect_features(
             if labeled_walls is None:
                 _, cc = cv2.connectedComponents(wall_mask.astype(np.uint8), connectivity=8)
                 labeled_walls = cc.astype(np.uint8)
+
+            # ── Close hairline gaps between adjacent surfaces ─────────────
+            # Removes the unpainted slivers along wall↔ceiling / wall↔floor
+            # edges (assigns them to the nearest surface) without bridging
+            # openings as wide as a door/window.
+            floor_mask, labeled_walls, ceiling_mask = fill_surface_gaps(
+                floor_mask, labeled_walls, ceiling_mask
+            )
 
             wall_count = 0
             for pid in np.unique(labeled_walls):

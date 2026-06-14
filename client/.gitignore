@@ -34,12 +34,7 @@ env.bak/
 venv.bak/
 .venv
 
-# SAM2 model files (large — downloaded at build time)
-sam2/models/*.pt
-models/*.pt
-!models/.gitkeep
-
-# Mask2Former model files
+# Mask2Former model files (large — auto-downloaded at runtime)
 mask2former/models/*.bin
 mask2former/models/*.safetensors
 

@@ -8,8 +8,11 @@ aiofiles>=23.2.0
 cryptography>=42.0.0
 
 # Image processing
+# opencv-contrib-* (headless) is required: core/masks.py uses cv2.ximgproc
+# (guided filter) for edge-aware mask refinement, which is NOT in plain
+# opencv-python. The -headless variant drops GUI deps (server-appropriate).
 numpy>=1.26.0
-opencv-python>=4.9.0
+opencv-contrib-python-headless>=4.9.0
 Pillow>=10.3.0
 
 # Deep learning (PyTorch CPU-only)
@@ -20,8 +23,9 @@ Pillow>=10.3.0
 torch==2.6.0
 torchvision==0.21.0
 
-# Mask2Former (Transformers)
-transformers>=4.40.0
+# Transformers — Mask2Former (segmentation) + Depth Anything V2 (depth).
+# 4.45+ required for the Depth-Anything-V2 metric models.
+transformers>=4.45.0
 scipy>=1.11.0
 
 # System/hardware utilities

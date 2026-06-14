@@ -2,7 +2,8 @@
 
 Compile targets (your custom business logic only):
   config/          → settings, license, ssl_cert, __init__
-  core/            → helpers, __init__
+  core/            → geometry, planes, masks, __init__
+  depth/           → depth-model wrapper, __init__
   mask2former/     → __init__
   patterns/        → __init__
   processors/      → __init__
@@ -10,7 +11,7 @@ Compile targets (your custom business logic only):
 
 NOT compiled (intentionally excluded):
   server.py      → FastAPI entry-point; uvicorn imports it by name
-  sam2/          → third-party library, not your IP
+  app.py         → FastAPI app factory; imported by name (server:app)
 
 Usage inside Docker:
   python setup_cython.py build_ext --inplace
@@ -25,7 +26,8 @@ from Cython.Build import cythonize
 # Only cythonize proprietary/sensitive modules, not third-party or open-source
 PACKAGES = [
     "config",    # your app config, secrets, license logic
-    "core",      # core business logic
+    "core",      # core business logic (geometry, planes, mask refinement)
+    "depth",     # depth model wrapper (for wall-plane separation)
     "mask2former", # your ML model wrappers AND models
     "patterns",  # your proprietary pattern logic
     "processors", # your proprietary processors

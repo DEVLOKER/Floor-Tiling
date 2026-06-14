@@ -58,15 +58,16 @@ docs/
 # ── Test files (not needed inside the image) ────────────────────────────────
 __tests__/
 
-# ── SAM2 non-runtime files ───────────────────────────────────────────────────
-# CUDA kernel sources (CPU-only build, never compiled inside the image)
-client/sam2/csrc/
-client/sam2/benchmark.py
-
 # ── Local model checkpoints ──────────────────────────────────────────────────
+# Weights are ignored by default (download mode keeps the build context lean).
+# The negation re-includes model.safetensors so MODEL_SOURCE=local / offline
+# builds can bundle the weights present on disk.
 client/mask2former/models/*.bin
 client/mask2former/models/*.safetensors
 !client/mask2former/models/model.safetensors
+client/depth/models/*.bin
+client/depth/models/*.safetensors
+!client/depth/models/model.safetensors
 
 # ── Other files to ignore ───────────────────────────────────────────────────────
 *.log

@@ -1,13 +1,24 @@
 # ── Floor Tiling Visualizer — Production Dockerfile ───────────────────────
-# Model: facebook/mask2former-swin-base-IN21k-ade-semantic
-# SAM2 removed — segmentation is handled entirely by Mask2Former.
+# Models (both loaded offline at runtime from the image):
+#   • Segmentation : facebook/mask2former-swin-large-ade-semantic
+#   • Depth        : depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf
+#
+# MODEL_SOURCE=download (default) → fetch weights from Hugging Face at build.
+# MODEL_SOURCE=local             → use weights bundled in the build context
+#                                   (kept via .dockerignore negations).
+# MODEL_SOURCE=volume            → ship NO weights; mount a writable volume at
+#                                   /models and let the app download once into
+#                                   it (set MASK2FORMER_DIR/DEPTH_DIR — see
+#                                   docker-compose.yml). Leanest image.
 
 ARG MODEL_SOURCE=download
 
 # ==========================================================================
 # Stage 1: Model Provider
-#   download mode → wget from CDNs
-#   local mode    → copy from build context
+#   download mode → wget the .safetensors weights from Hugging Face
+#   local mode    → use weights already copied from the build context
+#   Small files (config.json, preprocessor_config.json, .model_id) always come
+#   from the context, so only the large weights are ever downloaded.
 # ==========================================================================
 FROM alpine:latest AS downloader
 ARG MODEL_SOURCE
@@ -16,24 +27,38 @@ RUN apk add --no-cache wget
 
 WORKDIR /models
 
-# Copy local weight folder (may be empty if files are ignored by .dockerignore)
+# Configs (+ local weights when bundled) from the build context.
 COPY client/mask2former/models/ mask2former/
+COPY client/depth/models/ depth/
 
-# Download weights only when MODEL_SOURCE=download
-# Model: facebook/mask2former-swin-base-IN21k-ade-semantic
-RUN if [ "$MODEL_SOURCE" = "download" ]; then \
-        echo "▶ [downloader] Downloading Mask2Former swin-base weights ..."; \
-        wget -q --show-progress -O mask2former/pytorch_model.bin \
-            https://huggingface.co/facebook/mask2former-swin-base-IN21k-ade-semantic/resolve/main/pytorch_model.bin; \
-    fi
+RUN case "$MODEL_SOURCE" in \
+      download) \
+        echo "▶ [downloader] Mask2Former swin-large weights ..."; \
+        wget -q --show-progress -O mask2former/model.safetensors \
+            https://huggingface.co/facebook/mask2former-swin-large-ade-semantic/resolve/main/model.safetensors; \
+        echo "▶ [downloader] Depth-Anything-V2 metric-indoor-base weights ..."; \
+        wget -q --show-progress -O depth/model.safetensors \
+            https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf/resolve/main/model.safetensors; \
+        ;; \
+      local) \
+        echo "▶ [downloader] MODEL_SOURCE=local — using weights bundled in the build context"; \
+        ;; \
+      volume) \
+        echo "▶ [downloader] MODEL_SOURCE=volume — no weights baked; provided at runtime"; \
+        rm -f mask2former/model.safetensors depth/model.safetensors; \
+        ;; \
+      *) echo "Unknown MODEL_SOURCE=$MODEL_SOURCE" >&2; exit 1; ;; \
+    esac
 
 # ==========================================================================
 # Stage 2: Cython Builder
-#   Compiles proprietary Python modules (config, core, mask2former, patterns,
-#   processors) to native .so extensions, then strips the .py source files.
-#   Only the compiled binaries (+ server.py entry-point) reach the final
-#   runtime image, making source recovery very difficult.
-#   Note: ARG MODEL_SOURCE is not needed here — this stage is model-agnostic.
+#   Compiles proprietary Python modules (config, core, depth, mask2former,
+#   patterns, processors, utils) to native .so extensions, then strips the .py
+#   source.  Only compiled binaries (+ server.py entry-point) reach runtime,
+#   making source recovery very difficult.
+#
+#   Cython only transpiles/compiles C — it does NOT import the modules' runtime
+#   dependencies — so this stage needs nothing more than a C toolchain + Cython.
 # ==========================================================================
 FROM python:3.11-slim AS builder
 
@@ -45,55 +70,48 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Copy shared folder from build context root
+# Shared package lives at the repo root.
 COPY shared ./shared
 
-# Install Cython and conversion requirements (CPU-only torch/transformers)
-# We install these in builder to perform on-the-fly weights conversion.
-RUN pip install --no-cache-dir cython \
-    && pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir transformers scipy
+RUN pip install --no-cache-dir cython
 
-# Copy application source
+# Application source.
 COPY client/. .
 
-# Inject Mask2Former weights from downloader stage
+# Inject model weights (+ configs) from the downloader stage.
 COPY --from=downloader /models/mask2former/ mask2former/models/
+COPY --from=downloader /models/depth/ depth/models/
 
-# Compile AND convert weights
-RUN python setup_cython.py build_ext --inplace \
-    && python mask2former/convert_to_safetensors.py \
-    && rm -f mask2former/models/pytorch_model.bin
+# Compile proprietary packages to .so.
+RUN python setup_cython.py build_ext --inplace
 
-# Strip .py source files from compiled packages (keep server.py)
-RUN find config core mask2former patterns processors \
+# Strip .py / .c sources from compiled packages (keep server.py — uvicorn
+# imports it by name — and any third-party packages untouched).
+RUN find config core depth mask2former patterns processors utils \
         -name "*.py" -delete \
-    && find . -name "*.c" -delete \
+    && find config core depth mask2former patterns processors utils \
+        -name "*.c" -delete \
     && find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
-# Remove the build script itself — no reason to ship it
+# Remove the build script — no reason to ship it.
 RUN rm -f setup_cython.py
 
 # ==========================================================================
 # Stage 3: Final Runtime
-#   Slim Python image with all dependencies and compiled application code.
-#   Models are injected from Stage 1 — the runtime image itself never needs
-#   network access to Meta's CDN.
+#   Slim Python image with dependencies + compiled application code + bundled
+#   models.  Needs no network access at runtime.
 # ==========================================================================
 FROM python:3.11-slim
 
 # --------------------------------------------------------------------------
 # 1. System dependencies
-#    libgl1 + libglib2.0-0 → OpenCV headless requirement
-#    libsm6 libxext6 libxrender1 → some OpenCV codecs
+#    libgl1 + libglib2.0-0 → OpenCV runtime requirement
+#    (headless OpenCV avoids the X11/GUI libs the GUI build needs)
 # --------------------------------------------------------------------------
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -102,22 +120,27 @@ RUN apt-get update \
 # --------------------------------------------------------------------------
 RUN useradd -m -u 1000 appuser
 
+# Writable mount point for the optional model-cache volume (MODEL_SOURCE=volume).
+# Creating it owned by appuser means a fresh named volume mounted here inherits
+# that ownership, so the app (uid 1000) can write the downloaded weights.
+RUN mkdir -p /models/mask2former /models/depth && chown -R appuser:appuser /models
+
 WORKDIR /app
 
-# Copy shared folder from build context root
+# Shared package from the build context root.
 COPY shared ./shared
 
 # --------------------------------------------------------------------------
 # 3. Python dependencies
-#    requirements.txt includes --extra-index-url for the PyTorch CPU index
-#    and pins torch/torchvision+cpu, so a single pip install handles everything.
+#    requirements.txt carries the PyTorch CPU extra-index and pins torch/
+#    torchvision+cpu, so a single pip install handles everything.
 # --------------------------------------------------------------------------
 COPY client/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # --------------------------------------------------------------------------
-# 4. Application code (compiled artifacts from builder — no .py sources
-#    for business-logic packages; only server.py is plain Python)
+# 4. Application code (compiled artifacts from builder — no .py sources for
+#    business-logic packages; only server.py is plain Python)
 # --------------------------------------------------------------------------
 COPY --chown=appuser:appuser --from=builder /app .
 
@@ -126,25 +149,22 @@ COPY --chown=appuser:appuser --from=builder /app .
 # --------------------------------------------------------------------------
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app \
-    # Override in docker-compose / runtime for dev (reload=true, workers=1)
-    APP_HOST=0.0.0.0 \
-    APP_PORT=8000 \
-    APP_WORKERS=1 \
-    APP_LOG_LEVEL=info
+    PYTHONPATH=/app
 
 USER appuser
 
 EXPOSE 8000
 
 # --------------------------------------------------------------------------
-# 7. Health check (Mask2Former swin-base loads at startup; allow 120 s warm-up)
+# 6. Health check
+#    Two models load at startup on CPU (~866 MB segmentation + ~390 MB depth),
+#    so allow a generous warm-up before the container is judged unhealthy.
 # --------------------------------------------------------------------------
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=240s --retries=3 \
     CMD curl -fs http://localhost:8000/health || exit 1
 
 # --------------------------------------------------------------------------
-# 8. Entrypoint — uvicorn in production mode (no reload, no debug)
+# 7. Entrypoint — uvicorn in production mode (no reload, no debug)
 # --------------------------------------------------------------------------
 CMD ["uvicorn", "server:app", \
      "--host", "0.0.0.0", \

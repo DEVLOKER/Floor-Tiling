@@ -27,7 +27,7 @@ _ad_datas, _ad_binaries, _ad_hidden = collect_all("appdirs")
 # Collect all .pyd files in the sensitive packages.  Each entry is a tuple:
 #   (source_path, dest_directory_inside_the_bundle)
 pyd_binaries = []
-for pkg in ["config", "core", "mask2former", "patterns", "processors", "utils"]:
+for pkg in ["config", "core", "depth", "mask2former", "patterns", "processors", "utils"]:
     for pyd in glob.glob(str(ROOT / pkg / "*.pyd")):
         pyd_binaries.append((pyd, pkg))
 # Shared package (lives at repo root) — pyds are in sub-packages, so walk recursively
@@ -68,12 +68,12 @@ def filter_dev_files(datas):
     return filtered
 
 datas = [
-    (str(ROOT / "static"),                           "static"),
+    (str(ROOT / "static"),                            "static"),
+    # Model weights bundled into the exe so it runs fully offline.
     (str(ROOT / "mask2former" / "models"),            os.path.join("mask2former", "models")),
+    (str(ROOT / "depth" / "models"),                  os.path.join("depth", "models")),
 ] + shared_datas()
 datas = filter_dev_files(datas)
-#    # SAM2 model checkpoints (large — uncomment if you want to bundle them)
-#    # (str(ROOT / "sam2" / "models"), os.path.join("sam2", "models")),
 
 # ── Hidden imports ────────────────────────────────────────────────────────────
 # PyInstaller's static analysis misses these because they are loaded
