@@ -330,6 +330,24 @@ export function toggleSurface(id) {
   updateFooterHint();
 }
 
+// ── Rapid paint selection (all walls, optionally + ceiling, or clear) ───
+export function quickSelectPaint(target) {
+  // target: "walls" | "walls_ceiling" | "clear"
+  if (state.activeMode !== "paint") setActiveMode("paint");
+  state.selectedSurfaces.clear();
+  if (target !== "clear") {
+    (state.currentLabels || []).forEach((l) => {
+      if (l.type === "wall") state.selectedSurfaces.add(l.id);
+      if (target === "walls_ceiling" && l.type === "ceiling")
+        state.selectedSurfaces.add(l.id);
+    });
+  }
+  updateCombinedMask();
+  redrawWithFloorHighlight();
+  drawAutoLabels();
+  updateFooterHint();
+}
+
 // ── Activity switch (tabs ↔ selection ↔ footer CTA) ─────────────────────
 export function setActiveMode(mode) {
   if (mode !== "tile" && mode !== "paint") mode = "tile";

@@ -23,10 +23,11 @@ from .tile_renderer import _feather_mask
 
 
 # Strength knobs (tuned conservative — believable paint, not a filter look).
-WALL_DETAIL_STRENGTH = 0.6     # how much fine surface texture to carry over
-SHADING_MIN = 0.45             # clamp on relative luminance (deepest shadow)
-SHADING_MAX = 1.55             # clamp on relative luminance (brightest catch-light)
-SHEEN_GAIN = {"matte": 0.0, "satin": 30.0, "gloss": 65.0}  # additive specular
+SHADING_MIN = 0.62             # clamp on relative luminance (deepest shadow)
+SHADING_MAX = 1.22             # clamp on relative luminance (tame highlight blooms)
+SHEEN_GAIN = {"matte": 0.0, "satin": 22.0, "gloss": 48.0}  # additive specular
+MICRO_GRAIN_STD = 2.0          # subtle surface grain so flat paint isn't plastic
+PAINT_SATURATION = 0.86        # pull the fill toward neutral so it reads as paint, not a neon fill
 
 
 def _tile_texture(texture: np.ndarray, h: int, w: int) -> np.ndarray:
@@ -199,6 +200,8 @@ def apply_wall_paint(
     texture: np.ndarray = None,
     depth: np.ndarray = None,
     texture_scale: float = TEXTURE_REPEAT_M,
+    light_strength: float = 1.0,
+    saturation: float = PAINT_SATURATION,
 ) -> np.ndarray:
     """Repaint the masked wall region with a colour or a texture.
 
@@ -254,10 +257,22 @@ def apply_wall_paint(
     wall_mean_L = float(np.mean(L[binmask > 0]))
     wall_mean_L = max(wall_mean_L, 1.0)
 
-    # Relative shading: 1.0 = average wall brightness, <1 shadow, >1 highlight.
-    # Multiplying the fill by this keeps every shadow and lit gradient of the
-    # real wall, so the new finish "sits" on the actual surface.
-    shading = np.clip(L / wall_mean_L, SHADING_MIN, SHADING_MAX)
+    # ── Broad lighting only (COVER the old surface) ─────────────────────────
+    # Real paint hides the wall underneath. So we shade with only the *broad*
+    # room lighting (window gradient, corner shadows) and blur away the original
+    # surface pattern — tile grout, old texture — otherwise it bleeds through
+    # the new paint and the wall reads as "old tiles tinted", not repainted.
+    # Non-wall pixels are set to the wall mean first so the large blur doesn't
+    # drag in cabinet/window luminance at the edges.
+    L_clean = np.where(binmask > 0, L, wall_mean_L).astype(np.float32)
+    # Smoothly blur out the old surface (tile blotches, grout) keeping only the
+    # room's broad lighting (window gradient, corner falloff). A large kernel is
+    # what keeps the painted wall clean instead of blotchy.
+    bk = max(5, min(h_img, w_img) // 10) | 1
+    L_broad = cv2.GaussianBlur(L_clean, (bk, bk), 0)
+    shading = np.clip(L_broad / wall_mean_L, SHADING_MIN, SHADING_MAX)
+    # Lighting intensity (client-tunable): 0 = flat fill, 1 = natural, >1 = punchier.
+    shading = 1.0 + (shading - 1.0) * float(light_strength)
     k = max(3, min(h_img, w_img) // 50) | 1
 
     # ── Corner shading (both colour & texture) ──────────────────────────────
@@ -269,8 +284,8 @@ def apply_wall_paint(
         shading = shading * (1.0 - CORNER_AO_STRENGTH * ao)
 
     if texture is not None:
-        # Texture finish modulated by the wall's lighting (texture carries its
-        # own surface detail, so no extra detail term).
+        # Texture finish modulated only by broad lighting (so the old surface
+        # pattern doesn't show through the texture either).
         if depth is not None and depth.shape[:2] == (h_img, w_img):
             # Per-plane perspective mapping → reads as 3D.
             fill = _texture_planes_fill(labeled, depth, texture, repeat_m=texture_scale)
@@ -278,11 +293,12 @@ def apply_wall_paint(
             fill = _tile_texture(texture, h_img, w_img)
         painted = fill * shading[:, :, None]
     else:
-        # Solid colour finish + recovered fine surface detail so it isn't flat.
+        # Solid colour finish: flat paint under broad lighting, plus a touch of
+        # stable micro-grain so it doesn't look plastic (no original pattern).
         painted = paint_bgr[None, None, :] * shading[:, :, None]
-        L_blur = cv2.GaussianBlur(L, (k, k), 0)
-        detail = L - L_blur
-        painted += detail[:, :, None] * WALL_DETAIL_STRENGTH
+        if MICRO_GRAIN_STD > 0:
+            grain = np.random.default_rng(7).standard_normal((h_img, w_img, 1)).astype(np.float32)
+            painted = painted + grain * MICRO_GRAIN_STD
 
     # ── Finish sheen (satin / gloss) ────────────────────────────────────────
     # Glossier paints bounce light back at the camera where the wall is already
@@ -292,6 +308,12 @@ def apply_wall_paint(
         sheen = np.clip(shading - 1.0, 0.0, None)
         sheen = cv2.GaussianBlur(sheen.astype(np.float32), (k, k), 0)
         painted += (sheen * gain)[:, :, None]
+
+    # ── Saturation (client-tunable): pull toward neutral so it reads as paint ─
+    sat = float(np.clip(saturation, 0.0, 1.0))
+    if sat < 1.0:
+        gray = painted.mean(axis=2, keepdims=True)
+        painted = painted * sat + gray * (1.0 - sat)
 
     painted = np.clip(painted, 0, 255)
 

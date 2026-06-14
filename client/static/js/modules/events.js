@@ -151,6 +151,39 @@ export function initEventListeners() {
     badge("paintTextureScaleValue", e.target.value + " cm");
     syncSliderTrack(e.target);
   });
+  [
+    ["wallPaintOpacity", "wallPaintOpacityValue"],
+    ["wallPaintLight", "wallPaintLightValue"],
+    ["wallPaintSat", "wallPaintSatValue"],
+  ].forEach(([id, badgeId]) => {
+    document.getElementById(id)?.addEventListener("input", (e) => {
+      badge(badgeId, e.target.value + " %");
+      syncSliderTrack(e.target);
+    });
+  });
+
+  // ── Live update: re-apply paint when a paint control is released ─────────
+  // (sliders/colour/finish are "apply parameters"; auto-applying on `change`
+  // gives instant feedback without spamming the backend during a drag).
+  [
+    "wallPaintColor",
+    "wallPaintFinish",
+    "wallPaintOpacity",
+    "wallPaintLight",
+    "wallPaintSat",
+    "paintTextureScale",
+  ].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", () => {
+      if (
+        state.activeMode === "paint" &&
+        state.floorMask &&
+        state.originalImage &&
+        !state.isLoading
+      ) {
+        applyPaintToWalls();
+      }
+    });
+  });
   document.getElementById("groutThickness").addEventListener("input", (e) => {
     badge("groutValue", e.target.value + " px");
     syncSliderTrack(e.target);
@@ -300,6 +333,9 @@ export async function applyPaintToWalls() {
     fd.append("mask", maskBlob, "mask.bin");
     fd.append("paint_color", val("wallPaintColor"));
     fd.append("finish", val("wallPaintFinish") || "matte");
+    fd.append("opacity", (val("wallPaintOpacity") || 100) / 100.0);
+    fd.append("light_strength", (val("wallPaintLight") || 100) / 100.0);
+    fd.append("saturation", (val("wallPaintSat") || 86) / 100.0);
     if (state.paintMode === "texture" && state.paintTextureDataUrl) {
       fd.append(
         "paint_texture",

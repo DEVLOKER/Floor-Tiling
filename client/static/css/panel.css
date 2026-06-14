@@ -652,6 +652,40 @@ input[type="range"]::-moz-range-progress {
   transform: translateY(0);
 }
 
+/* ── Rapid surface selection chips ──────────────────────────── */
+.quick-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.quick-chip {
+  flex: 1 1 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  background: var(--panel-bg);
+  color: var(--txt-secondary);
+  font-family: inherit;
+  font-size: 0.78em;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+.quick-chip:hover {
+  color: #fff;
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+.quick-chip-clear {
+  flex: 0 0 auto;
+  color: var(--txt-muted);
+}
+
 /* ── Wall paint section ─────────────────────────────────────── */
 .finish-label {
   display: block;

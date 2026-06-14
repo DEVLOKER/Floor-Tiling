@@ -20,7 +20,7 @@ import {
   initEventListeners,
   downloadResultImage,
 } from "./events.js";
-import { setActiveMode } from "./image.js";
+import { setActiveMode, quickSelectPaint } from "./image.js";
 import { initTextureUpload } from "./texture.js";
 import { initOnboarding } from "./onboarding.js";
 
@@ -70,6 +70,9 @@ document.addEventListener("DOMContentLoaded", () => {
     "wallPaintColor",
     "wallPaintFinish",
     "paintTextureScale",
+    "wallPaintOpacity",
+    "wallPaintLight",
+    "wallPaintSat",
   ].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
@@ -147,6 +150,17 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("applyActionBtn")
     ?.addEventListener("click", applyActiveAction);
+
+  // Rapid surface selection (paint tab)
+  document
+    .getElementById("qsWalls")
+    ?.addEventListener("click", () => quickSelectPaint("walls"));
+  document
+    .getElementById("qsWallsCeiling")
+    ?.addEventListener("click", () => quickSelectPaint("walls_ceiling"));
+  document
+    .getElementById("qsClear")
+    ?.addEventListener("click", () => quickSelectPaint("clear"));
 
   // Initialise the panel to the default activity (footer label + accordion state)
   setActiveMode("tile");

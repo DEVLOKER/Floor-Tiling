@@ -29,8 +29,10 @@ async def apply_paint(
     mask: UploadFile = File(...),
     paint_color: str = Form(DEFAULT_PAINT_COLOR),
     finish: str = Form(DEFAULT_PAINT_FINISH),
-    opacity: float = Form(1.0),
+    opacity: float = Form(0.8),
     texture_scale: float = Form(1.3),
+    light_strength: float = Form(1.0),
+    saturation: float = Form(0.86),
     source: Optional[UploadFile] = File(None),
     paint_texture: Optional[UploadFile] = File(None),
 ):
@@ -96,6 +98,8 @@ async def apply_paint(
             finish = DEFAULT_PAINT_FINISH
         opacity = float(np.clip(opacity, 0.0, 1.0))
         texture_scale = float(np.clip(texture_scale, 0.3, 4.0))
+        light_strength = float(np.clip(light_strength, 0.0, 2.0))
+        saturation = float(np.clip(saturation, 0.0, 1.0))
 
         # ── Render paint ───────────────────────────────────────────────────
         result = apply_wall_paint(
@@ -108,6 +112,8 @@ async def apply_paint(
             texture=texture_arr,
             depth=depth_map,
             texture_scale=texture_scale,
+            light_strength=light_strength,
+            saturation=saturation,
         )
 
         # ── Encode and return ──────────────────────────────────────────────

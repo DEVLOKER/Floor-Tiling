@@ -463,7 +463,14 @@
             <!-- ══ Tab: Wall painting ════════════════════════════════ -->
             <div class="tab-panel" id="tabPaintPanel" role="tabpanel">
                 <div class="panel-section">
-                    <div class="paint-lead">Sélectionnez un ou plusieurs murs (ou le plafond) sur l'image, puis choisissez une couleur ou une texture.</div>
+                    <div class="paint-lead">Sélectionnez les surfaces sur l'image, ou utilisez la sélection rapide ci-dessous, puis choisissez une couleur ou une texture.</div>
+
+                    <!-- Rapid surface selection -->
+                    <div class="quick-select">
+                        <button type="button" class="quick-chip" id="qsWalls">Tous les murs</button>
+                        <button type="button" class="quick-chip" id="qsWallsCeiling">Murs + plafond</button>
+                        <button type="button" class="quick-chip quick-chip-clear" id="qsClear">Effacer</button>
+                    </div>
 
                     <!-- Color / texture toggle -->
                     <div class="tile-source-toggle">
@@ -514,6 +521,21 @@
                             </div>
                             <input type="range" id="paintTextureScale" min="40" max="300" step="10" value="130" />
                         </div>
+                    </div>
+
+                    <!-- Realism adjustments (apply to colour & texture) -->
+                    <div class="finish-label">Réglages</div>
+                    <div class="range-item">
+                        <div class="range-label">Opacité <span class="value-badge" id="wallPaintOpacityValue">80 %</span></div>
+                        <input type="range" id="wallPaintOpacity" min="20" max="100" step="5" value="80" />
+                    </div>
+                    <div class="range-item" style="margin-top:10px">
+                        <div class="range-label">Éclairage <span class="value-badge" id="wallPaintLightValue">100 %</span></div>
+                        <input type="range" id="wallPaintLight" min="0" max="150" step="5" value="100" />
+                    </div>
+                    <div class="range-item" style="margin-top:10px">
+                        <div class="range-label">Saturation <span class="value-badge" id="wallPaintSatValue">86 %</span></div>
+                        <input type="range" id="wallPaintSat" min="0" max="100" step="2" value="86" />
                     </div>
                 </div>
             </div><!-- /tabPaintPanel -->

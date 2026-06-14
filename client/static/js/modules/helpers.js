@@ -74,8 +74,21 @@ export function applyDefaults(CONFIG) {
   set("wallPaintColor", CONFIG.defaultPaintColor);
   set("paintTextureScale", CONFIG.defaultPaintTextureScale);
   badge("paintTextureScaleValue", CONFIG.defaultPaintTextureScale + " cm");
-  const pts = document.getElementById("paintTextureScale");
-  if (pts) syncSliderTrack(pts);
+  // Paint realism sliders
+  const paintSliders = [
+    ["paintTextureScale", null, null],
+    ["wallPaintOpacity", "wallPaintOpacityValue", CONFIG.defaultPaintOpacity],
+    ["wallPaintLight", "wallPaintLightValue", CONFIG.defaultPaintLight],
+    ["wallPaintSat", "wallPaintSatValue", CONFIG.defaultPaintSat],
+  ];
+  paintSliders.forEach(([id, badgeId, def]) => {
+    if (def != null) {
+      set(id, def);
+      badge(badgeId, def + " %");
+    }
+    const el = document.getElementById(id);
+    if (el) syncSliderTrack(el);
+  });
 }
 
 // Ensure only val and badge are exported from here

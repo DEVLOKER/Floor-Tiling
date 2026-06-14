@@ -63,7 +63,8 @@
       "Bash(python -c \"from config.settings import SEG_USE_MASK2FORMER, SEG_USE_ONEFORMER; print\\('Scenario active -> Mask2Former:',SEG_USE_MASK2FORMER,'| OneFormer:',SEG_USE_ONEFORMER\\)\")",
       "Bash(python -c \"import ast;[ast.parse\\(open\\(f,encoding='utf-8'\\).read\\(\\)\\) for f in ['core/planes.py','api/routes/detection.py']];print\\('py OK'\\)\")",
       "Bash(python -c \"from Cython.Build import cythonize; cythonize\\(['core/planes.py'],compiler_directives={'language_level':'3','always_allow_keywords':True},quiet=True\\);print\\('cython OK'\\)\")",
-      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _pi_*.jpg && echo cleaned)"
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _pi_*.jpg && echo cleaned)",
+      "Bash(node --check events.js)"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"
