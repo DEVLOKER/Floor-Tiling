@@ -68,6 +68,9 @@ client/mask2former/models/*.safetensors
 client/depth/models/*.bin
 client/depth/models/*.safetensors
 !client/depth/models/model.safetensors
+client/oneformer/models/*.bin
+client/oneformer/models/*.safetensors
+!client/oneformer/models/model.safetensors
 
 # ── Other files to ignore ───────────────────────────────────────────────────────
 *.log

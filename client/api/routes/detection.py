@@ -49,7 +49,6 @@ async def auto_detect_features(
     - Labeled wall mask (uint8, flat)
     """
     image_data = await image.read()
-    predictor = request.app.state.mask2former_predictor
 
     async def event_stream():
         try:
@@ -68,7 +67,34 @@ async def auto_detect_features(
 
             # ── Step 3: AI segmentation (floor + walls + ceiling) ─────────
             yield _sse({"step": 3, "total": 5, "message": "Segmentation IA du sol, des murs et du plafond en cours…"})
-            floor_mask, wall_mask, ceiling_mask = await asyncio.to_thread(predictor.predict, image_np)
+            # Use whichever segmentation model(s) are enabled (SEG_USE_* flags).
+            # With both, their masks are unioned (ensemble); with one, it's used
+            # alone.
+            seg_predictors = [
+                p for p in (
+                    getattr(request.app.state, "mask2former_predictor", None),
+                    getattr(request.app.state, "oneformer_predictor", None),
+                )
+                if p is not None
+            ]
+            if not seg_predictors:
+                raise RuntimeError("No segmentation model available.")
+
+            floor_mask = wall_mask = ceiling_mask = None
+            for p in seg_predictors:
+                f2, w2, c2 = await asyncio.to_thread(p.predict, image_np)
+                if floor_mask is None:
+                    floor_mask, wall_mask, ceiling_mask = f2, w2, c2
+                else:
+                    floor_mask = ((floor_mask > 0) | (f2 > 0)).astype(np.uint8)
+                    wall_mask = ((wall_mask > 0) | (w2 > 0)).astype(np.uint8)
+                    ceiling_mask = ((ceiling_mask > 0) | (c2 > 0)).astype(np.uint8)
+
+            # Keep the three surfaces mutually exclusive (a union can overlap at
+            # junctions): floor > ceiling > wall.
+            floor_mask = (floor_mask > 0).astype(np.uint8)
+            ceiling_mask = (ceiling_mask & ~(floor_mask > 0)).astype(np.uint8)
+            wall_mask = (wall_mask & ~(floor_mask > 0) & ~(ceiling_mask > 0)).astype(np.uint8)
 
             # ── Edge-aware mask refinement ────────────────────────────────
             # Snap jagged model boundaries to the photo's real edges and clean

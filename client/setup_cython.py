@@ -28,7 +28,8 @@ PACKAGES = [
     "config",    # your app config, secrets, license logic
     "core",      # core business logic (geometry, planes, mask refinement)
     "depth",     # depth model wrapper (for wall-plane separation)
-    "mask2former", # your ML model wrappers AND models
+    "mask2former", # segmentation model wrapper
+    "oneformer", # second segmentation model wrapper (ensemble)
     "patterns",  # your proprietary pattern logic
     "processors", # your proprietary processors
     "utils"      # your proprietary utilities

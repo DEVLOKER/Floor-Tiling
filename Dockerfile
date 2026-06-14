@@ -1,6 +1,7 @@
 # ── Floor Tiling Visualizer — Production Dockerfile ───────────────────────
-# Models (both loaded offline at runtime from the image):
+# Models (all loaded offline at runtime from the image):
 #   • Segmentation : facebook/mask2former-swin-large-ade-semantic
+#                  + shi-labs/oneformer_ade20k_swin_large   (ensembled)
 #   • Depth        : depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf
 #
 # MODEL_SOURCE=download (default) → fetch weights from Hugging Face at build.
@@ -29,6 +30,7 @@ WORKDIR /models
 
 # Configs (+ local weights when bundled) from the build context.
 COPY client/mask2former/models/ mask2former/
+COPY client/oneformer/models/ oneformer/
 COPY client/depth/models/ depth/
 
 RUN case "$MODEL_SOURCE" in \
@@ -36,6 +38,9 @@ RUN case "$MODEL_SOURCE" in \
         echo "▶ [downloader] Mask2Former swin-large weights ..."; \
         wget -q --show-progress -O mask2former/model.safetensors \
             https://huggingface.co/facebook/mask2former-swin-large-ade-semantic/resolve/main/model.safetensors; \
+        echo "▶ [downloader] OneFormer ade20k swin-large weights ..."; \
+        wget -q --show-progress -O oneformer/model.safetensors \
+            https://huggingface.co/shi-labs/oneformer_ade20k_swin_large/resolve/main/model.safetensors; \
         echo "▶ [downloader] Depth-Anything-V2 metric-indoor-base weights ..."; \
         wget -q --show-progress -O depth/model.safetensors \
             https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf/resolve/main/model.safetensors; \
@@ -45,7 +50,7 @@ RUN case "$MODEL_SOURCE" in \
         ;; \
       volume) \
         echo "▶ [downloader] MODEL_SOURCE=volume — no weights baked; provided at runtime"; \
-        rm -f mask2former/model.safetensors depth/model.safetensors; \
+        rm -f mask2former/model.safetensors oneformer/model.safetensors depth/model.safetensors; \
         ;; \
       *) echo "Unknown MODEL_SOURCE=$MODEL_SOURCE" >&2; exit 1; ;; \
     esac
@@ -80,6 +85,7 @@ COPY client/. .
 
 # Inject model weights (+ configs) from the downloader stage.
 COPY --from=downloader /models/mask2former/ mask2former/models/
+COPY --from=downloader /models/oneformer/ oneformer/models/
 COPY --from=downloader /models/depth/ depth/models/
 
 # Compile proprietary packages to .so.
@@ -87,9 +93,9 @@ RUN python setup_cython.py build_ext --inplace
 
 # Strip .py / .c sources from compiled packages (keep server.py — uvicorn
 # imports it by name — and any third-party packages untouched).
-RUN find config core depth mask2former patterns processors utils \
+RUN find config core depth mask2former oneformer patterns processors utils \
         -name "*.py" -delete \
-    && find config core depth mask2former patterns processors utils \
+    && find config core depth mask2former oneformer patterns processors utils \
         -name "*.c" -delete \
     && find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -123,7 +129,7 @@ RUN useradd -m -u 1000 appuser
 # Writable mount point for the optional model-cache volume (MODEL_SOURCE=volume).
 # Creating it owned by appuser means a fresh named volume mounted here inherits
 # that ownership, so the app (uid 1000) can write the downloaded weights.
-RUN mkdir -p /models/mask2former /models/depth && chown -R appuser:appuser /models
+RUN mkdir -p /models/mask2former /models/oneformer /models/depth && chown -R appuser:appuser /models
 
 WORKDIR /app
 
@@ -157,10 +163,10 @@ EXPOSE 8000
 
 # --------------------------------------------------------------------------
 # 6. Health check
-#    Two models load at startup on CPU (~866 MB segmentation + ~390 MB depth),
-#    so allow a generous warm-up before the container is judged unhealthy.
+#    Three models load at startup on CPU (~866 MB + ~879 MB segmentation
+#    ensemble + ~390 MB depth), so allow a generous warm-up.
 # --------------------------------------------------------------------------
-HEALTHCHECK --interval=30s --timeout=10s --start-period=240s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=360s --retries=3 \
     CMD curl -fs http://localhost:8000/health || exit 1
 
 # --------------------------------------------------------------------------

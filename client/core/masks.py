@@ -71,7 +71,7 @@ def refine_mask(
     mask: np.ndarray,
     image: np.ndarray,
     single_region: bool = False,
-    straighten: bool = True,
+    straighten: bool = False,
 ) -> np.ndarray:
     """Return a cleaned, edge-aligned binary version of ``mask``.
 

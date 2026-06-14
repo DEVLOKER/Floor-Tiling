@@ -21,8 +21,14 @@ from api.dependencies import require_license
 from api.routes.detection import router as detection_router
 from api.routes.paint import router as paint_router
 from api.routes.tiles import router as tiles_router
-from config.settings import CORS_ORIGINS, MAX_UPLOAD_SIZE_BYTES
+from config.settings import (
+    CORS_ORIGINS,
+    MAX_UPLOAD_SIZE_BYTES,
+    SEG_USE_MASK2FORMER,
+    SEG_USE_ONEFORMER,
+)
 from mask2former.mask2former import get_mask2former_predictor
+from oneformer.oneformer import get_oneformer_predictor
 from depth.depth import get_depth_predictor
 from utils import verify_license, LicenseError
 
@@ -53,15 +59,28 @@ async def lifespan(app: FastAPI):
         logger.critical("License check failed: %s", exc)
         sys.exit(1)
 
-    # ── Load Mask2Former ──────────────────────────────────────────────────
-    try:
-        app.state.mask2former_predictor = await asyncio.to_thread(
-            get_mask2former_predictor
-        )
-        logger.info("Mask2Former model ready.")
-    except Exception as exc:
-        logger.error("Failed to load Mask2Former: %s", exc, exc_info=True)
-        app.state.mask2former_predictor = None
+    # ── Load segmentation model(s) — see SEG_USE_* flags in settings ──────
+    app.state.mask2former_predictor = None
+    if SEG_USE_MASK2FORMER:
+        try:
+            app.state.mask2former_predictor = await asyncio.to_thread(
+                get_mask2former_predictor
+            )
+            logger.info("Mask2Former model ready.")
+        except Exception as exc:
+            logger.error("Failed to load Mask2Former: %s", exc, exc_info=True)
+    else:
+        logger.info("Mask2Former disabled (SEG_USE_MASK2FORMER=False).")
+
+    app.state.oneformer_predictor = None
+    if SEG_USE_ONEFORMER:
+        try:
+            app.state.oneformer_predictor = await asyncio.to_thread(get_oneformer_predictor)
+            logger.info("OneFormer model ready.")
+        except Exception as exc:
+            logger.error("Failed to load OneFormer: %s", exc, exc_info=True)
+    else:
+        logger.info("OneFormer disabled (SEG_USE_ONEFORMER=False).")
 
     # ── Load depth model (for per-wall plane separation) ──────────────────
     # Best-effort: if it fails, detection falls back to connected components.

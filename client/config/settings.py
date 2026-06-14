@@ -10,6 +10,13 @@ CORS_ORIGINS = [
     "https://127.0.0.1:8000",
     "https://localhost:8000",
 ]
+# ── Segmentation model selection (A/B testing) ──────────────────────────────
+# Toggle which segmentation model(s) feed detection, then restart the server.
+#   both True  → ensemble (union of the two) — best coverage
+#   one True   → use that model alone
+SEG_USE_MASK2FORMER = True
+SEG_USE_ONEFORMER = True
+
 # Tile rendering constants
 DEFAULT_REAL_WIDTH_CM = 300.0
 DEFAULT_TILE_WIDTH = 30.0

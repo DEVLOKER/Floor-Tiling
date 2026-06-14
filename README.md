@@ -7,7 +7,7 @@ Upload a room photo, let the AI auto-detect the floor, walls and ceiling, then p
 
 ## Features
 
-- **Automatic surface detection** – floor, individual wall planes, and ceiling, using Mask2Former (semantic segmentation) + Depth Anything V2 (depth → per-wall plane separation)
+- **Automatic surface detection** – floor, individual wall planes, and ceiling, using an ensemble of Mask2Former + OneFormer (semantic segmentation) + Depth Anything V2 (depth → per-wall plane separation)
 - **Multiple tile patterns** – grid, brick offset, herringbone, chevron, checker, and more
 - **Wall & ceiling painting** – solid colour or perspective-mapped texture, with the room's real lighting preserved
 - **Colour + texture support** – solid colours or real-texture images per tile
@@ -33,6 +33,9 @@ Upload a room photo, let the AI auto-detect the floor, walls and ceiling, then p
 │   └── masks.py            # Edge-aware mask refinement
 ├── mask2former/
 │   ├── mask2former.py      # Segmentation model loader (floor/walls/ceiling)
+│   └── models/             # Auto-downloaded weights (config + safetensors)
+├── oneformer/
+│   ├── oneformer.py        # Second segmentation model (ensembled with above)
 │   └── models/             # Auto-downloaded weights (config + safetensors)
 ├── depth/
 │   ├── depth.py            # Depth model loader (Depth Anything V2)
@@ -124,10 +127,13 @@ models into their local `models/` folders, then loads them offline thereafter:
 | Purpose | Model | Cached to |
 |---|---|---|
 | Segmentation (floor / walls / ceiling) | `facebook/mask2former-swin-large-ade-semantic` (~866 MB) | `mask2former/models/` |
+| Segmentation (ensemble partner) | `shi-labs/oneformer_ade20k_swin_large` (~879 MB) | `oneformer/models/` |
 | Depth (per-wall plane separation) | `depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf` (~390 MB) | `depth/models/` |
 
-> First start needs internet and takes a while (downloads ~1.25 GB). For an
-> air-gapped install, pre-seed those two `models/` folders with the weights
+> The two segmentation models are **ensembled** (their wall/floor/ceiling masks
+> are unioned) for the most complete coverage.
+> First start needs internet and takes a while (downloads ~2.1 GB). For an
+> air-gapped install, pre-seed those `models/` folders with the weights
 > (or build the Docker image with `MODEL_SOURCE=download`/`local`).
 
 ---

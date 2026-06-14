@@ -53,7 +53,17 @@
       "Bash(python -c \"from Cython.Build import cythonize; cythonize\\(['core/masks.py'],compiler_directives={'language_level':'3','always_allow_keywords':True},quiet=True\\);print\\('cython OK'\\)\")",
       "Bash(rm -f core/masks.c)",
       "Bash(rm -f _d_raw.jpg _d_refined.jpg)",
-      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _gf_*.jpg _d_*.jpg && echo cleaned)"
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _gf_*.jpg _d_*.jpg && echo cleaned)",
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _of_*.jpg && echo cleaned)",
+      "Bash(python -c \"import ast;[ast.parse\\(open\\(f,encoding='utf-8'\\).read\\(\\)\\) for f in ['oneformer/oneformer.py','oneformer/__init__.py','app.py','api/routes/detection.py','setup_cython.py','floor_tiling.spec']];print\\('py syntax OK'\\)\")",
+      "Bash(python -c \"from Cython.Build import cythonize; cythonize\\(['oneformer/oneformer.py','oneformer/__init__.py'],compiler_directives={'language_level':'3','always_allow_keywords':True},quiet=True\\);print\\('cython OK'\\)\")",
+      "Bash(rm -f oneformer/oneformer.c oneformer/__init__.c)",
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _ns_*.jpg && echo cleaned)",
+      "Bash(python -c \"import ast;[ast.parse\\(open\\(f,encoding='utf-8'\\).read\\(\\)\\) for f in ['config/settings.py','app.py','api/routes/detection.py']];print\\('py OK'\\)\")",
+      "Bash(python -c \"from config.settings import SEG_USE_MASK2FORMER, SEG_USE_ONEFORMER; print\\('Scenario active -> Mask2Former:',SEG_USE_MASK2FORMER,'| OneFormer:',SEG_USE_ONEFORMER\\)\")",
+      "Bash(python -c \"import ast;[ast.parse\\(open\\(f,encoding='utf-8'\\).read\\(\\)\\) for f in ['core/planes.py','api/routes/detection.py']];print\\('py OK'\\)\")",
+      "Bash(python -c \"from Cython.Build import cythonize; cythonize\\(['core/planes.py'],compiler_directives={'language_level':'3','always_allow_keywords':True},quiet=True\\);print\\('cython OK'\\)\")",
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _pi_*.jpg && echo cleaned)"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"
