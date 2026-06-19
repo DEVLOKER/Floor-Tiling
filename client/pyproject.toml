@@ -7,27 +7,12 @@ name = "floor-tiling"
 version = "1.0.0"
 description = "Floor segmentation and perspective-correct tile / paint visualization"
 requires-python = ">=3.11"
-dependencies = [
-    # Web framework & server
-    "fastapi>=0.111.0",
-    "uvicorn[standard]>=0.29.0",
-    "python-multipart>=0.0.9",
-    "aiofiles>=23.2.0",
-    # License verification
-    "cryptography>=42.0.0",
-    # Image processing — opencv-contrib (headless) needed for cv2.ximgproc
-    "numpy>=1.26.0",
-    "opencv-contrib-python-headless>=4.9.0",
-    "Pillow>=10.3.0",
-    # Deep learning (install the CPU wheels via the extra index in requirements.txt)
-    "torch==2.6.0",
-    "torchvision==0.21.0",
-    "transformers>=4.45.0",
-    "scipy>=1.11.0",
-    # System / hardware utilities
-    "psutil>=7.2.2",
-    'pyudev>=0.24.4; sys_platform == "linux"',
-]
+# Runtime dependencies are NOT listed here on purpose — `requirements.txt` is the
+# single source of truth (it also carries the PyTorch CPU --extra-index-url, which
+# pyproject can't express). Install order:
+#     pip install -r requirements.txt   # deps (incl. CPU torch)
+#     pip install -e . --no-deps        # just the floor_tiling package
+dependencies = []
 
 [project.scripts]
 floor-tiling = "floor_tiling.__main__:main"

@@ -7,11 +7,15 @@ Follows the same offline-first lifecycle as the segmenter: the weights are
 downloaded once into this package's local ``models/`` directory and then loaded
 from disk on every subsequent run.
 """
+import logging
+
 import numpy as np
 import torch
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
 from floor_tiling.paths import model_dir
+
+logger = logging.getLogger(__name__)
 
 
 class DepthManager:
@@ -51,30 +55,30 @@ class DepthManager:
 
             if not config_file.exists() or not has_weights or model_mismatch:
                 if model_mismatch and has_weights:
-                    print(f"Depth model changed from {cached_id} -> {self._model_id}, re-downloading...")
+                    logger.info("Depth Anything V2 model changed (%s -> %s); re-downloading", cached_id, self._model_id)
                     for f in self.local_path.glob("*"):
                         if f.is_file():
                             f.unlink()
                 else:
-                    print(f"Depth model not found in {self.local_path}, downloading from Hugging Face...")
+                    logger.info("Depth Anything V2 weights not found in %s; downloading from Hugging Face", self.local_path)
 
                 self._processor = AutoImageProcessor.from_pretrained(self._model_id, use_fast=True)
                 self._model = AutoModelForDepthEstimation.from_pretrained(self._model_id)
                 self._processor.save_pretrained(self.local_path)
                 self._model.save_pretrained(self.local_path)
                 marker_file.write_text(self._model_id)
-                print(f"Depth model downloaded and saved to {self.local_path}")
+                logger.info("Depth Anything V2 downloaded and cached to %s", self.local_path)
             else:
-                print(f"Loading depth model ({self._model_id}) from local storage")
+                logger.info("Loading Depth Anything V2 (%s) from %s", self._model_id, self.local_path)
                 self._processor = AutoImageProcessor.from_pretrained(str(self.local_path), use_fast=True)
                 self._model = AutoModelForDepthEstimation.from_pretrained(
                     str(self.local_path), use_safetensors=True
                 )
-                print("Depth model loaded successfully (from local weights)")
 
             self._model.eval()
+            logger.info("Depth Anything V2 ready (local weights)")
         except Exception as e:
-            print(f"Error loading depth model: {e}")
+            logger.error("Failed to load Depth Anything V2: %s", e)
             raise
 
     def predict(self, image_np: np.ndarray) -> np.ndarray:

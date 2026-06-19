@@ -1,10 +1,15 @@
 """Mask2Former Model management for automatic floor/wall detection"""
+import logging
+
 import torch
 import numpy as np
 from PIL import Image
 from transformers import Mask2FormerForUniversalSegmentation, AutoImageProcessor
 
 from floor_tiling.paths import model_dir
+
+logger = logging.getLogger(__name__)
+
 
 class Mask2FormerManager:
     """Manages Mask2Former model lifecycle and inference."""
@@ -46,14 +51,14 @@ class Mask2FormerManager:
             
             if not config_file.exists() or not has_weights or model_mismatch:
                 if model_mismatch and has_weights:
-                    print(f"🔄 Model changed from {cached_id} → {self._model_id}, re-downloading...")
+                    logger.info("Mask2Former model changed (%s -> %s); re-downloading", cached_id, self._model_id)
                     # Clean old model files
                     for f in self.local_path.glob("*"):
                         if f.is_file():
                             f.unlink()
                 else:
-                    print(f"⏬ Mask2Former not found in {self.local_path}, downloading from Hugging Face...")
-                
+                    logger.info("Mask2Former weights not found in %s; downloading from Hugging Face", self.local_path)
+
                 self._processor = AutoImageProcessor.from_pretrained(self._model_id, use_fast=True)
                 self._model = Mask2FormerForUniversalSegmentation.from_pretrained(self._model_id)
                 # Save locally for future use
@@ -61,20 +66,20 @@ class Mask2FormerManager:
                 self._model.save_pretrained(self.local_path)
                 # Write marker so we detect model changes in future
                 marker_file.write_text(self._model_id)
-                print(f"✅ Model downloaded and saved to {self.local_path}")
+                logger.info("Mask2Former downloaded and cached to %s", self.local_path)
             else:
-                print(f"🟡 Loading Mask2Former ({self._model_id}) from local storage")
+                logger.info("Loading Mask2Former (%s) from %s", self._model_id, self.local_path)
                 self._processor = AutoImageProcessor.from_pretrained(str(self.local_path), use_fast=True)
                 # use_safetensors=True will prioritize .safetensors files if available
                 self._model = Mask2FormerForUniversalSegmentation.from_pretrained(
-                    str(self.local_path), 
+                    str(self.local_path),
                     use_safetensors=True
                 )
-                print("✅ Model loaded successfully (from local weights)")
-            
+
             self._model.eval()
+            logger.info("Mask2Former ready (local weights)")
         except Exception as e:
-            print(f"❌ Error loading Mask2Former: {e}")
+            logger.error("Failed to load Mask2Former: %s", e)
             raise
 
     def predict(self, image_np: np.ndarray):

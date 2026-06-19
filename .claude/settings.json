@@ -79,7 +79,11 @@
       "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c ' *)",
       "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src)",
       "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m pytest tests/ -q)",
-      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import tests.test_smoke as t; t.test_app_factory_builds_routes\\(\\); t.test_public_api_imports\\(\\); t.test_model_paths_resolve\\(\\); print\\('SMOKE TESTS PASS'\\)\")"
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import tests.test_smoke as t; t.test_app_factory_builds_routes\\(\\); t.test_public_api_imports\\(\\); t.test_model_paths_resolve\\(\\); print\\('SMOKE TESTS PASS'\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app; print\\('import OK'\\)\")",
+      "Bash(python -c \"import tomllib; d=tomllib.load\\(open\\('pyproject.toml','rb'\\)\\); print\\('deps:', d['project']['dependencies']\\); print\\('name:', d['project']['name']\\)\")",
+      "Bash(rm -f _algo_vanishing.jpg _algo_depth.jpg)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app as a; print\\('app OK; /api/apply-tiles' , any\\(r.path=='/api/apply-tiles' for r in a.app.routes\\)\\)\")"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"

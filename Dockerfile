@@ -4,13 +4,13 @@
 #                  + shi-labs/oneformer_ade20k_swin_large   (ensembled)
 #   • Depth        : depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf
 #
-# MODEL_SOURCE=download (default) → fetch weights from Hugging Face at build.
-# MODEL_SOURCE=local             → use weights bundled in the build context
-#                                   (kept via .dockerignore negations).
-# MODEL_SOURCE=volume            → ship NO weights; mount a writable volume at
-#                                   /models and let the app download once into
-#                                   it (set MASK2FORMER_DIR/DEPTH_DIR — see
-#                                   docker-compose.yml). Leanest image.
+# MODEL_SOURCE=local    → CUSTOMER build: bake weights from the build context so
+#                          the image is fully offline (docker-compose.yml).
+# MODEL_SOURCE=download  → fetch weights from Hugging Face at build time (CI).
+# MODEL_SOURCE=volume    → DEV: ship NO weights; mount a writable volume at
+#                          /models and let the app download once into it (set
+#                          MASK2FORMER_DIR/ONEFORMER_DIR/DEPTH_DIR — see
+#                          docker-compose.dev.yml). Leanest image.
 
 ARG MODEL_SOURCE=download
 
@@ -57,10 +57,10 @@ RUN case "$MODEL_SOURCE" in \
 
 # ==========================================================================
 # Stage 2: Cython Builder
-#   Compiles proprietary Python modules (config, core, depth, mask2former,
-#   patterns, processors, utils) to native .so extensions, then strips the .py
-#   source.  Only compiled binaries (+ the app/__main__ entry points) reach runtime,
-#   making source recovery very difficult.
+#   Compiles the proprietary floor_tiling subpackages (config, core, ml,
+#   patterns, processors, licensing) to native .so extensions, then strips the
+#   .py source.  Only compiled binaries (+ the app/__main__/api entry points)
+#   reach runtime, making source recovery very difficult.
 #
 #   Cython only transpiles/compiles C — it does NOT import the modules' runtime
 #   dependencies — so this stage needs nothing more than a C toolchain + Cython.
@@ -94,10 +94,15 @@ RUN python setup_cython.py build_ext --inplace
 
 # Strip .py / .c sources from the compiled subpackages (keep app.py / __main__.py
 # and the api routing layer as plain Python; leave third-party untouched).
+# ``shared`` is compiled too (setup_cython detects its Docker location), so strip
+# its sources as well — all its .py modules have a matching .so.
 RUN cd src/floor_tiling \
     && find config core ml patterns processors licensing -name "*.py" -delete \
     && find config core ml patterns processors licensing -name "*.c" -delete \
     && cd /app \
+    && find shared -name "*.py" -delete \
+    && find shared -name "*.c" -delete \
+    && rm -rf build src/build \
     && find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # Remove the build script — no reason to ship it.
@@ -134,9 +139,6 @@ RUN mkdir -p /models/mask2former /models/oneformer /models/depth && chown -R app
 
 WORKDIR /app
 
-# Shared package from the build context root.
-COPY shared ./shared
-
 # --------------------------------------------------------------------------
 # 3. Python dependencies
 #    requirements.txt carries the PyTorch CPU extra-index and pins torch/
@@ -154,9 +156,10 @@ COPY --chown=appuser:appuser --from=builder /app .
 # --------------------------------------------------------------------------
 # 5. Runtime environment
 # --------------------------------------------------------------------------
+# PYTHONPATH: /app/src → the floor_tiling package; /app → the sibling `shared` package.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app/src
+    PYTHONPATH=/app/src:/app
 
 USER appuser
 

@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Never offer to translate this page (suppresses Chrome's translate popup,
+         independent of browser flags/version). -->
+    <meta name="google" content="notranslate" />
     <title></title>
     <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
     <link rel="shortcut icon" href="/static/logo.svg" />
@@ -253,6 +256,16 @@
 
             <!-- ══ Tab: Floor tiling ═════════════════════════════════ -->
             <div class="tab-panel active" id="tabTilePanel" role="tabpanel">
+
+            <!-- Perspective algorithm -->
+            <div class="panel-section">
+                <div class="section-label">Algorithme de perspective</div>
+                <div class="tile-source-toggle" id="tileAlgoToggle">
+                    <button type="button" class="tile-source-btn active" data-algo="vanishing">Lignes de fuite</button>
+                    <button type="button" class="tile-source-btn" data-algo="depth">Profondeur (IA)</button>
+                </div>
+                <input type="hidden" id="tileAlgorithm" value="vanishing" />
+            </div>
 
             <!-- Pattern selector -->
             <div class="panel-section">

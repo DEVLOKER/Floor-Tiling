@@ -429,6 +429,7 @@ export async function applyTilesToFloor() {
       (val("perspectiveCompression") || 0) / 100.0,
     );
     fd.append("pattern", val("tilePattern"));
+    fd.append("algorithm", val("tileAlgorithm") || "vanishing");
     if (state.tileMode === "texture" && state.tileTextureDataUrl) {
       fd.append(
         "tile_texture",

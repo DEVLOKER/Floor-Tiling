@@ -1,14 +1,18 @@
-# ── Floor Tiling Visualizer — volume deployment ──────────────────────────
-# Builds a lean image with NO model weights baked in. On first start the app
-# downloads the segmentation + depth models into a writable named volume
-# (`model-cache`); subsequent starts reuse them with no network.
+# ── Floor Tiling Visualizer — CUSTOMER deployment (offline, weights baked) ──
+# This is the production/customer path: the image is built with MODEL_SOURCE=local
+# so all three models are baked in and the container runs FULLY OFFLINE — no
+# volume, no network, ever.
 #
-#   docker compose up --build        # first run needs internet (downloads ~2.1 GB)
-#   docker compose up                # later runs are offline (cache hit)
+#   docker compose build      # needs the weights present in client/models/<name>/
+#   docker compose up         # runs offline
 #
-# To pre-seed the cache offline instead, copy the three model folders into the
-# `model-cache` volume before first start (config + weights under
-# /models/mask2former, /models/oneformer and /models/depth).
+# Build the weights into the context first (run the app once, or copy in the
+# model.safetensors files under client/models/{mask2former,oneformer,depth}/).
+# Deliver the result with `docker save floortiling:latest | gzip > app.tar.gz`.
+#
+# For local/internal development that downloads weights once into a cache volume
+# instead of baking them, use the dev override:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 services:
   floortiling:
@@ -16,20 +20,12 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        MODEL_SOURCE: volume
+        MODEL_SOURCE: local
     image: floortiling:latest
     ports:
       - "8000:8000"
-    environment:
-      # Point the model managers at the mounted cache volume.
-      # (These are the only env vars the app actually reads — host/port/workers
-      # are hardcoded in the Dockerfile CMD, so there's nothing else to set.)
-      MASK2FORMER_DIR: /models/mask2former
-      ONEFORMER_DIR: /models/oneformer
-      DEPTH_DIR: /models/depth
-    volumes:
-      - model-cache:/models
+    # The license file is read from a mounted path at runtime. Point this at the
+    # customer's USB / license directory (read-only).
+    # volumes:
+    #   - "D:/license:/license:ro"
     restart: unless-stopped
-
-volumes:
-  model-cache:

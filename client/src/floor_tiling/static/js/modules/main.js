@@ -12,6 +12,7 @@ import {
   setTileMode,
   setPaintMode,
   setPaintFinish,
+  setTileAlgorithm,
   updateTogglePreviewVisibility,
   drawAutoLabels,
 } from "./ui.js";
@@ -158,6 +159,18 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   // Sync the badges to the restored value after preferences load
   setPaintFinish(document.getElementById("wallPaintFinish")?.value || "matte");
+
+  // Tiling perspective algorithm segmented badges (Lignes de fuite / Profondeur)
+  document
+    .querySelectorAll("#tileAlgoToggle .tile-source-btn")
+    .forEach((btn) =>
+      btn.addEventListener("click", () => {
+        setTileAlgorithm(btn.dataset.algo);
+        saveTilePreferences();
+        liveApply();
+      }),
+    );
+  setTileAlgorithm(document.getElementById("tileAlgorithm")?.value || "vanishing");
   // Canvas click for floor selection
   // Clear/apply floor selection
   // Activity tabs → switch selection mode + footer CTA

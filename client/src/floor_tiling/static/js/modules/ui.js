@@ -596,6 +596,19 @@ export function setPaintMode(mode) {
 }
 
 // ── Paint finish segmented control (Mat / Satiné / Brillant) ──
+export function setTileAlgorithm(value) {
+  const valid = ["vanishing", "depth"];
+  if (!valid.includes(value)) value = "vanishing";
+  const hidden = document.getElementById("tileAlgorithm");
+  if (hidden && hidden.value !== value) {
+    hidden.value = value;
+    hidden.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  document
+    .querySelectorAll("#tileAlgoToggle .tile-source-btn")
+    .forEach((b) => b.classList.toggle("active", b.dataset.algo === value));
+}
+
 export function setPaintFinish(value) {
   const valid = ["matte", "satin", "gloss"];
   if (!valid.includes(value)) value = "matte";

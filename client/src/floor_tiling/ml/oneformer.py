@@ -7,11 +7,15 @@ detection unions their wall/floor/ceiling masks for the best coverage.
 Same offline-first lifecycle as the other models: weights download once into the
 local ``models/`` dir (or an env-pointed volume), then load from disk.
 """
+import logging
+
 import numpy as np
 import torch
 from transformers import OneFormerProcessor, OneFormerForUniversalSegmentation
 
 from floor_tiling.paths import model_dir
+
+logger = logging.getLogger(__name__)
 
 
 class OneFormerManager:
@@ -45,29 +49,29 @@ class OneFormerManager:
 
             if not config_file.exists() or not has_weights or mismatch:
                 if mismatch and has_weights:
-                    print(f"OneFormer changed from {cached_id} -> {self._model_id}, re-downloading...")
+                    logger.info("OneFormer model changed (%s -> %s); re-downloading", cached_id, self._model_id)
                     for f in self.local_path.glob("*"):
                         if f.is_file():
                             f.unlink()
                 else:
-                    print(f"OneFormer not found in {self.local_path}, downloading from Hugging Face...")
+                    logger.info("OneFormer weights not found in %s; downloading from Hugging Face", self.local_path)
                 self._processor = OneFormerProcessor.from_pretrained(self._model_id)
                 self._model = OneFormerForUniversalSegmentation.from_pretrained(self._model_id)
                 self._processor.save_pretrained(self.local_path)
                 self._model.save_pretrained(self.local_path)
                 marker_file.write_text(self._model_id)
-                print(f"OneFormer downloaded and saved to {self.local_path}")
+                logger.info("OneFormer downloaded and cached to %s", self.local_path)
             else:
-                print(f"Loading OneFormer ({self._model_id}) from local storage")
+                logger.info("Loading OneFormer (%s) from %s", self._model_id, self.local_path)
                 self._processor = OneFormerProcessor.from_pretrained(str(self.local_path))
                 self._model = OneFormerForUniversalSegmentation.from_pretrained(
                     str(self.local_path), use_safetensors=True
                 )
-                print("OneFormer loaded successfully (from local weights)")
 
             self._model.eval()
+            logger.info("OneFormer ready (local weights)")
         except Exception as e:
-            print(f"Error loading OneFormer: {e}")
+            logger.error("Failed to load OneFormer: %s", e)
             raise
 
     def predict(self, image_np: np.ndarray):

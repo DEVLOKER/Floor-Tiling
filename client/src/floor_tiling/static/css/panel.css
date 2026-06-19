@@ -751,6 +751,9 @@ input[type="range"]::-moz-range-progress {
 /* ── Tab panels ─────────────────────────────────────────────── */
 .tab-panel {
   display: none;
+  /* Breathing room so content doesn't sit flush against the tabs/footer
+     edges (especially noticeable while scrolling the first tab). */
+  padding: 12px 10px 18px;
 }
 .tab-panel.active {
   display: block;

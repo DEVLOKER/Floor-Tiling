@@ -204,4 +204,66 @@ def split_wall_planes(
     return out, len(ids)
 
 
-__all__ = ["depth_to_normals", "split_wall_planes"]
+def floor_plane_uv(mask, depth, tile_w_m, tile_h_m):
+    """Per-pixel tile coordinates (u, v) for the floor — depth plane + homography.
+
+    Depth gives a ROBUST floor plane (fit to thousands of points, no fragile
+    vanishing-point/line detection). From that plane + the camera intrinsics we
+    build the exact plane->image **homography** and invert it, so the tile grid is
+    a true projective map -> grout lines are mathematically straight, with
+    perspective from the real plane and tile size in real metres (depth is metric).
+
+    The in-plane axes are oriented so one runs "into the room" (camera forward
+    projected onto the floor), which tends to align the grid with the walls.
+
+    Returns (u_all, v_all) float64 [H, W] in tile units, or ``None`` if the plane
+    can't be fit.
+    """
+    h, w = depth.shape
+    focal = float(max(h, w))
+    cx, cy = w / 2.0, h / 2.0
+
+    ys, xs = np.mgrid[0:h, 0:w]
+    Z = depth.astype(np.float64)
+    m = mask > 0
+    if int(m.sum()) < 100:
+        return None
+    zf = Z[m]
+    xf = (xs[m] - cx) / focal * zf
+    yf = (ys[m] - cy) / focal * zf
+    fp = np.stack([xf, yf, zf], axis=1)
+    c = fp.mean(axis=0)
+    try:
+        _, _, vt = np.linalg.svd(fp - c, full_matrices=False)
+    except np.linalg.LinAlgError:
+        return None
+    normal = vt[2]
+
+    # In-plane axes: one ~ "into the room" (camera forward projected on the floor).
+    fwd = np.array([0.0, 0.0, 1.0])
+    v_axis = fwd - (fwd @ normal) * normal
+    nv = np.linalg.norm(v_axis)
+    v_axis = vt[0] if nv < 1e-6 else v_axis / nv
+    u_axis = np.cross(normal, v_axis)
+    u_axis = u_axis / (np.linalg.norm(u_axis) + 1e-8)
+
+    # Plane->image homography from intrinsics: pixel ~ K * (c + s*u + t*v).
+    K = np.array([[focal, 0.0, cx], [0.0, focal, cy], [0.0, 0.0, 1.0]])
+    H_fwd = np.column_stack([K @ u_axis, K @ v_axis, K @ c])
+    try:
+        H_inv = np.linalg.inv(H_fwd)
+    except np.linalg.LinAlgError:
+        return None
+
+    img = np.stack(
+        [xs.ravel().astype(np.float64), ys.ravel().astype(np.float64), np.ones(h * w)],
+        axis=1,
+    )
+    st = img @ H_inv.T
+    wdiv = np.where(np.abs(st[:, 2]) < 1e-9, 1e-9, st[:, 2])
+    s = (st[:, 0] / wdiv).reshape(h, w)
+    t = (st[:, 1] / wdiv).reshape(h, w)
+    return s / max(tile_w_m, 1e-4), t / max(tile_h_m, 1e-4)
+
+
+__all__ = ["depth_to_normals", "split_wall_planes", "floor_plane_uv"]

@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 from floor_tiling.config.settings import DEFAULT_REAL_WIDTH_CM
 from floor_tiling.core import hex_to_bgr, extract_floor_quad, estimate_floor_geometry
+from floor_tiling.core.planes import floor_plane_uv
 from floor_tiling.patterns import get_pattern
 
 
@@ -362,7 +363,7 @@ def _sample_texture_aa(
 
 # The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern,
 # applies shadow/tint from the original floor, and blends the result seamlessly back onto the original image.
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None) -> np.ndarray:
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None, algorithm: str="vanishing", depth: np.ndarray=None) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
     # Lighting/geometry are sampled from ``light`` (the pristine original) while
     # the tiles are composited onto ``image`` (the accumulated result).  Keeping
@@ -375,46 +376,69 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     tile2_bgr = np.array(hex_to_bgr(tile_color2), dtype=np.float32)
     grout_bgr = np.array(hex_to_bgr(grout_color), dtype=np.float32)
     h_img, w_img = image.shape[:2]
-    quad = extract_floor_quad(mask, image=light)
-    if quad is None:
-        return image
-    near_left, near_right, far_left, far_right = quad
-    
-    if np.linalg.norm(near_right - near_left) <= 0:
-        return image
-    vp_y, real_depth_cm, depth_ratio = estimate_floor_geometry(near_left, near_right, far_left, far_right, DEFAULT_REAL_WIDTH_CM)
-    
-    # ── Perspective compression: increase perceived tile size ────────────────
-    # Instead of geometric manipulation, we directly reduce the tile count by
-    # scaling up the "virtual tile size" used for depth calculation.
-    # This makes ALL tiles larger but preserves perspective geometry.
-    effective_tile_height = tile_height_cm
-    if perspective_compression > 0.001:
-        # Scale up the tile size: 0% = no change, 100% = 2.5x larger tiles
-        # 65% compression → 1.85x larger tiles
-        scale_factor = 1.0 + perspective_compression * 1.5
-        effective_tile_height = tile_height_cm * scale_factor
-    
-    n_tiles_x = max(2, int(round(DEFAULT_REAL_WIDTH_CM / tile_width_cm)))
-    n_tiles_y = max(2, int(round(real_depth_cm / effective_tile_height)))
-    plane_w = float(n_tiles_x)
-    plane_h = float(n_tiles_y)
-    plane_pts = np.array([[0, 0], [plane_w, 0], [plane_w, plane_h], [0, plane_h]], dtype=np.float32)
-    image_pts = np.array([far_left, far_right, near_right, near_left], dtype=np.float32)
-    H_fwd, _ = cv2.findHomography(plane_pts, image_pts)
-    if H_fwd is None:
-        return image
-    H_inv = np.linalg.inv(H_fwd)
-    ys_all, xs_all = np.mgrid[0:h_img, 0:w_img]
-    img_coords = np.stack([xs_all.ravel().astype(np.float64), ys_all.ravel().astype(np.float64), np.ones(h_img * w_img)], axis=1)
-    pc = img_coords @ H_inv.T
-    wdiv = np.where(np.abs(pc[:, 2]) < 1e-09, 1e-09, pc[:, 2])
-    u_all = (pc[:, 0] / wdiv).reshape(h_img, w_img)
-    v_all = (pc[:, 1] / wdiv).reshape(h_img, w_img)
-    
+
+    # ── Floor geometry → per-pixel tile coords (u_all, v_all) ────────────────
+    # Two algorithms (user-selectable):
+    #   "depth"     → robust 3D floor plane from the depth map + analytic
+    #                 homography (same family the painter uses). Straight grout,
+    #                 metric tile sizing. Needs a depth map.
+    #   "vanishing" → custom vanishing-point / floor-quad homography (default,
+    #                 no depth model required).
+    u_all = v_all = None
+    rot_cx = rot_cy = 0.0
+    if algorithm == "depth" and depth is not None and depth.shape[:2] == (h_img, w_img):
+        # Perspective-compression slider → uniformly larger tiles.
+        scale_factor = 1.0 + max(0.0, perspective_compression) * 1.5
+        uv = floor_plane_uv(
+            mask, depth,
+            (tile_width_cm / 100.0) * scale_factor,
+            (tile_height_cm / 100.0) * scale_factor,
+        )
+        if uv is not None:
+            u_all, v_all = uv
+            # Depth UV is centred on the floor centroid (u=v=0) → rotate about 0.
+            rot_cx = rot_cy = 0.0
+
+    if u_all is None:
+        # ── Vanishing-point homography (default / depth fallback) ────────────
+        quad = extract_floor_quad(mask, image=light)
+        if quad is None:
+            return image
+        near_left, near_right, far_left, far_right = quad
+
+        if np.linalg.norm(near_right - near_left) <= 0:
+            return image
+        vp_y, real_depth_cm, depth_ratio = estimate_floor_geometry(near_left, near_right, far_left, far_right, DEFAULT_REAL_WIDTH_CM)
+
+        # ── Perspective compression: increase perceived tile size ────────────
+        # Instead of geometric manipulation, we directly reduce the tile count by
+        # scaling up the "virtual tile size" used for depth calculation.
+        effective_tile_height = tile_height_cm
+        if perspective_compression > 0.001:
+            scale_factor = 1.0 + perspective_compression * 1.5
+            effective_tile_height = tile_height_cm * scale_factor
+
+        n_tiles_x = max(2, int(round(DEFAULT_REAL_WIDTH_CM / tile_width_cm)))
+        n_tiles_y = max(2, int(round(real_depth_cm / effective_tile_height)))
+        plane_w = float(n_tiles_x)
+        plane_h = float(n_tiles_y)
+        plane_pts = np.array([[0, 0], [plane_w, 0], [plane_w, plane_h], [0, plane_h]], dtype=np.float32)
+        image_pts = np.array([far_left, far_right, near_right, near_left], dtype=np.float32)
+        H_fwd, _ = cv2.findHomography(plane_pts, image_pts)
+        if H_fwd is None:
+            return image
+        H_inv = np.linalg.inv(H_fwd)
+        ys_all, xs_all = np.mgrid[0:h_img, 0:w_img]
+        img_coords = np.stack([xs_all.ravel().astype(np.float64), ys_all.ravel().astype(np.float64), np.ones(h_img * w_img)], axis=1)
+        pc = img_coords @ H_inv.T
+        wdiv = np.where(np.abs(pc[:, 2]) < 1e-09, 1e-09, pc[:, 2])
+        u_all = (pc[:, 0] / wdiv).reshape(h_img, w_img)
+        v_all = (pc[:, 1] / wdiv).reshape(h_img, w_img)
+        rot_cx, rot_cy = float(n_tiles_x) / 2.0, float(n_tiles_y) / 2.0
+
     if abs(rotation_deg) > 0.001:
         theta = np.radians(rotation_deg)
-        cx, cy = float(n_tiles_x) / 2.0, float(n_tiles_y) / 2.0
+        cx, cy = rot_cx, rot_cy
         u_shifted = u_all - cx
         v_shifted = v_all - cy
         u_rot = u_shifted * np.cos(theta) - v_shifted * np.sin(theta) + cx

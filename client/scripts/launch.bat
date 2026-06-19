@@ -39,7 +39,7 @@ if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set CHROME_PATH=%
 if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set CHROME_PATH=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe
 if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set CHROME_PATH=%LocalAppData%\Google\Chrome\Application\chrome.exe
 
-set CHROME_ARGS=--kiosk %APP_URL% --incognito --disable-extensions --no-first-run --remote-debugging-port=0
+set CHROME_ARGS=--kiosk %APP_URL% --incognito --disable-extensions --no-first-run --remote-debugging-port=0 --disable-features=Translate,TranslateUI --disable-translate
 if defined CHROME_PATH (
     start "" "%CHROME_PATH%" %CHROME_ARGS%
 ) else (

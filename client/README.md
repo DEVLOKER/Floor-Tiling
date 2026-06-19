@@ -33,11 +33,17 @@ Imports are namespaced, e.g. `from floor_tiling.core.planes import floor_plane_u
 
 ## Develop
 
+`requirements.txt` is the single source of truth for runtime dependencies (it
+also carries the PyTorch CPU `--extra-index-url`). `pyproject.toml` packages the
+code only — it declares no deps — so install in this order:
+
 ```powershell
-scripts\install_deps.ps1          # venv + pip (use -Gpu for CUDA torch)
-pip install -e .                  # editable install (or set PYTHONPATH=src)
+scripts\install_deps.ps1          # venv + pip install -r requirements.txt (-Gpu for CUDA)
+pip install -e . --no-deps        # the floor_tiling package only
 python -m floor_tiling            # http://localhost:8000  (hot-reload)
 ```
+
+(Or skip the editable install and just `$env:PYTHONPATH = "src"; python -m floor_tiling`.)
 
 ## Models & weights
 
@@ -50,9 +56,20 @@ Each wrapper in `ml/` is an offline-first singleton: weights download once into
 
 ```powershell
 scripts\build_exe.ps1             # Windows EXE  → dist/floor-tiling/
-scripts\build_docker.ps1          # Docker image (download | local | volume)
+```
+
+**Docker — customer (offline, weights baked):**
+```bash
+docker compose build              # needs weights in client/models/<name>/
+docker compose up                 # runs fully offline
+docker save floortiling:latest | gzip > app.tar.gz   # deliver
+```
+
+**Docker — dev (downloads weights once into a cache volume):**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 Docker / EXE compile the proprietary subpackages (`config, core, ml, patterns,
-processors, licensing`) to native extensions; `app.py`, `__main__.py` and the
-`api` routing layer stay as plain Python.
+processors, licensing`) **and the `shared` package** to native extensions;
+`app.py`, `__main__.py` and the `api` routing layer stay as plain Python.

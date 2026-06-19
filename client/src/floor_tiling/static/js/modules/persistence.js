@@ -26,6 +26,7 @@ const ELEMENT_KEYS = [
   "wallPaintLight",
   "wallPaintSat",
   "tilePattern",
+  "tileAlgorithm",
   "gridRotation",
   "perspectiveCompression",
   "tileWidth",

@@ -21,7 +21,14 @@ from Cython.Build import cythonize
 
 HERE = Path(__file__).resolve().parent          # client/
 SRC = HERE / "src"                              # client/src/
-REPO_ROOT = HERE.parent                         # repo root (holds shared/)
+
+# The ``shared`` package sits next to ``client`` in the dev/EXE tree
+# (../shared) but is flattened into the app dir in Docker (./shared). Compile it
+# from wherever it actually lives so it's obfuscated in BOTH builds.
+SHARED_PARENT = next(
+    (p for p in (HERE.parent, HERE) if (p / "shared").is_dir()),
+    HERE.parent,
+)
 
 # Proprietary floor_tiling subpackages to compile (relative to src/).
 FLOOR_TILING_PKGS = [
@@ -35,6 +42,7 @@ FLOOR_TILING_PKGS = [
 
 # Shared modules (relative to the repo root) used by the licensing layer.
 SHARED_MODULES = [
+    "shared/__init__.py",
     "shared/utils/fingerprint.py",
     "shared/utils/keygen.py",
     "shared/utils/ssl_cert.py",
@@ -57,6 +65,16 @@ def _compile(cwd: Path, sources: list[str]) -> None:
         print(f"  {s}")
     prev = Path.cwd()
     os.chdir(cwd)
+    # Hide any project config in the cwd: setuptools would otherwise read its
+    # package-dir/packages settings and redirect the --inplace output (e.g. the
+    # repo's pyproject.toml has package-dir={""="src"}, which misplaces shared/).
+    hidden = []
+    for cfg in ("pyproject.toml", "setup.cfg"):
+        p = Path(cfg)
+        if p.exists():
+            bak = Path(cfg + ".cythonbak")
+            p.rename(bak)
+            hidden.append((p, bak))
     try:
         setup(
             name="floor_tiling_native",
@@ -64,6 +82,8 @@ def _compile(cwd: Path, sources: list[str]) -> None:
             ext_modules=cythonize(sources, compiler_directives=DIRECTIVES, nthreads=4, quiet=False),
         )
     finally:
+        for p, bak in hidden:
+            bak.rename(p)
         os.chdir(prev)
 
 
@@ -77,5 +97,6 @@ if __name__ == "__main__":
         ]
     _compile(SRC, ft_sources)
 
-    # Pass 2 — shared package (module names like shared.utils.fingerprint).
-    _compile(REPO_ROOT, SHARED_MODULES)
+    # Pass 2 — shared package (module names like shared.utils.fingerprint),
+    # compiled from whichever parent dir actually contains it.
+    _compile(SHARED_PARENT, SHARED_MODULES)

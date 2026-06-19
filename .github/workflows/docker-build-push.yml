@@ -4,11 +4,32 @@ on:
   pull_request:
     branches:
       - prod
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image version tag (leave empty to use the commit SHA)"
+        required: false
+        type: string
 
 jobs:
   build-and-push:
-    name: Build and Push to DockerHub
+    name: Build & Push (${{ matrix.variant }})
     runs-on: ubuntu-latest
+    # Use the supplied version, else fall back to the commit SHA.
+    env:
+      VERSION: ${{ inputs.version || github.sha }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Full / offline image — weights baked in (downloaded from HF at build).
+          - variant: full
+            model_source: download
+            suffix: ""
+          # Slim / app-only image — no weights; models mounted as a /models volume.
+          - variant: slim
+            model_source: volume
+            suffix: "-slim"
 
     steps:
       - name: Checkout repository
@@ -28,7 +49,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (${{ matrix.variant }})
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -36,9 +57,9 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           build-args: |
-            MODEL_SOURCE=download
+            MODEL_SOURCE=${{ matrix.model_source }}
           tags: |
-            berghout/ceramic:1.0.0
-          # berghout/ceramic:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            berghout/ceramic:${{ env.VERSION }}${{ matrix.suffix }}
+          # Per-variant cache scope so the full/slim builds don't clobber each other.
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}

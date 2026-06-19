@@ -1,11 +1,12 @@
 """Tile application route — /api/apply-tiles."""
 
+import asyncio
 import json
 import logging
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from typing import Optional
 
@@ -36,6 +37,7 @@ router = APIRouter(prefix="/api", tags=["tiles"])
 
 @router.post("/apply-tiles")
 async def apply_tiles(
+    request: Request,
     image: UploadFile = File(...),
     mask: UploadFile = File(...),
     tile_width: float = Form(DEFAULT_TILE_WIDTH),
@@ -50,6 +52,7 @@ async def apply_tiles(
     rotation: float = Form(DEFAULT_ROTATION),
     pattern: str = Form(DEFAULT_PATTERN),
     perspective_compression: float = Form(DEFAULT_PERSPECTIVE_COMPRESSION),
+    algorithm: str = Form("vanishing"),
     tile_texture: Optional[UploadFile] = File(None),
     tile_texture2: Optional[UploadFile] = File(None),
     source: Optional[UploadFile] = File(None),
@@ -100,6 +103,9 @@ async def apply_tiles(
         if pattern not in PATTERN_FUNCTIONS:
             pattern = "grid"
 
+        if algorithm not in ("vanishing", "depth"):
+            algorithm = "vanishing"
+
         # ── Decode optional textures ───────────────────────────────────────
         texture_arr = None
         if tile_texture is not None:
@@ -117,6 +123,21 @@ async def apply_tiles(
         if source is not None:
             src_bytes = await source.read()
             lighting_source = cv2.imdecode(np.frombuffer(src_bytes, np.uint8), cv2.IMREAD_COLOR)
+
+        # ── Depth (only for the depth algorithm) ───────────────────────────
+        # Sampled on the pristine original so tile geometry matches the real floor.
+        depth_map = None
+        if algorithm == "depth":
+            depth_predictor = getattr(request.app.state, "depth_predictor", None)
+            if depth_predictor is not None:
+                try:
+                    src_for_depth = lighting_source if lighting_source is not None else img
+                    rgb = cv2.cvtColor(src_for_depth, cv2.COLOR_BGR2RGB)
+                    depth_map = await asyncio.to_thread(depth_predictor.predict, rgb)
+                except Exception as exc:
+                    logger.warning("Depth for tiling failed, falling back to vanishing: %s", exc)
+            else:
+                logger.warning("Depth model unavailable; falling back to vanishing.")
 
         # ── Render tiles ───────────────────────────────────────────────────
         result = apply_perspective_tiles(
@@ -137,6 +158,8 @@ async def apply_tiles(
             translate_y=translate_y,
             perspective_compression=perspective_compression,
             lighting_source=lighting_source,
+            algorithm=algorithm,
+            depth=depth_map,
         )
 
         # ── Encode and return ──────────────────────────────────────────────
