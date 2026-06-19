@@ -46,7 +46,7 @@ try {
     $ImageName = "floor-tiling"
 
     if ($ModelSource -eq "local") {
-        Write-Warning "Local model mode -- make sure the weights exist at client/mask2former/models/model.safetensors and client/depth/models/model.safetensors (kept by .dockerignore negations)."
+        Write-Warning "Local model mode -- make sure the weights exist at client/models/mask2former/model.safetensors and client/models/depth/model.safetensors (kept by .dockerignore negations)."
     }
     if ($ModelSource -eq "volume") {
         Write-Host "Volume mode -- image ships without weights; provide them via a /models volume at runtime (see docker-compose.yml)." -ForegroundColor Yellow

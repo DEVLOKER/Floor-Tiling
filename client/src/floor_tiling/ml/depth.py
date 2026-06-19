@@ -7,12 +7,11 @@ Follows the same offline-first lifecycle as the segmenter: the weights are
 downloaded once into this package's local ``models/`` directory and then loaded
 from disk on every subsequent run.
 """
-import os
-
 import numpy as np
 import torch
-from pathlib import Path
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
+
+from floor_tiling.paths import model_dir
 
 
 class DepthManager:
@@ -31,10 +30,9 @@ class DepthManager:
         return cls._instance
 
     def __init__(self):
-        # Model directory: env override (e.g. a mounted volume for the
-        # download-once cache) falling back to the in-package ``models`` dir.
-        default_dir = Path(__file__).resolve().parent / "models"
-        self.local_path = Path(os.environ.get("DEPTH_DIR", str(default_dir)))
+        # Weight cache: DEPTH_DIR env override (e.g. a mounted volume) falling
+        # back to the shared models dir (see floor_tiling.paths).
+        self.local_path = model_dir("depth", "DEPTH_DIR")
         if self._model is None:
             self._load_model()
 

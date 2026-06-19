@@ -6,15 +6,16 @@
 $AppPort         = 8000
 $AppUrl          = "http://localhost:$AppPort"
 $ExePath         = Join-Path $PSScriptRoot "floor-tiling.exe"
-$ServerDir       = Join-Path $PSScriptRoot ".."
-$ServerPy        = Join-Path $ServerDir "server.py"
+$ClientDir       = Join-Path $PSScriptRoot ".."
 
 # Save the original location
 $origLocation = Get-Location
-Push-Location (Join-Path $PSScriptRoot "..")
+Push-Location $ClientDir
 try {
     Write-Host "Starting Floor Tiling ..."
-    python server.py
+    # src/ layout: make the floor_tiling package importable, then run it.
+    $env:PYTHONPATH = (Resolve-Path (Join-Path $ClientDir "src")).Path
+    python -m floor_tiling
 } finally {
     Pop-Location
     Set-Location $origLocation

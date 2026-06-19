@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 from typing import Optional, Tuple
 
-from config.settings import DEPTH_MIN_CM, DEPTH_MAX_CM
+from floor_tiling.config.settings import DEPTH_MIN_CM, DEPTH_MAX_CM
 
 
 # ─── Colour helpers ───────────────────────────────────────────────────────────

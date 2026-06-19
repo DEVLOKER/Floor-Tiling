@@ -1,10 +1,3 @@
-import sys
-from pathlib import Path
-# Add repo root to sys.path so `shared` package is importable
-_REPO_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-
 import base64
 import json
 from datetime import date
@@ -14,7 +7,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.exceptions import InvalidSignature
 
-from config import PUBLIC_KEY_PEM
+from floor_tiling.config import PUBLIC_KEY_PEM
+# ``shared`` lives at the repo root; floor_tiling.__init__ puts it on sys.path.
 from shared.config.settings import LICENSE_DIR, LICENSE_FILE
 from shared.utils.storage_devices import list_devices
 from shared.utils.fingerprint import generate_fingerprint

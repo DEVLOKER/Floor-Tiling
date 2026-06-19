@@ -9,7 +9,7 @@ from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse, Response
 from typing import Optional
 
-from config.settings import (
+from floor_tiling.config.settings import (
     DEFAULT_GROUT_THICKNESS,
     DEFAULT_PATTERN,
     DEFAULT_PERSPECTIVE_COMPRESSION,
@@ -26,8 +26,8 @@ from config.settings import (
     TILE_WIDTH_MAX,
     TILE_WIDTH_MIN,
 )
-from patterns import PATTERN_FUNCTIONS
-from processors import apply_perspective_tiles
+from floor_tiling.patterns import PATTERN_FUNCTIONS
+from floor_tiling.processors import apply_perspective_tiles
 
 logger = logging.getLogger(__name__)
 

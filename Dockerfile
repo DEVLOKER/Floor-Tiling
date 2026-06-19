@@ -29,9 +29,9 @@ RUN apk add --no-cache wget
 WORKDIR /models
 
 # Configs (+ local weights when bundled) from the build context.
-COPY client/mask2former/models/ mask2former/
-COPY client/oneformer/models/ oneformer/
-COPY client/depth/models/ depth/
+COPY client/models/mask2former/ mask2former/
+COPY client/models/oneformer/ oneformer/
+COPY client/models/depth/ depth/
 
 RUN case "$MODEL_SOURCE" in \
       download) \
@@ -59,7 +59,7 @@ RUN case "$MODEL_SOURCE" in \
 # Stage 2: Cython Builder
 #   Compiles proprietary Python modules (config, core, depth, mask2former,
 #   patterns, processors, utils) to native .so extensions, then strips the .py
-#   source.  Only compiled binaries (+ server.py entry-point) reach runtime,
+#   source.  Only compiled binaries (+ the app/__main__ entry points) reach runtime,
 #   making source recovery very difficult.
 #
 #   Cython only transpiles/compiles C — it does NOT import the modules' runtime
@@ -83,20 +83,21 @@ RUN pip install --no-cache-dir cython
 # Application source.
 COPY client/. .
 
-# Inject model weights (+ configs) from the downloader stage.
-COPY --from=downloader /models/mask2former/ mask2former/models/
-COPY --from=downloader /models/oneformer/ oneformer/models/
-COPY --from=downloader /models/depth/ depth/models/
+# Inject model weights (+ configs) from the downloader stage into the cache dir
+# that floor_tiling.paths.MODELS_DIR points at (<app>/models/<name>).
+COPY --from=downloader /models/mask2former/ models/mask2former/
+COPY --from=downloader /models/oneformer/ models/oneformer/
+COPY --from=downloader /models/depth/ models/depth/
 
 # Compile proprietary packages to .so.
 RUN python setup_cython.py build_ext --inplace
 
-# Strip .py / .c sources from compiled packages (keep server.py — uvicorn
-# imports it by name — and any third-party packages untouched).
-RUN find config core depth mask2former oneformer patterns processors utils \
-        -name "*.py" -delete \
-    && find config core depth mask2former oneformer patterns processors utils \
-        -name "*.c" -delete \
+# Strip .py / .c sources from the compiled subpackages (keep app.py / __main__.py
+# and the api routing layer as plain Python; leave third-party untouched).
+RUN cd src/floor_tiling \
+    && find config core ml patterns processors licensing -name "*.py" -delete \
+    && find config core ml patterns processors licensing -name "*.c" -delete \
+    && cd /app \
     && find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # Remove the build script — no reason to ship it.
@@ -146,7 +147,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # --------------------------------------------------------------------------
 # 4. Application code (compiled artifacts from builder — no .py sources for
-#    business-logic packages; only server.py is plain Python)
+#    business-logic packages; only app.py / __main__.py / api stay plain Python)
 # --------------------------------------------------------------------------
 COPY --chown=appuser:appuser --from=builder /app .
 
@@ -155,7 +156,7 @@ COPY --chown=appuser:appuser --from=builder /app .
 # --------------------------------------------------------------------------
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app/src
 
 USER appuser
 
@@ -172,7 +173,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=360s --retries=3 \
 # --------------------------------------------------------------------------
 # 7. Entrypoint — uvicorn in production mode (no reload, no debug)
 # --------------------------------------------------------------------------
-CMD ["uvicorn", "server:app", \
+CMD ["uvicorn", "floor_tiling.app:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
      "--workers", "1", \

@@ -4,7 +4,8 @@ from transformers import Mask2FormerForUniversalSegmentation
 
 def convert_to_safetensors():
     """Converts pytorch_model.bin to model.safetensors for Mask2Former."""
-    models_dir = Path(__file__).resolve().parent / "models"
+    # scripts/ → client/ → client/models/mask2former
+    models_dir = Path(__file__).resolve().parent.parent / "models" / "mask2former"
     
     bin_path = models_dir / "pytorch_model.bin"
     safetensors_path = models_dir / "model.safetensors"

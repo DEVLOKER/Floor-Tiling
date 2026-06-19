@@ -9,7 +9,6 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,25 +16,22 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import torch
 
-from api.dependencies import require_license
-from api.routes.detection import router as detection_router
-from api.routes.paint import router as paint_router
-from api.routes.tiles import router as tiles_router
-from config.settings import (
+from floor_tiling.api.dependencies import require_license
+from floor_tiling.api.routes.detection import router as detection_router
+from floor_tiling.api.routes.paint import router as paint_router
+from floor_tiling.api.routes.tiles import router as tiles_router
+from floor_tiling.config.settings import (
     CORS_ORIGINS,
     MAX_UPLOAD_SIZE_BYTES,
     SEG_USE_MASK2FORMER,
     SEG_USE_ONEFORMER,
 )
-from mask2former.mask2former import get_mask2former_predictor
-from oneformer.oneformer import get_oneformer_predictor
-from depth.depth import get_depth_predictor
-from utils import verify_license, LicenseError
-
-# Add repo root to sys.path so the `shared` package is importable
-_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
+from floor_tiling.ml import (
+    get_mask2former_predictor,
+    get_oneformer_predictor,
+    get_depth_predictor,
+)
+from floor_tiling.licensing import verify_license, LicenseError
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 logger = logging.getLogger(__name__)

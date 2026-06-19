@@ -6,8 +6,8 @@
     Produces:  dist\floor-tiling\floor-tiling.exe  (+ supporting files)
 
     Models are bundled into the exe by floor_tiling.spec (offline-ready):
-      • Segmentation : mask2former/models  (Mask2Former swin-large)
-      • Depth        : depth/models        (Depth Anything V2 metric-indoor)
+      • Segmentation : models/mask2former  (Mask2Former swin-large)
+      • Depth        : models/depth        (Depth Anything V2 metric-indoor)
     Make sure both models/ folders contain model.safetensors before building
     (run the app once, or copy the weights in).
 
@@ -51,7 +51,7 @@ try {
     }
 
     # ── Sanity check: model weights present (bundled by the spec) ────────────────
-    foreach ($m in @("mask2former\models\model.safetensors", "depth\models\model.safetensors")) {
+    foreach ($m in @("models\mask2former\model.safetensors", "models\depth\model.safetensors")) {
         if (!(Test-Path $m)) {
             Write-Warning "Missing model weights: $m  — the exe will not run offline. Run the app once or copy the weights in before building."
         }
@@ -73,22 +73,13 @@ try {
 
     # ── Step 3: Obfuscate dist output with PyArmor ───────────────────────────────
     Write-Host ""
-    Write-Host "[3/5] Obfuscating dist output with PyArmor ..."
-    $DistServer = Join-Path $DistDir "server.py"
-    if (Test-Path $DistServer) {
-        pyarmor gen $DistServer -O $DistDir
-        if ($LASTEXITCODE -ne 0) { throw "PyArmor obfuscation failed for dist/server.py." }
-        $runtime = Join-Path $DistDir "pyarmor_runtime_000000"
-        if (Test-Path $runtime) {
-            Copy-Item $runtime $DistDir -Recurse -Force
-        }
-    }
-    Write-Host "OK  PyArmor dist obfuscation done."
+    Write-Host "[3/5] (PyArmor step skipped — business logic ships as compiled .pyd, no top-level .py in dist)"
 
     # ── Step 4: Clean Cython artefacts ───────────────────────────────────────────
     Write-Host ""
     Write-Host "[4/5] Cleaning Cython build artefacts ..."
-    $CythonDirs = @("config","core","depth","mask2former","patterns","processors","utils")
+    $CythonDirs = @("config","core","ml","patterns","processors","licensing") |
+        ForEach-Object { Join-Path "src\floor_tiling" $_ }
     foreach ($dir in $CythonDirs) {
         if (Test-Path $dir) {
             Get-ChildItem $dir -Recurse -Include "*.pyd","*.c" | Remove-Item -Force

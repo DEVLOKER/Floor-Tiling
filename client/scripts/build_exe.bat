@@ -20,8 +20,8 @@ ECHO  Floor Tiling -- EXE build
 ECHO ========================================================
 
 REM Sanity check: model weights present (bundled by the spec)
-IF NOT EXIST "mask2former\models\model.safetensors" ECHO WARNING: missing mask2former\models\model.safetensors -- exe won't run offline.
-IF NOT EXIST "depth\models\model.safetensors" ECHO WARNING: missing depth\models\model.safetensors -- exe won't run offline.
+IF NOT EXIST "models\mask2former\model.safetensors" ECHO WARNING: missing models\mask2former\model.safetensors -- exe won't run offline.
+IF NOT EXIST "models\depth\model.safetensors" ECHO WARNING: missing models\depth\model.safetensors -- exe won't run offline.
 
 REM Step 1: Cython compile
 ECHO.
@@ -48,10 +48,10 @@ REM Step 3: (models are bundled by the spec — nothing to copy)
 REM Step 4: Clean Cython artefacts
 ECHO.
 ECHO [4/5] Cleaning Cython build artefacts ...
-FOR %%D IN (config core depth mask2former patterns processors utils) DO (
-	IF EXIST "%%D" (
-		FOR %%E IN (*.pyd *.c) DO FOR /R %%D %%F IN (%%E) DO DEL /F /Q "%%F"
-		FOR /D %%B IN (%%D\build) DO RMDIR /S /Q "%%B"
+FOR %%D IN (config core ml patterns processors licensing) DO (
+	IF EXIST "src\floor_tiling\%%D" (
+		FOR %%E IN (*.pyd *.c) DO FOR /R "src\floor_tiling\%%D" %%F IN (%%E) DO DEL /F /Q "%%F"
+		FOR /D %%B IN (src\floor_tiling\%%D\build) DO RMDIR /S /Q "%%B"
 	)
 )
 FOR %%D IN (..\shared\utils ..\shared\config) DO (

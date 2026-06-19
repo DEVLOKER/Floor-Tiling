@@ -18,7 +18,7 @@ Import via the package: ``from processors import apply_wall_paint``
 import cv2
 import numpy as np
 
-from core import hex_to_bgr
+from floor_tiling.core import hex_to_bgr
 from .tile_renderer import _feather_mask
 
 

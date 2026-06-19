@@ -1,95 +1,81 @@
-"""Cython build script — compiles proprietary Python modules to C extensions.
+"""Cython build — compile proprietary modules to native extensions.
 
-Compile targets (your custom business logic only):
-  config/          → settings, license, ssl_cert, __init__
-  core/            → geometry, planes, masks, __init__
-  depth/           → depth-model wrapper, __init__
-  mask2former/     → __init__
-  patterns/        → __init__
-  processors/      → __init__
-  ../shared/       → fingerprint (shared between client and admin)
+Compiles only the business-logic subpackages of ``floor_tiling`` (and the
+shared fingerprint helpers), leaving the FastAPI entry points (``app.py``,
+``__main__.py``) and the thin ``api`` routing layer as plain Python.
 
-NOT compiled (intentionally excluded):
-  server.py      → FastAPI entry-point; uvicorn imports it by name
-  app.py         → FastAPI app factory; imported by name (server:app)
+Because the package uses a ``src/`` layout, the build runs with the working
+directory set to ``src/`` so ``--inplace`` drops each ``.pyd`` next to its source
+(``src/floor_tiling/<pkg>/...``) with the correct dotted module name. The
+``shared`` package lives at the repo root and is compiled in a second pass.
 
-Usage inside Docker:
-  python setup_cython.py build_ext --inplace
+Usage (inside Docker / build_exe):
+    python setup_cython.py build_ext --inplace
 """
-
 import glob
 import os
+from pathlib import Path
+
 from setuptools import setup
 from Cython.Build import cythonize
 
-# ── Collect source files ──────────────────────────────────────────────────────
-# Only cythonize proprietary/sensitive modules, not third-party or open-source
-PACKAGES = [
-    "config",    # your app config, secrets, license logic
-    "core",      # core business logic (geometry, planes, mask refinement)
-    "depth",     # depth model wrapper (for wall-plane separation)
-    "mask2former", # segmentation model wrapper
-    "oneformer", # second segmentation model wrapper (ensemble)
-    "patterns",  # your proprietary pattern logic
-    "processors", # your proprietary processors
-    "utils"      # your proprietary utilities
+HERE = Path(__file__).resolve().parent          # client/
+SRC = HERE / "src"                              # client/src/
+REPO_ROOT = HERE.parent                         # repo root (holds shared/)
+
+# Proprietary floor_tiling subpackages to compile (relative to src/).
+FLOOR_TILING_PKGS = [
+    "floor_tiling/config",
+    "floor_tiling/core",
+    "floor_tiling/ml",
+    "floor_tiling/patterns",
+    "floor_tiling/processors",
+    "floor_tiling/licensing",
 ]
 
-# Shared package lives one level up
-SHARED_DIR = os.path.join(os.path.dirname(__file__), "..", "shared")
-
-sources = []
-for pkg in PACKAGES:
-    sources += glob.glob(os.path.join(pkg, "**", "*.py"), recursive=True)
-
-# Only include your own shared modules (not third-party)
-# Example: only fingerprint, keygen, ssl_cert, storage_devices
-shared_modules = [
-    os.path.join(SHARED_DIR, "utils", "fingerprint.py"),
-    os.path.join(SHARED_DIR, "utils", "keygen.py"),
-    os.path.join(SHARED_DIR, "utils", "ssl_cert.py"),
-    os.path.join(SHARED_DIR, "utils", "storage_devices.py"),
-    os.path.join(SHARED_DIR, "config", "settings.py"),
-    os.path.join(SHARED_DIR, "config", "__init__.py"),
-    os.path.join(SHARED_DIR, "utils", "__init__.py"),
-]
-sources += [s for s in shared_modules if os.path.exists(s)]
-
-# Exclude __pycache__ artefacts and empty stubs that only contain `pass`
-sources = [
-    s for s in sources
-    if "__pycache__" not in s
+# Shared modules (relative to the repo root) used by the licensing layer.
+SHARED_MODULES = [
+    "shared/utils/fingerprint.py",
+    "shared/utils/keygen.py",
+    "shared/utils/ssl_cert.py",
+    "shared/utils/storage_devices.py",
+    "shared/config/settings.py",
+    "shared/config/__init__.py",
+    "shared/utils/__init__.py",
 ]
 
-print(f"[setup_cython] Compiling {len(sources)} file(s):")
-for s in sources:
-    print(f"  {s}")
+DIRECTIVES = {"language_level": "3", "always_allow_keywords": True}
 
-# ── Build ─────────────────────────────────────────────────────────────────────
-# NOTE: nthreads > 0 uses multiprocessing; on Windows this requires the
-#       if __name__ == '__main__' guard to prevent infinite spawn loops.
-if __name__ == "__main__":
-    # Dynamically collect all unique output directories from sources (client and shared)
-    output_dirs = set()
+
+def _compile(cwd: Path, sources: list[str]) -> None:
+    """Run an in-place Cython build of ``sources`` (paths relative to ``cwd``)."""
+    sources = [s for s in sources if "__pycache__" not in s and os.path.exists(cwd / s)]
+    if not sources:
+        return
+    print(f"[setup_cython] ({cwd}) compiling {len(sources)} file(s):")
     for s in sources:
-        dir_path = os.path.dirname(s)
-        if os.path.isabs(dir_path):
-            output_dirs.add(dir_path)
-            # Also create relative to current working directory if different
-            rel_to_cwd = os.path.relpath(dir_path, os.getcwd())
-            if not rel_to_cwd.startswith("..") and rel_to_cwd != ".":
-                output_dirs.add(os.path.join(os.getcwd(), rel_to_cwd))
-    for d in output_dirs:
-        os.makedirs(d, exist_ok=True)
-    setup(
-        name="floor_tiling_core",
-        ext_modules=cythonize(
-            sources,
-            compiler_directives={
-                "language_level": "3",      # Python 3 semantics
-                "always_allow_keywords": True,  # keeps **kwargs working
-            },
-            nthreads=4,                     # parallel C compilation
-            quiet=False,
-        ),
-    )
+        print(f"  {s}")
+    prev = Path.cwd()
+    os.chdir(cwd)
+    try:
+        setup(
+            name="floor_tiling_native",
+            script_args=["build_ext", "--inplace"],
+            ext_modules=cythonize(sources, compiler_directives=DIRECTIVES, nthreads=4, quiet=False),
+        )
+    finally:
+        os.chdir(prev)
+
+
+if __name__ == "__main__":
+    # Pass 1 — floor_tiling subpackages (module names like floor_tiling.core.planes).
+    ft_sources = []
+    for pkg in FLOOR_TILING_PKGS:
+        ft_sources += [
+            os.path.relpath(p, SRC)
+            for p in glob.glob(str(SRC / pkg / "**" / "*.py"), recursive=True)
+        ]
+    _compile(SRC, ft_sources)
+
+    # Pass 2 — shared package (module names like shared.utils.fingerprint).
+    _compile(REPO_ROOT, SHARED_MODULES)

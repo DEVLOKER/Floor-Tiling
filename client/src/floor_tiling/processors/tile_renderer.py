@@ -10,9 +10,9 @@ Import via the package: ``from processors import apply_perspective_tiles``
 """
 import numpy as np
 import cv2
-from config.settings import DEFAULT_REAL_WIDTH_CM
-from core import hex_to_bgr, extract_floor_quad, estimate_floor_geometry
-from patterns import get_pattern
+from floor_tiling.config.settings import DEFAULT_REAL_WIDTH_CM
+from floor_tiling.core import hex_to_bgr, extract_floor_quad, estimate_floor_geometry
+from floor_tiling.patterns import get_pattern
 
 
 # These functions operate on the original image and the tile-rendered floor to create a seamless composite.
@@ -265,37 +265,99 @@ def _build_mips(tex: np.ndarray, levels: int = 5) -> list:
     return mips
 
 
+def _trilinear_pts(mips: list, u: np.ndarray, v: np.ndarray,
+                   lo: np.ndarray, hi: np.ndarray, frac: np.ndarray) -> np.ndarray:
+    """Sample (u, v) trilinearly: bilinear in each of mips[lo]/mips[hi], lerp by frac."""
+    s_lo = np.empty((u.size, 3), dtype=np.float32)
+    s_hi = np.empty((u.size, 3), dtype=np.float32)
+    for L in range(len(mips)):
+        ml = lo == L
+        if ml.any():
+            s_lo[ml] = _bilinear_sample_pts(mips[L], u[ml], v[ml])
+        mh = hi == L
+        if mh.any():
+            s_hi[mh] = _bilinear_sample_pts(mips[L], u[mh], v[mh])
+    return s_lo * (1.0 - frac[:, None]) + s_hi * frac[:, None]
+
+
 def _sample_texture_aa(
     mips: list,
     u_frac: np.ndarray,
     v_frac: np.ndarray,
     uv_step_u: np.ndarray,
     uv_step_v: np.ndarray,
+    du_dx: np.ndarray = None,
+    du_dy: np.ndarray = None,
+    dv_dx: np.ndarray = None,
+    dv_dy: np.ndarray = None,
+    max_aniso: int = 8,
+    n_samp: int = 6,
 ) -> np.ndarray:
-    """Anti-aliased texture lookup with per-pixel level-of-detail selection.
+    """Anti-aliased texture lookup with ANISOTROPIC, trilinear filtering.
 
-    Far-away tiles span many texels per screen pixel; sampling the full-res
-    texture there produces shimmering moiré.  We pick a mip level so roughly
-    one texel maps to one pixel, then bilinearly sample within it — the same
-    trick GPUs use for textured floors.
+    A floor seen in perspective squashes each distant tile far more along the
+    depth axis than across it, so its texture footprint is a long, thin ellipse.
+    An isotropic mip can't serve both axes — a fine level shimmers along the
+    squashed axis (noise) while a coarse one smears the other (blur).  We instead
+    pick the mip from the *short* axis (preserves detail) and take several samples
+    spread along the *long* axis, averaging them (kills the aliasing).  This is
+    the same anisotropic filtering GPUs use for textured ground planes.
     """
     base_h, base_w = mips[0].shape[:2]
-    # Texels covered by one screen pixel along each tile axis.
-    texels_per_px = np.maximum(uv_step_u * base_w, uv_step_v * base_h)
-    lod = np.log2(np.maximum(texels_per_px, 1.0))
-    lvl = np.clip(np.rint(lod), 0, len(mips) - 1).astype(np.int32)
 
-    out = np.empty(u_frac.shape + (3,), dtype=np.float32)
-    uf = u_frac.ravel()
-    vf = v_frac.ravel()
-    lv = lvl.ravel()
-    flat = out.reshape(-1, 3)
-    for L in range(len(mips)):
-        m = lv == L
-        if not m.any():
-            continue
-        flat[m] = _bilinear_sample_pts(mips[L], uf[m], vf[m])
-    return out
+    # Isotropic fallback when the UV Jacobian isn't supplied.
+    if du_dx is None:
+        texels = np.maximum(uv_step_u * base_w, uv_step_v * base_h)
+        lod = np.clip(np.log2(np.maximum(texels, 1.0)), 0.0, len(mips) - 1)
+        lo = np.floor(lod).astype(np.int32).ravel()
+        hi = np.minimum(lo + 1, len(mips) - 1)
+        out = _trilinear_pts(mips, u_frac.ravel(), v_frac.ravel(),
+                             lo, hi, (lod - np.floor(lod)).astype(np.float32).ravel())
+        return out.reshape(u_frac.shape + (3,))
+
+    uf = u_frac.ravel().astype(np.float32)
+    vf = v_frac.ravel().astype(np.float32)
+
+    # Footprint vectors in TEXEL space: how far the texture coord moves per one
+    # screen pixel along x and along y.
+    ax_u = (du_dx * base_w).ravel(); ax_v = (dv_dx * base_h).ravel()
+    ay_u = (du_dy * base_w).ravel(); ay_v = (dv_dy * base_h).ravel()
+    len_x = np.hypot(ax_u, ax_v)
+    len_y = np.hypot(ay_u, ay_v)
+    major = np.maximum(len_x, len_y)
+    minor = np.maximum(np.minimum(len_x, len_y), 1e-6)
+    aniso = np.clip(major / minor, 1.0, float(max_aniso))
+
+    # Unit direction of the LONG axis (in texel space) → where we spread samples.
+    use_x = len_x >= len_y
+    dir_u = np.where(use_x, ax_u, ay_u)
+    dir_v = np.where(use_x, ax_v, ay_v)
+    dl = np.hypot(dir_u, dir_v) + 1e-8
+    dir_u /= dl; dir_v /= dl
+
+    # Mip from the effective per-sample footprint (major shortened by the sample
+    # count we actually use) — so each sample covers ~minor-sized detail.
+    eff = major / aniso
+    lod = np.clip(np.log2(np.maximum(eff, 1.0)), 0.0, len(mips) - 1)
+    lo = np.floor(lod).astype(np.int32)
+    hi = np.minimum(lo + 1, len(mips) - 1)
+    frac = (lod - lo).astype(np.float32)
+
+    # Spread samples across the elongation (major − minor) of the footprint.
+    spread = np.maximum(major - minor, 0.0)
+    du_off = dir_u / base_w   # texel offset → tile-space u
+    dv_off = dir_v / base_h
+    acc = np.zeros((uf.size, 3), dtype=np.float32)
+    for k in range(n_samp):
+        tpos = (k / (n_samp - 1) - 0.5) if n_samp > 1 else 0.0
+        off = tpos * spread
+        # Wrap into [0,1): the texture repeats every tile, so a sample that walks
+        # past a tile edge should land in the next tile, not clamp to the border.
+        su = np.mod(uf + du_off * off, 1.0)
+        sv = np.mod(vf + dv_off * off, 1.0)
+        acc += _trilinear_pts(mips, su, sv, lo, hi, frac)
+    acc /= n_samp
+    return acc.reshape(u_frac.shape + (3,))
 
 
 # The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern,
@@ -393,10 +455,12 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     # don't shimmer/moiré (the classic give-away of a fake floor).
     if tile_texture is not None:
         mips1 = _build_mips(tile_texture)
-        tex1 = _sample_texture_aa(mips1, u_frac, v_frac, uv_step_u, uv_step_v)
+        tex1 = _sample_texture_aa(mips1, u_frac, v_frac, uv_step_u, uv_step_v,
+                                  du_dx, du_dy, dv_dx, dv_dy)
         if tile_texture2 is not None:
             mips2 = _build_mips(tile_texture2)
-            tex2 = _sample_texture_aa(mips2, u_frac, v_frac, uv_step_u, uv_step_v)
+            tex2 = _sample_texture_aa(mips2, u_frac, v_frac, uv_step_u, uv_step_v,
+                                      du_dx, du_dy, dv_dx, dv_dy)
             tile_fill = np.where(is_second[:, :, None], tex2, tex1)
         else:
             tile_fill = tex1

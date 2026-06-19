@@ -64,7 +64,22 @@
       "Bash(python -c \"import ast;[ast.parse\\(open\\(f,encoding='utf-8'\\).read\\(\\)\\) for f in ['core/planes.py','api/routes/detection.py']];print\\('py OK'\\)\")",
       "Bash(python -c \"from Cython.Build import cythonize; cythonize\\(['core/planes.py'],compiler_directives={'language_level':'3','always_allow_keywords':True},quiet=True\\);print\\('cython OK'\\)\")",
       "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _pi_*.jpg && echo cleaned)",
-      "Bash(node --check events.js)"
+      "Bash(node --check events.js)",
+      "Bash(PYTHONIOENCODING=utf-8 python _noise_test.py)",
+      "Bash(grep -vE \"static/|__tests__/|\\\\.md$\")",
+      "Bash(grep -E \"\\\\.\\(py|spec|txt|toml|cfg|ini|ps1|bat|Dockerfile|yml|yaml\\)$|Dockerfile\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(set -e)",
+      "Bash(mkdir -p src/floor_tiling/ml src/floor_tiling/licensing models tests)",
+      "Bash(mv api *)",
+      "Bash(mv config *)",
+      "Bash(mv core *)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app as a; print\\('app import OK'\\); print\\('routes:', [r.path for r in a.app.routes][:6]\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -m pytest tests/ -q)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import tests.test_smoke as t; t.test_app_factory_builds_routes\\(\\); t.test_public_api_imports\\(\\); t.test_model_paths_resolve\\(\\); print\\('SMOKE TESTS PASS'\\)\")"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"

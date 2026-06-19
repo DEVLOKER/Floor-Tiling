@@ -1,10 +1,10 @@
 """Mask2Former Model management for automatic floor/wall detection"""
-import os
 import torch
 import numpy as np
 from PIL import Image
 from transformers import Mask2FormerForUniversalSegmentation, AutoImageProcessor
-from pathlib import Path
+
+from floor_tiling.paths import model_dir
 
 class Mask2FormerManager:
     """Manages Mask2Former model lifecycle and inference."""
@@ -23,10 +23,9 @@ class Mask2FormerManager:
         return cls._instance
 
     def __init__(self):
-        # Model directory: env override (e.g. a mounted volume for the
-        # download-once cache) falling back to the in-package ``models`` dir.
-        default_dir = Path(__file__).resolve().parent / "models"
-        self.local_path = Path(os.environ.get("MASK2FORMER_DIR", str(default_dir)))
+        # Weight cache: MASK2FORMER_DIR env override (e.g. a mounted volume)
+        # falling back to the shared models dir (see floor_tiling.paths).
+        self.local_path = model_dir("mask2former", "MASK2FORMER_DIR")
         if self._model is None:
             self._load_model()
 

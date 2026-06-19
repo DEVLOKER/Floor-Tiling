@@ -14,8 +14,8 @@ from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from PIL import Image
 
-from core.planes import split_wall_planes
-from core.masks import refine_mask, fill_surface_gaps
+from floor_tiling.core.planes import split_wall_planes
+from floor_tiling.core.masks import refine_mask, fill_surface_gaps
 
 logger = logging.getLogger(__name__)
 

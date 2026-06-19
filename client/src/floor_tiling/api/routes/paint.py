@@ -9,13 +9,13 @@ import numpy as np
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from config.settings import (
+from floor_tiling.config.settings import (
     DEFAULT_PAINT_COLOR,
     DEFAULT_PAINT_FINISH,
     JPEG_QUALITY,
     PAINT_FINISHES,
 )
-from processors import apply_wall_paint
+from floor_tiling.processors import apply_wall_paint
 
 logger = logging.getLogger(__name__)
 

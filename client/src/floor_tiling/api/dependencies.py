@@ -2,7 +2,7 @@
 
 from fastapi import HTTPException
 
-from utils import verify_license, LicenseError
+from floor_tiling.licensing import verify_license, LicenseError
 
 
 async def require_license() -> None:

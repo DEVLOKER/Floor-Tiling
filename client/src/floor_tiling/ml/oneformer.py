@@ -7,11 +7,11 @@ detection unions their wall/floor/ceiling masks for the best coverage.
 Same offline-first lifecycle as the other models: weights download once into the
 local ``models/`` dir (or an env-pointed volume), then load from disk.
 """
-import os
 import numpy as np
 import torch
-from pathlib import Path
 from transformers import OneFormerProcessor, OneFormerForUniversalSegmentation
+
+from floor_tiling.paths import model_dir
 
 
 class OneFormerManager:
@@ -28,8 +28,7 @@ class OneFormerManager:
         return cls._instance
 
     def __init__(self):
-        default_dir = Path(__file__).resolve().parent / "models"
-        self.local_path = Path(os.environ.get("ONEFORMER_DIR", str(default_dir)))
+        self.local_path = model_dir("oneformer", "ONEFORMER_DIR")
         if self._model is None:
             self._load_model()
 

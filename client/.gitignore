@@ -5,6 +5,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyd
+# Cython-generated C sources (emitted next to the compiled modules)
+src/floor_tiling/**/*.c
+shared/**/*.c
 
 # Build / packaging
 build/
@@ -34,17 +38,10 @@ env.bak/
 venv.bak/
 .venv
 
-# Mask2Former model files (large — auto-downloaded at runtime)
-mask2former/models/*.bin
-mask2former/models/*.safetensors
-
-# OneFormer model files (large — auto-downloaded at runtime)
-oneformer/models/*.bin
-oneformer/models/*.safetensors
-
-# Depth Anything model files (large — downloaded at runtime)
-depth/models/*.bin
-depth/models/*.safetensors
+# ML model weights (large — auto-downloaded at runtime into models/<name>/).
+# Configs/tokenizers stay tracked; only the heavy weights are ignored.
+models/**/*.bin
+models/**/*.safetensors
 
 # Cache
 .cache/
