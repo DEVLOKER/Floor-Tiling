@@ -1,4 +1,4 @@
-﻿"""Processors package.
+"""Processors package.
 
 Public API: ``apply_perspective_tiles``, ``apply_wall_paint``
 """

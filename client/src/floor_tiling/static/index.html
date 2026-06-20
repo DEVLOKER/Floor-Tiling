@@ -257,14 +257,14 @@
             <!-- ══ Tab: Floor tiling ═════════════════════════════════ -->
             <div class="tab-panel active" id="tabTilePanel" role="tabpanel">
 
-            <!-- Perspective algorithm -->
+            <!-- Alignment (draw a line along a wall to straighten the grid) -->
             <div class="panel-section">
-                <div class="section-label">Algorithme de perspective</div>
-                <div class="tile-source-toggle" id="tileAlgoToggle">
-                    <button type="button" class="tile-source-btn active" data-algo="vanishing">Lignes de fuite</button>
-                    <button type="button" class="tile-source-btn" data-algo="depth">Profondeur (IA)</button>
+                <div class="section-label">Alignement des joints</div>
+                <div class="quick-chips">
+                    <button type="button" class="quick-chip" id="tileAlignBtn">Aligner sur un mur</button>
+                    <button type="button" class="quick-chip quick-chip-clear" id="tileAlignReset">Auto</button>
                 </div>
-                <input type="hidden" id="tileAlgorithm" value="vanishing" />
+                <div class="paint-lead" id="tileAlignHint">Tracez une ligne le long d'un mur. Ajoutez une 2e ligne sur un mur perpendiculaire pour un alignement parfait.</div>
             </div>
 
             <!-- Pattern selector -->
@@ -390,6 +390,18 @@
 
             <div class="panel-divider"></div>
 
+            <!-- Perspective algorithm -->
+            <div class="panel-section">
+                <div class="section-label">Algorithme de perspective</div>
+                <div class="tile-source-toggle" id="tileAlgoToggle">
+                    <button type="button" class="tile-source-btn active" data-algo="vanishing">Lignes de fuite</button>
+                    <button type="button" class="tile-source-btn" data-algo="depth">Profondeur (IA)</button>
+                </div>
+                <input type="hidden" id="tileAlgorithm" value="vanishing" />
+            </div>
+
+            <div class="panel-divider"></div>
+
             <!-- Grout -->
             <div class="panel-section">
                 <div class="section-label">Épaisseur du joint</div>
@@ -404,7 +416,6 @@
                     </div>
                 </div>
             </div>
-
 
             <div class="panel-divider"></div>
 
@@ -445,9 +456,6 @@
                         id="perspectiveCompressionValue">0%</span>
                 </div>
                 <input type="range" id="perspectiveCompression" min="0" max="100" step="5" value="0" />
-                <!-- <div class="help-text" style="font-size: 11px; color: #888; margin-top: 4px;">
-                    Augmente les carreaux lointains sans agrandir les carreaux proches
-                </div> -->
             </div>
 
             <div class="panel-divider"></div>

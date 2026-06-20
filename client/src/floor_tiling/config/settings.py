@@ -15,7 +15,7 @@ CORS_ORIGINS = [
 #   both True  → ensemble (union of the two) — best coverage
 #   one True   → use that model alone
 SEG_USE_MASK2FORMER = True
-SEG_USE_ONEFORMER = False
+SEG_USE_ONEFORMER = True
 
 # Tile rendering constants
 DEFAULT_REAL_WIDTH_CM = 300.0

@@ -1,14 +1,22 @@
 """Tile application route — /api/apply-tiles."""
 
 import asyncio
+import hashlib
 import json
 import logging
+from collections import OrderedDict
 
 import cv2
 import numpy as np
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from typing import Optional
+
+# Cache of expensive per-image inference (depth map + M-LSD segments) keyed by a
+# hash of the source image. Lets interactive adjustments (move/rotate/size) skip
+# the ~1–2 s model inference and just re-render. Small LRU — a few rooms.
+_GEOM_CACHE: "OrderedDict[bytes, tuple]" = OrderedDict()
+_GEOM_CACHE_MAX = 8
 
 from floor_tiling.config.settings import (
     DEFAULT_GROUT_THICKNESS,
@@ -53,6 +61,14 @@ async def apply_tiles(
     pattern: str = Form(DEFAULT_PATTERN),
     perspective_compression: float = Form(DEFAULT_PERSPECTIVE_COMPRESSION),
     algorithm: str = Form("vanishing"),
+    align_x1: float = Form(None),
+    align_y1: float = Form(None),
+    align_x2: float = Form(None),
+    align_y2: float = Form(None),
+    align2_x1: float = Form(None),
+    align2_y1: float = Form(None),
+    align2_x2: float = Form(None),
+    align2_y2: float = Form(None),
     tile_texture: Optional[UploadFile] = File(None),
     tile_texture2: Optional[UploadFile] = File(None),
     source: Optional[UploadFile] = File(None),
@@ -106,6 +122,14 @@ async def apply_tiles(
         if algorithm not in ("vanishing", "depth"):
             algorithm = "vanishing"
 
+        # Manual alignment lines (image coords), if provided.
+        align_points = None
+        if None not in (align_x1, align_y1, align_x2, align_y2):
+            align_points = ((align_x1, align_y1), (align_x2, align_y2))
+        align_points2 = None
+        if None not in (align2_x1, align2_y1, align2_x2, align2_y2):
+            align_points2 = ((align2_x1, align2_y1), (align2_x2, align2_y2))
+
         # ── Decode optional textures ───────────────────────────────────────
         texture_arr = None
         if tile_texture is not None:
@@ -129,24 +153,36 @@ async def apply_tiles(
         depth_map = None
         mlsd_segments = None
         if algorithm == "depth":
-            src_for_depth = lighting_source if lighting_source is not None else img
-            rgb = cv2.cvtColor(src_for_depth, cv2.COLOR_BGR2RGB)
-            depth_predictor = getattr(request.app.state, "depth_predictor", None)
-            if depth_predictor is not None:
-                try:
-                    depth_map = await asyncio.to_thread(depth_predictor.predict, rgb)
-                except Exception as exc:
-                    logger.warning("Depth for tiling failed, falling back to vanishing: %s", exc)
+            # Cache key: the source image is constant across adjustments of the
+            # same room, so depth + M-LSD are computed once and reused.
+            key = hashlib.md5(src_bytes if source is not None else image_data).digest()
+            cached = _GEOM_CACHE.get(key)
+            if cached is not None:
+                depth_map, mlsd_segments = cached
+                _GEOM_CACHE.move_to_end(key)
             else:
-                logger.warning("Depth model unavailable; falling back to vanishing.")
-            # M-LSD line segments → grid orientation cue (best-effort; the renderer
-            # falls back to the floor-quad anchor if these are missing).
-            mlsd_predictor = getattr(request.app.state, "mlsd_predictor", None)
-            if mlsd_predictor is not None:
-                try:
-                    mlsd_segments = await asyncio.to_thread(mlsd_predictor.predict, rgb)
-                except Exception as exc:
-                    logger.warning("M-LSD for tiling failed: %s", exc)
+                src_for_depth = lighting_source if lighting_source is not None else img
+                rgb = cv2.cvtColor(src_for_depth, cv2.COLOR_BGR2RGB)
+                depth_predictor = getattr(request.app.state, "depth_predictor", None)
+                if depth_predictor is not None:
+                    try:
+                        depth_map = await asyncio.to_thread(depth_predictor.predict, rgb)
+                    except Exception as exc:
+                        logger.warning("Depth for tiling failed, falling back to vanishing: %s", exc)
+                else:
+                    logger.warning("Depth model unavailable; falling back to vanishing.")
+                # M-LSD line segments → grid orientation cue (best-effort; the
+                # renderer falls back to the floor-quad anchor if missing).
+                mlsd_predictor = getattr(request.app.state, "mlsd_predictor", None)
+                if mlsd_predictor is not None:
+                    try:
+                        mlsd_segments = await asyncio.to_thread(mlsd_predictor.predict, rgb)
+                    except Exception as exc:
+                        logger.warning("M-LSD for tiling failed: %s", exc)
+                if depth_map is not None:
+                    _GEOM_CACHE[key] = (depth_map, mlsd_segments)
+                    if len(_GEOM_CACHE) > _GEOM_CACHE_MAX:
+                        _GEOM_CACHE.popitem(last=False)
 
         # ── Render tiles ───────────────────────────────────────────────────
         result = apply_perspective_tiles(
@@ -170,6 +206,8 @@ async def apply_tiles(
             algorithm=algorithm,
             depth=depth_map,
             mlsd_segments=mlsd_segments,
+            align_points=align_points,
+            align_points2=align_points2,
         )
 
         # ── Encode and return ──────────────────────────────────────────────

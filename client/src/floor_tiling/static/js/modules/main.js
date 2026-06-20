@@ -23,6 +23,7 @@ import {
   downloadResultImage,
 } from "./events.js";
 import { setActiveMode, quickSelectPaint } from "./image.js";
+import { startAlignMode, resetAlign } from "./align.js";
 import { initTextureUpload } from "./texture.js";
 import { initOnboarding } from "./onboarding.js";
 
@@ -171,6 +172,40 @@ document.addEventListener("DOMContentLoaded", () => {
       }),
     );
   setTileAlgorithm(document.getElementById("tileAlgorithm")?.value || "vanishing");
+
+  // Manual 2-click tile alignment
+  const alignHint = document.getElementById("tileAlignHint");
+  const updateAlignUI = () => {
+    const n = (state.tileAlignLines || []).length;
+    document.getElementById("tileAlignBtn")?.classList.toggle("active", n > 0);
+    if (!alignHint) return;
+    if (n === 0)
+      alignHint.textContent =
+        "Tracez une ligne le long d'un mur. Ajoutez une 2e ligne sur un mur perpendiculaire pour un alignement parfait.";
+    else if (n === 1)
+      alignHint.textContent =
+        "1 ligne : rotation alignée. Tracez une 2e ligne sur un mur perpendiculaire si un côté reste de travers.";
+    else
+      alignHint.textContent =
+        "Aligné sur 2 murs. « Auto » pour revenir à la détection automatique.";
+  };
+  document.getElementById("tileAlignBtn")?.addEventListener("click", () => {
+    if (!state.originalImage) return;
+    if (alignHint) alignHint.textContent = "Tracez la ligne sur l'image…";
+    startAlignMode(() => {
+      updateAlignUI();
+      liveApply();
+    });
+  });
+  document
+    .getElementById("tileAlignReset")
+    ?.addEventListener("click", () =>
+      resetAlign(() => {
+        updateAlignUI();
+        liveApply();
+      }),
+    );
+  updateAlignUI();
   // Canvas click for floor selection
   // Clear/apply floor selection
   // Activity tabs → switch selection mode + footer CTA

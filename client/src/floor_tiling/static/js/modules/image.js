@@ -40,6 +40,7 @@ export async function handleImageUpload(file) {
       invalidateCachedResult();
       updateTogglePreviewVisibility();
       state.floorMask = null;
+      state.tileAlignLines = []; // alignment is per-image (image coords)
       clearAutoLabels();
       const welcomeOverlay = document.getElementById("welcomeOverlay");
       if (welcomeOverlay) welcomeOverlay.classList.add("hidden");

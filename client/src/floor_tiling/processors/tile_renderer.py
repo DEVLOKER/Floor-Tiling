@@ -363,7 +363,7 @@ def _sample_texture_aa(
 
 # The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern,
 # applies shadow/tint from the original floor, and blends the result seamlessly back onto the original image.
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None, algorithm: str="vanishing", depth: np.ndarray=None, mlsd_segments: np.ndarray=None) -> np.ndarray:
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None, algorithm: str="vanishing", depth: np.ndarray=None, mlsd_segments: np.ndarray=None, align_points=None, align_points2=None) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
     # Lighting/geometry are sampled from ``light`` (the pristine original) while
     # the tiles are composited onto ``image`` (the accumulated result).  Keeping
@@ -392,8 +392,12 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
         # Orientation = multi-cue fusion (M-LSD vanishing + floor-quad anchor) so
         # the grid is parallel/perpendicular to the walls. Falls back internally
         # to the quad, then camera-forward, when cues are weak/absent.
-        quad = extract_floor_quad(mask, image=light)
-        orient_angle = floor_orientation_angle(mask, depth, segments=mlsd_segments, quad=quad)
+        # Manual 2-click alignment overrides the auto orientation entirely.
+        if align_points is not None:
+            orient_angle = None
+        else:
+            quad = extract_floor_quad(mask, image=light)
+            orient_angle = floor_orientation_angle(mask, depth, segments=mlsd_segments, quad=quad)
         uv = floor_plane_uv(
             mask, depth,
             (tile_width_cm / 100.0) * scale_factor,
@@ -442,14 +446,54 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
         v_all = (pc[:, 1] / wdiv).reshape(h_img, w_img)
         rot_cx, rot_cy = float(n_tiles_x) / 2.0, float(n_tiles_y) / 2.0
 
+    # ── Manual alignment (1 or 2 lines drawn along real edges) ───────────────
+    # We sample the grid coords at each line's endpoints to get its direction in
+    # GRID space, then transform the grid so the line(s) become grid axes.
+    #   • 1 line  → rotation only (fixes orientation).
+    #   • 2 lines → full in-plane basis fit (fixes rotation AND shear, so BOTH
+    #     axes align even when the rectification isn't perfectly square). Unit
+    #     directions are used so tile size is preserved.
+    def _uv_dir(pts):
+        (x1, y1), (x2, y2) = pts
+        x1 = int(np.clip(x1, 0, w_img - 1)); y1 = int(np.clip(y1, 0, h_img - 1))
+        x2 = int(np.clip(x2, 0, w_img - 1)); y2 = int(np.clip(y2, 0, h_img - 1))
+        return float(u_all[y2, x2] - u_all[y1, x1]), float(v_all[y2, x2] - v_all[y1, x1])
+
+    applied = False
+    if align_points is not None and align_points2 is not None:
+        try:
+            du1, dv1 = _uv_dir(align_points)
+            du2, dv2 = _uv_dir(align_points2)
+            n1, n2 = np.hypot(du1, dv1), np.hypot(du2, dv2)
+            if n1 > 1e-6 and n2 > 1e-6:
+                B = np.array([[du1 / n1, du2 / n2], [dv1 / n1, dv2 / n2]])
+                if abs(np.linalg.det(B)) > 0.15:  # directions distinct enough
+                    M = np.linalg.inv(B)
+                    us, vs = u_all - rot_cx, v_all - rot_cy
+                    u_all = M[0, 0] * us + M[0, 1] * vs + rot_cx
+                    v_all = M[1, 0] * us + M[1, 1] * vs + rot_cy
+                    applied = True
+        except Exception:
+            applied = False
+
+    if not applied and align_points is not None:
+        try:
+            du, dv = _uv_dir(align_points)
+            if np.hypot(du, dv) > 1e-6:
+                ang = np.arctan2(dv, du)
+                align_rot = -np.arctan2(np.sin(4.0 * ang), np.cos(4.0 * ang)) / 4.0
+                us, vs = u_all - rot_cx, v_all - rot_cy
+                u_all = us * np.cos(align_rot) - vs * np.sin(align_rot) + rot_cx
+                v_all = us * np.sin(align_rot) + vs * np.cos(align_rot) + rot_cy
+        except Exception:
+            pass
+
     if abs(rotation_deg) > 0.001:
         theta = np.radians(rotation_deg)
-        cx, cy = rot_cx, rot_cy
-        u_shifted = u_all - cx
-        v_shifted = v_all - cy
-        u_rot = u_shifted * np.cos(theta) - v_shifted * np.sin(theta) + cx
-        v_rot = u_shifted * np.sin(theta) + v_shifted * np.cos(theta) + cy
-        u_all, v_all = u_rot, v_rot
+        u_shifted = u_all - rot_cx
+        v_shifted = v_all - rot_cy
+        u_all = u_shifted * np.cos(theta) - v_shifted * np.sin(theta) + rot_cx
+        v_all = u_shifted * np.sin(theta) + v_shifted * np.cos(theta) + rot_cy
 
     # ── Translation (direct tile-unit offset) ──────────────────────────────────────────────
     # This is a simple shift in the tile UV space, which can be used to fine-tune the tile alignment by eye.  

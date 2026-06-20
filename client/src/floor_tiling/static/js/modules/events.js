@@ -430,6 +430,21 @@ export async function applyTilesToFloor() {
     );
     fd.append("pattern", val("tilePattern"));
     fd.append("algorithm", val("tileAlgorithm") || "vanishing");
+    const _lines = state.tileAlignLines || [];
+    if (_lines[0]) {
+      const [[x1, y1], [x2, y2]] = _lines[0];
+      fd.append("align_x1", x1);
+      fd.append("align_y1", y1);
+      fd.append("align_x2", x2);
+      fd.append("align_y2", y2);
+    }
+    if (_lines[1]) {
+      const [[x1, y1], [x2, y2]] = _lines[1];
+      fd.append("align2_x1", x1);
+      fd.append("align2_y1", y1);
+      fd.append("align2_x2", x2);
+      fd.append("align2_y2", y2);
+    }
     if (state.tileMode === "texture" && state.tileTextureDataUrl) {
       fd.append(
         "tile_texture",

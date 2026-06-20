@@ -24,6 +24,10 @@ export let state = {
   surfaceSelections: { tile: null, paint: null },
   currentLabels: [], // Cache for active detection labels
   onLabelToggle: null, // Cache for the label click handler
+  aligning: false, // true while the user is drawing the manual alignment line
+  // Up to 2 alignment lines (image coords); each is [[x1,y1],[x2,y2]].
+  // 1 line → fixes rotation; 2 perpendicular lines → fixes rotation + shear.
+  tileAlignLines: [],
 };
 
 export function setState(newState) {
