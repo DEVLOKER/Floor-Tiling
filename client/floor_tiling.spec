@@ -85,6 +85,7 @@ datas = [
     (str(ROOT / "models" / "mask2former"),            os.path.join("models", "mask2former")),
     (str(ROOT / "models" / "oneformer"),              os.path.join("models", "oneformer")),
     (str(ROOT / "models" / "depth"),                  os.path.join("models", "depth")),
+    (str(ROOT / "models" / "mlsd"),                   os.path.join("models", "mlsd")),
 ] + shared_datas()
 datas = filter_dev_files(datas)
 

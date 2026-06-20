@@ -12,7 +12,7 @@ import numpy as np
 import cv2
 from floor_tiling.config.settings import DEFAULT_REAL_WIDTH_CM
 from floor_tiling.core import hex_to_bgr, extract_floor_quad, estimate_floor_geometry
-from floor_tiling.core.planes import floor_plane_uv
+from floor_tiling.core.planes import floor_plane_uv, floor_orientation_angle
 from floor_tiling.patterns import get_pattern
 
 
@@ -363,7 +363,7 @@ def _sample_texture_aa(
 
 # The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern,
 # applies shadow/tint from the original floor, and blends the result seamlessly back onto the original image.
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None, algorithm: str="vanishing", depth: np.ndarray=None) -> np.ndarray:
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None, algorithm: str="vanishing", depth: np.ndarray=None, mlsd_segments: np.ndarray=None) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
     # Lighting/geometry are sampled from ``light`` (the pristine original) while
     # the tiles are composited onto ``image`` (the accumulated result).  Keeping
@@ -389,10 +389,16 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
     if algorithm == "depth" and depth is not None and depth.shape[:2] == (h_img, w_img):
         # Perspective-compression slider → uniformly larger tiles.
         scale_factor = 1.0 + max(0.0, perspective_compression) * 1.5
+        # Orientation = multi-cue fusion (M-LSD vanishing + floor-quad anchor) so
+        # the grid is parallel/perpendicular to the walls. Falls back internally
+        # to the quad, then camera-forward, when cues are weak/absent.
+        quad = extract_floor_quad(mask, image=light)
+        orient_angle = floor_orientation_angle(mask, depth, segments=mlsd_segments, quad=quad)
         uv = floor_plane_uv(
             mask, depth,
             (tile_width_cm / 100.0) * scale_factor,
             (tile_height_cm / 100.0) * scale_factor,
+            manhattan_angle=orient_angle,
         )
         if uv is not None:
             u_all, v_all = uv

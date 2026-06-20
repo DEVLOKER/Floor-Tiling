@@ -10,6 +10,7 @@ shared model cache (see :mod:`floor_tiling.paths`) and load from disk thereafter
 from .mask2former import Mask2FormerManager, get_mask2former_predictor
 from .oneformer import OneFormerManager, get_oneformer_predictor
 from .depth import DepthManager, get_depth_predictor
+from .mlsd import MLSDManager, get_mlsd_predictor
 
 __all__ = [
     "Mask2FormerManager",
@@ -18,4 +19,6 @@ __all__ = [
     "get_oneformer_predictor",
     "DepthManager",
     "get_depth_predictor",
+    "MLSDManager",
+    "get_mlsd_predictor",
 ]

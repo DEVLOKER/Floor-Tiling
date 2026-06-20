@@ -14,6 +14,12 @@ separate by orientation.  Result: one physical wall → one plane id.
 import numpy as np
 import cv2
 
+# Camera focal as a fraction of the image's long edge, used to back-project the
+# floor depth. max(h,w) alone implies ~53° FOV; phone main cameras are wider
+# (~65-70°), so a smaller factor increases foreshortening and keeps metric tiles
+# square instead of stretched into depth.
+_FLOOR_FOCAL_FACTOR = 0.65
+
 
 def depth_to_normals(depth: np.ndarray, focal: float | None = None) -> np.ndarray:
     """Per-pixel surface normals from a (metric) depth map (kept as a utility)."""
@@ -204,7 +210,7 @@ def split_wall_planes(
     return out, len(ids)
 
 
-def floor_plane_uv(mask, depth, tile_w_m, tile_h_m):
+def floor_plane_uv(mask, depth, tile_w_m, tile_h_m, manhattan_angle=None):
     """Per-pixel tile coordinates (u, v) for the floor — depth plane + homography.
 
     Depth gives a ROBUST floor plane (fit to thousands of points, no fragile
@@ -220,7 +226,7 @@ def floor_plane_uv(mask, depth, tile_w_m, tile_h_m):
     can't be fit.
     """
     h, w = depth.shape
-    focal = float(max(h, w))
+    focal = float(_FLOOR_FOCAL_FACTOR * max(h, w))
     cx, cy = w / 2.0, h / 2.0
 
     ys, xs = np.mgrid[0:h, 0:w]
@@ -263,7 +269,136 @@ def floor_plane_uv(mask, depth, tile_w_m, tile_h_m):
     wdiv = np.where(np.abs(st[:, 2]) < 1e-9, 1e-9, st[:, 2])
     s = (st[:, 0] / wdiv).reshape(h, w)
     t = (st[:, 1] / wdiv).reshape(h, w)
+
+    # Rotate the grid to the room's dominant axis (radians, in this camera-forward
+    # plane basis) — e.g. from M-LSD line-segment fusion. None → camera-forward.
+    if manhattan_angle is not None:
+        ca, sa = np.cos(manhattan_angle), np.sin(manhattan_angle)
+        s, t = s * ca + t * sa, -s * sa + t * ca
+
     return s / max(tile_w_m, 1e-4), t / max(tile_h_m, 1e-4)
 
 
-__all__ = ["depth_to_normals", "split_wall_planes", "floor_plane_uv"]
+def _fold90(theta):
+    """Fold an angle into (-45°, 45°] — grid lines are 90°-symmetric."""
+    return np.arctan2(np.sin(4.0 * theta), np.cos(4.0 * theta)) / 4.0
+
+
+def _near90(a, b):
+    """Angular distance between two directions, accounting for 90° symmetry."""
+    d = abs(a - b) % (np.pi / 2.0)
+    return min(d, np.pi / 2.0 - d)
+
+
+def _camera_forward_frame(mask, depth):
+    """Floor plane + camera-forward in-plane basis + plane->image H_inv, or None."""
+    h, w = depth.shape
+    focal = float(_FLOOR_FOCAL_FACTOR * max(h, w))
+    cx, cy = w / 2.0, h / 2.0
+    ys, xs = np.mgrid[0:h, 0:w]
+    Z = depth.astype(np.float64)
+    m = mask > 0
+    if int(m.sum()) < 100:
+        return None
+    zf = Z[m]
+    xf = (xs[m] - cx) / focal * zf
+    yf = (ys[m] - cy) / focal * zf
+    fp = np.stack([xf, yf, zf], axis=1)
+    c = fp.mean(axis=0)
+    try:
+        _, _, vt = np.linalg.svd(fp - c, full_matrices=False)
+    except np.linalg.LinAlgError:
+        return None
+    normal = vt[2]
+    fwd = np.array([0.0, 0.0, 1.0])
+    v_axis = fwd - (fwd @ normal) * normal
+    nv = np.linalg.norm(v_axis)
+    v_axis = vt[0] if nv < 1e-6 else v_axis / nv
+    u_axis = np.cross(normal, v_axis)
+    u_axis = u_axis / (np.linalg.norm(u_axis) + 1e-8)
+    K = np.array([[focal, 0.0, cx], [0.0, focal, cy], [0.0, 0.0, 1.0]])
+    try:
+        H_inv = np.linalg.inv(np.column_stack([K @ u_axis, K @ v_axis, K @ c]))
+    except np.linalg.LinAlgError:
+        return None
+    return {"h": h, "w": w, "H_inv": H_inv}
+
+
+def _segments_angle(segments, mask, H_inv):
+    """Dominant grid angle from M-LSD segments → (angle, confidence) or (None, 0)."""
+    if segments is None or len(segments) == 0:
+        return None, 0.0
+    h, w = mask.shape
+    md = cv2.dilate(mask.astype(np.uint8), np.ones((15, 15), np.uint8))
+    C = S = tot = 0.0
+    for x1, y1, x2, y2 in np.asarray(segments, dtype=np.float64).reshape(-1, 4):
+        mx, my = int((x1 + x2) / 2), int((y1 + y2) / 2)
+        if not (0 <= my < h and 0 <= mx < w and md[my, mx]):
+            continue  # keep only segments on/near the floor
+        p1 = H_inv @ np.array([x1, y1, 1.0])
+        p2 = H_inv @ np.array([x2, y2, 1.0])
+        if abs(p1[2]) < 1e-9 or abs(p2[2]) < 1e-9:
+            continue
+        d = p2[:2] / p2[2] - p1[:2] / p1[2]
+        if np.hypot(d[0], d[1]) < 1e-6:
+            continue
+        th = np.arctan2(d[1], d[0])
+        wt = float(np.hypot(x2 - x1, y2 - y1))  # weight by on-screen length
+        C += wt * np.cos(4.0 * th)
+        S += wt * np.sin(4.0 * th)
+        tot += wt
+    if tot < 1e-6:
+        return None, 0.0
+    return np.arctan2(S, C) / 4.0, float(np.hypot(C, S) / tot)
+
+
+def _quad_angle(quad, H_inv):
+    """Grid angle from the floor quad's near edge (∥ front wall) → angle or None."""
+    if quad is None:
+        return None
+    nl, nr = np.asarray(quad[0], dtype=np.float64), np.asarray(quad[1], dtype=np.float64)
+    p1 = H_inv @ np.array([nl[0], nl[1], 1.0])
+    p2 = H_inv @ np.array([nr[0], nr[1], 1.0])
+    if abs(p1[2]) < 1e-9 or abs(p2[2]) < 1e-9:
+        return None
+    d = p2[:2] / p2[2] - p1[:2] / p1[2]
+    if np.hypot(d[0], d[1]) < 1e-6:
+        return None
+    return _fold90(np.arctan2(d[1], d[0]))
+
+
+def floor_orientation_angle(mask, depth, segments=None, quad=None,
+                            min_confidence=0.45, agree_deg=12.0):
+    """Fuse cues into the floor-grid orientation (rad, camera-forward basis).
+
+    Multi-cue vote so no single estimator's failure skews the grid:
+      - M-LSD line segments → precise vanishing angle (+ confidence).
+      - Floor quad near edge → reliable geometric anchor (∥ the front wall).
+
+    Rule: trust M-LSD when it's confident AND agrees with the quad; otherwise
+    fall back to the quad; then to M-LSD-if-confident; else None (camera-forward).
+    """
+    fr = _camera_forward_frame(mask, depth)
+    if fr is None:
+        return None
+    H_inv = fr["H_inv"]
+    phi_mlsd, conf = _segments_angle(segments, mask, H_inv)
+    phi_quad = _quad_angle(quad, H_inv)
+
+    if phi_mlsd is not None and conf >= min_confidence and (
+        phi_quad is None or _near90(phi_mlsd, phi_quad) < np.radians(agree_deg)
+    ):
+        return _fold90(phi_mlsd)
+    if phi_quad is not None:
+        return phi_quad
+    if phi_mlsd is not None and conf >= min_confidence:
+        return _fold90(phi_mlsd)
+    return None
+
+
+__all__ = [
+    "depth_to_normals",
+    "split_wall_planes",
+    "floor_plane_uv",
+    "floor_orientation_angle",
+]

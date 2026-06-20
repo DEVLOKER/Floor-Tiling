@@ -30,6 +30,7 @@ from floor_tiling.ml import (
     get_mask2former_predictor,
     get_oneformer_predictor,
     get_depth_predictor,
+    get_mlsd_predictor,
 )
 from floor_tiling.licensing import verify_license, LicenseError
 
@@ -86,6 +87,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("Failed to load depth model: %s", exc, exc_info=True)
         app.state.depth_predictor = None
+
+    # ── Load M-LSD (line detector for depth-tiling grid orientation) ──────
+    # Best-effort: if it fails, the depth tiler falls back to the floor-quad.
+    try:
+        app.state.mlsd_predictor = await asyncio.to_thread(get_mlsd_predictor)
+        logger.info("M-LSD model ready.")
+    except Exception as exc:
+        logger.error("Failed to load M-LSD: %s", exc, exc_info=True)
+        app.state.mlsd_predictor = None
 
     yield  # ── server is running ─────────────────────────────────────────
 

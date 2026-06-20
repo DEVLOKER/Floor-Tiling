@@ -127,17 +127,26 @@ async def apply_tiles(
         # ── Depth (only for the depth algorithm) ───────────────────────────
         # Sampled on the pristine original so tile geometry matches the real floor.
         depth_map = None
+        mlsd_segments = None
         if algorithm == "depth":
+            src_for_depth = lighting_source if lighting_source is not None else img
+            rgb = cv2.cvtColor(src_for_depth, cv2.COLOR_BGR2RGB)
             depth_predictor = getattr(request.app.state, "depth_predictor", None)
             if depth_predictor is not None:
                 try:
-                    src_for_depth = lighting_source if lighting_source is not None else img
-                    rgb = cv2.cvtColor(src_for_depth, cv2.COLOR_BGR2RGB)
                     depth_map = await asyncio.to_thread(depth_predictor.predict, rgb)
                 except Exception as exc:
                     logger.warning("Depth for tiling failed, falling back to vanishing: %s", exc)
             else:
                 logger.warning("Depth model unavailable; falling back to vanishing.")
+            # M-LSD line segments → grid orientation cue (best-effort; the renderer
+            # falls back to the floor-quad anchor if these are missing).
+            mlsd_predictor = getattr(request.app.state, "mlsd_predictor", None)
+            if mlsd_predictor is not None:
+                try:
+                    mlsd_segments = await asyncio.to_thread(mlsd_predictor.predict, rgb)
+                except Exception as exc:
+                    logger.warning("M-LSD for tiling failed: %s", exc)
 
         # ── Render tiles ───────────────────────────────────────────────────
         result = apply_perspective_tiles(
@@ -160,6 +169,7 @@ async def apply_tiles(
             lighting_source=lighting_source,
             algorithm=algorithm,
             depth=depth_map,
+            mlsd_segments=mlsd_segments,
         )
 
         # ── Encode and return ──────────────────────────────────────────────

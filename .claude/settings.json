@@ -83,7 +83,25 @@
       "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app; print\\('import OK'\\)\")",
       "Bash(python -c \"import tomllib; d=tomllib.load\\(open\\('pyproject.toml','rb'\\)\\); print\\('deps:', d['project']['dependencies']\\); print\\('name:', d['project']['name']\\)\")",
       "Bash(rm -f _algo_vanishing.jpg _algo_depth.jpg)",
-      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app as a; print\\('app OK; /api/apply-tiles' , any\\(r.path=='/api/apply-tiles' for r in a.app.routes\\)\\)\")"
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app as a; print\\('app OK; /api/apply-tiles' , any\\(r.path=='/api/apply-tiles' for r in a.app.routes\\)\\)\")",
+      "Bash(pip install *)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c \"import torch; print\\('torch', torch.__version__\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python _mlsd_test.py)",
+      "Read(//tmp/**)",
+      "Bash(grep -nE '^\\(import|from\\)' __TRACKED_VAR__/models/mbv2_mlsd_large.py)",
+      "Bash(grep -nE '^\\(import|from\\)' __TRACKED_VAR__/utils.py)",
+      "Bash(grep -nE '^def ' __TRACKED_VAR__/utils.py)",
+      "Bash(cp __TRACKED_VAR__/models/mbv2_mlsd_large.py src/floor_tiling/ml/mlsd/model.py)",
+      "Bash(cp __TRACKED_VAR__/utils.py src/floor_tiling/ml/mlsd/utils.py)",
+      "Bash(cp /tmp/mlsd_weights.pth models/mlsd/mlsd_large_512_fp32.pth)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/ml/mlsd src/floor_tiling/core/planes.py src/floor_tiling/processors/tile_renderer.py)",
+      "Bash(rm -f _fuse_*.jpg)",
+      "Bash(pip uninstall *)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app as a; print\\('app OK, routes', len\\(a.app.routes\\)\\); from floor_tiling.ml import get_mlsd_predictor; print\\('mlsd export OK'\\)\")",
+      "Bash(rm -f _focal_*.jpg _d_*.jpg)",
+      "Bash(rm -f _final_*.jpg)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/core/planes.py)",
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _st_*.jpg && echo cleaned)"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"
