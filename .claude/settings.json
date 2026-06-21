@@ -111,7 +111,11 @@
       "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/api/routes/tiles.py)",
       "Bash(node --check src/floor_tiling/static/js/modules/mesh.js)",
       "Bash(head -76 src/floor_tiling/static/js/modules/align.js)",
-      "Bash(mv /tmp/align.js src/floor_tiling/static/js/modules/align.js)"
+      "Bash(mv /tmp/align.js src/floor_tiling/static/js/modules/align.js)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/processors/tile_renderer.py)",
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _auto_*.jpg && echo cleaned)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONPATH=src python -c \"import floor_tiling.app; print\\('OK'\\)\")",
+      "Bash(cd \"d:\\\\Projects\\\\Python Projects\\\\Floor Tiling\\\\client\" && rm -f _two_*.jpg && echo cleaned)"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"

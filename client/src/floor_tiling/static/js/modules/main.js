@@ -181,7 +181,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!alignHint) return;
     if (n === 0)
       alignHint.textContent =
-        "Tracez une ligne le long d'un mur. Ajoutez une 2e ligne sur un mur perpendiculaire pour un alignement parfait.";
+        "Alignement automatique sur les murs. Tracez une ligne le long d'un mur seulement pour corriger.";
     else if (n === 1)
       alignHint.textContent =
         "1 ligne : rotation alignée. Tracez une 2e ligne sur un mur perpendiculaire si un côté reste de travers.";

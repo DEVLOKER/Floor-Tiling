@@ -361,10 +361,63 @@ def _sample_texture_aa(
     return acc.reshape(u_frac.shape + (3,))
 
 
+def _auto_align_lines(mask):
+    """The two dominant floor↔wall edges as image-point pairs → (line1, line2).
+
+    Real alignment needs TWO directions (two perpendicular walls) to fix both the
+    rotation AND the shear of the grid — the same as drawing two lines by hand.
+    We take the floor silhouette's longest straight edge that isn't an image
+    border (line1), then the longest remaining edge whose direction differs
+    enough from it (line2). Either may be None when no clear edge exists.
+    """
+    cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not cnts:
+        return None, None
+    c = max(cnts, key=cv2.contourArea)
+    poly = cv2.approxPolyDP(c, 0.01 * cv2.arcLength(c, True), True).reshape(-1, 2)
+    h, w = mask.shape
+    b = 4
+    min_len = 0.12 * max(h, w)
+
+    def on_border(p):
+        return p[0] <= b or p[0] >= w - 1 - b or p[1] <= b or p[1] >= h - 1 - b
+
+    edges = []  # (length, (p1,p2), angle_deg in [0,180))
+    n = len(poly)
+    for i in range(n):
+        p1, p2 = poly[i], poly[(i + 1) % n]
+        if on_border(p1) and on_border(p2):
+            continue
+        length = float(np.hypot(p2[0] - p1[0], p2[1] - p1[1]))
+        if length < min_len:
+            continue
+        ang = np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0])) % 180.0
+        edges.append((length, (tuple(int(v) for v in p1), tuple(int(v) for v in p2)), ang))
+    if not edges:
+        return None, None
+    edges.sort(key=lambda e: -e[0])
+    line1, a1 = edges[0][1], edges[0][2]
+    line2 = None
+    for _, seg, ang in edges[1:]:
+        d = abs(ang - a1) % 180.0
+        d = min(d, 180.0 - d)
+        if d > 18.0:  # a genuinely different (≈ perpendicular) wall direction
+            line2 = seg
+            break
+    return line1, line2
+
+
 # The main public function.  Takes the original image and floor mask, renders the perspective-correct tile pattern,
 # applies shadow/tint from the original floor, and blends the result seamlessly back onto the original image.
-def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None, algorithm: str="vanishing", depth: np.ndarray=None, mlsd_segments: np.ndarray=None, align_points=None, align_points2=None) -> np.ndarray:
+def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str, tile_color2: str, grout_color: str, tile_width_cm: float, tile_height_cm: float, grout_h_thickness: int, grout_v_thickness: int, rotation_deg: float=0.0, pattern: str="grid", tile_texture: np.ndarray=None, tile_texture2: np.ndarray=None, visual_square_compensation: bool=True, translate_x: float=0.0, translate_y: float=0.0, perspective_compression: float=0.0, lighting_source: np.ndarray=None, algorithm: str="vanishing", depth: np.ndarray=None, mlsd_segments: np.ndarray=None, align_points=None, align_points2=None, auto_align: bool=True) -> np.ndarray:
     mask = (mask > 0).astype(np.uint8)
+
+    # Auto-align to the walls — DEPTH algorithm only. The vanishing-point path
+    # already orients from the floor quad, so it keeps its native orientation
+    # (manual alignment lines still work for both). Detects the two dominant
+    # floor↔wall edges and treats them like a hand-drawn 2-line alignment.
+    if align_points is None and align_points2 is None and auto_align and algorithm == "depth":
+        align_points, align_points2 = _auto_align_lines(mask)
     # Lighting/geometry are sampled from ``light`` (the pristine original) while
     # the tiles are composited onto ``image`` (the accumulated result).  Keeping
     # these separate makes re-tiling idempotent — the shadow/tint is never read
@@ -494,6 +547,16 @@ def apply_perspective_tiles(image: np.ndarray, mask: np.ndarray, tile_color: str
         v_shifted = v_all - rot_cy
         u_all = u_shifted * np.cos(theta) - v_shifted * np.sin(theta) + rot_cx
         v_all = u_shifted * np.sin(theta) + v_shifted * np.cos(theta) + rot_cy
+
+    # ── Start full tiles from one wall/corner ───────────────────────────────
+    # Real tiling lays FULL tiles from one corner; only the far walls get cuts.
+    # Snap the grid phase so the floor's starting corner sits on a grout line
+    # (1st percentile = robust to stray boundary pixels). The manual translate
+    # below then nudges the layout from this realistic starting point.
+    _m = mask > 0
+    if _m.any():
+        u_all = u_all - float(np.percentile(u_all[_m], 1.0))
+        v_all = v_all - float(np.percentile(v_all[_m], 1.0))
 
     # ── Translation (direct tile-unit offset) ──────────────────────────────────────────────
     # This is a simple shift in the tile UV space, which can be used to fine-tune the tile alignment by eye.  
