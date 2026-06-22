@@ -4,10 +4,10 @@ import {
   syncPatternUI,
   showStatus,
   updateTogglePreviewVisibility,
+  setMarkersAutoHide,
 } from "./ui.js";
 import {
   handleImageUpload,
-  baseImageToBlob,
   originalImageToBlob,
   dataUrlToBlob,
 } from "./image.js";
@@ -289,6 +289,18 @@ export async function applyPaintToWalls() {
   const maskData = new Uint8Array(width * height);
   let pid = 0;
   let total = 0;
+  // Each toggle, when ON, also paints OVER its category sitting on the surface,
+  // instead of leaving it unpainted. Both categories are tagged with their
+  // surface id (255 = ceiling): fixtures/decor in autoMasks.objects, doors &
+  // windows in autoMasks.openings.
+  const paintObjects = !!document.getElementById("paintWallObjectsToggle")?.checked;
+  const paintOpenings = !!document.getElementById("paintWallOpeningsToggle")?.checked;
+  const om = paintObjects ? state.autoMasks.objects : null;
+  const opm = paintOpenings ? state.autoMasks.openings : null;
+  // A pixel belongs to surface `sid` if it's the surface itself or an enabled
+  // extra category tagged with that surface id.
+  const extra = (y, x, sid) =>
+    (om && om[y] && om[y][x] === sid) || (opm && opm[y] && opm[y][x] === sid);
   for (const id of state.selectedSurfaces) {
     if (id === "floor") continue;
     pid += 1;
@@ -298,7 +310,7 @@ export async function applyPaintToWalls() {
       for (let y = 0; y < height; y++) {
         if (!cm[y]) continue;
         for (let x = 0; x < width; x++)
-          if (cm[y][x] > 0) {
+          if (cm[y][x] > 0 || extra(y, x, 255)) {
             maskData[y * width + x] = pid;
             total++;
           }
@@ -310,7 +322,7 @@ export async function applyPaintToWalls() {
       for (let y = 0; y < height; y++) {
         if (!wm[y]) continue;
         for (let x = 0; x < width; x++)
-          if (wm[y][x] === wid) {
+          if (wm[y][x] === wid || extra(y, x, wid)) {
             maskData[y * width + x] = pid;
             total++;
           }
@@ -325,7 +337,10 @@ export async function applyPaintToWalls() {
   showStatus("🎨 Application de la peinture…", "info");
   state.isLoading = true;
   try {
-    const blob = await baseImageToBlob(state);
+    // Paint onto the paint-FREE base (floor-tiled result, or original) — never
+    // the previous painted result — so a recolour or a smaller mask (toggling
+    // wall objects off) replaces the paint instead of leaving the old one.
+    const blob = state.paintBaseBlob || (await originalImageToBlob(state));
     const sourceBlob = await originalImageToBlob(state);
     const maskBlob = new Blob([maskData], { type: "application/octet-stream" });
     const fd = new FormData();
@@ -337,6 +352,10 @@ export async function applyPaintToWalls() {
     fd.append("opacity", (val("wallPaintOpacity") || 100) / 100.0);
     fd.append("light_strength", (val("wallPaintLight") || 100) / 100.0);
     fd.append("saturation", (val("wallPaintSat") || 86) / 100.0);
+    // Painting over objects/openings: tell the backend to skip the matting
+    // refinement, whose colour cue would otherwise keep these (non-wall-coloured)
+    // regions unpainted, defeating the toggle.
+    fd.append("paint_objects", paintObjects || paintOpenings ? "1" : "0");
     if (state.paintMode === "texture" && state.paintTextureDataUrl) {
       fd.append(
         "paint_texture",
@@ -355,6 +374,7 @@ export async function applyPaintToWalls() {
     const resultBlob = await res.blob();
     if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
     state.resultUrl = URL.createObjectURL(resultBlob);
+    state.hasPaint = true; // paint is now applied (re-derived from paintBaseBlob)
     updateTogglePreviewVisibility();
     const img = new Image();
     img.onload = () => {
@@ -367,6 +387,7 @@ export async function applyPaintToWalls() {
       );
       state.isLoading = false;
       state.showingTiledResult = true;
+      setMarkersAutoHide(true); // result shown → auto-hide markers (hover/FAB reveals)
     };
     img.src = state.resultUrl;
   } catch (err) {
@@ -407,7 +428,10 @@ export async function applyTilesToFloor() {
         ? val("groutColorChecker")
         : val("groutColor");
   try {
-    const blob = await baseImageToBlob(state);
+    // Tiles derive from the ORIGINAL (not the accumulated result) so re-tiling
+    // replaces the previous tiling; wall paint is re-chained afterwards so the
+    // two edits (disjoint regions) both stay in the final composite.
+    const blob = await originalImageToBlob(state);
     const sourceBlob = await originalImageToBlob(state);
     const maskData = new Uint8Array(state.floorMask.flat());
     const maskBlob = new Blob([maskData], { type: "application/octet-stream" });
@@ -430,6 +454,11 @@ export async function applyTilesToFloor() {
     );
     fd.append("pattern", val("tilePattern"));
     fd.append("algorithm", val("tileAlgorithm") || "vanishing");
+    // Auto-align grid to walls (depth algorithm) — off by default, user opt-in.
+    fd.append(
+      "auto_align",
+      document.getElementById("autoAlignToggle")?.checked ? "1" : "0",
+    );
     const _lines = state.tileAlignLines || [];
     if (_lines[0]) {
       const [[x1, y1], [x2, y2]] = _lines[0];
@@ -468,7 +497,16 @@ export async function applyTilesToFloor() {
     const resultBlob = await res.blob();
     if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
     state.resultUrl = URL.createObjectURL(resultBlob);
+    // This tiles-only composite is the base future wall paints build on.
+    state.paintBaseBlob = resultBlob;
     updateTogglePreviewVisibility();
+    // If paint is active, skip the tiles-only frame and re-apply paint over the
+    // new tiled base so both (disjoint) edits stay in the final composite.
+    if (state.hasPaint) {
+      state.isLoading = false;
+      applyPaintToWalls();
+      return;
+    }
     const img = new Image();
     img.onload = () => {
       state.editedImage = img;
@@ -480,6 +518,7 @@ export async function applyTilesToFloor() {
       );
       state.isLoading = false;
       state.showingTiledResult = true;
+      setMarkersAutoHide(true); // result shown → auto-hide markers (hover/FAB reveals)
     };
     img.src = state.resultUrl;
   } catch (err) {

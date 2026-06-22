@@ -61,6 +61,7 @@ async def apply_tiles(
     pattern: str = Form(DEFAULT_PATTERN),
     perspective_compression: float = Form(DEFAULT_PERSPECTIVE_COMPRESSION),
     algorithm: str = Form("vanishing"),
+    auto_align: bool = Form(False),
     align_x1: float = Form(None),
     align_y1: float = Form(None),
     align_x2: float = Form(None),
@@ -208,6 +209,7 @@ async def apply_tiles(
             mlsd_segments=mlsd_segments,
             align_points=align_points,
             align_points2=align_points2,
+            auto_align=auto_align,
         )
 
         # ── Encode and return ──────────────────────────────────────────────

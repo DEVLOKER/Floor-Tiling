@@ -42,6 +42,9 @@ venv.bak/
 # Configs/tokenizers stay tracked; only the heavy weights are ignored.
 models/**/*.bin
 models/**/*.safetensors
+models/**/*.pt
+models/**/*.pth
+models/**/*.onnx
 
 # Cache
 .cache/

@@ -15,7 +15,13 @@ export let state = {
   resultUrl: null, // object URL of the accumulated composite (floor tiles + wall paint)
   editedImage: null, // <img> of the accumulated composite, kept in sync with resultUrl
   showingTiledResult: false, // tracks which image is shown on canvas in toggle preview
-  autoMasks: { floor: null, wall: null, ceiling: null },
+  // Wall paint must be re-derivable so recolours / mask changes (e.g. toggling
+  // wall objects) REPLACE the paint instead of stacking. So paint always
+  // composites onto this paint-free base (the floor-tiled result, or original),
+  // never the previous painted result. Updated only by tiling, not painting.
+  paintBaseBlob: null,
+  hasPaint: false, // whether wall paint is currently applied (for re-chaining)
+  autoMasks: { floor: null, wall: null, ceiling: null, objects: null, openings: null },
   activeMode: "tile", // "tile" (floor) | "paint" (walls) — drives selection rules
   liveApply: true, // auto re-render on control change; off = apply only via button
   selectedSurfaces: new Set(), // Set of "floor" | "wall"

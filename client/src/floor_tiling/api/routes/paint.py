@@ -1,7 +1,9 @@
 """Wall painting route — /api/apply-paint."""
 
 import asyncio
+import hashlib
 import logging
+from collections import OrderedDict
 from typing import Optional
 
 import cv2
@@ -14,12 +16,22 @@ from floor_tiling.config.settings import (
     DEFAULT_PAINT_FINISH,
     JPEG_QUALITY,
     PAINT_FINISHES,
+    PAINT_REFINE_MATTING,
+    MATTING_MAX_SIDE,
+    MATTING_FG_ERODE,
+    MATTING_BG_DILATE,
+    MATTING_COLOR_DEMOTE_T,
 )
 from floor_tiling.processors import apply_wall_paint
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["paint"])
+
+# Cache the (colour-independent) alpha matte so recolouring the same wall doesn't
+# re-run ViTMatte. Keyed by a hash of the mask + lighting source.
+_MATTE_CACHE: "OrderedDict[str, np.ndarray]" = OrderedDict()
+_MATTE_CACHE_MAX = 8
 
 
 @router.post("/apply-paint")
@@ -33,6 +45,7 @@ async def apply_paint(
     texture_scale: float = Form(1.3),
     light_strength: float = Form(1.0),
     saturation: float = Form(0.86),
+    paint_objects: bool = Form(False),
     source: Optional[UploadFile] = File(None),
     paint_texture: Optional[UploadFile] = File(None),
 ):
@@ -115,6 +128,35 @@ async def apply_paint(
             light_strength=light_strength,
             saturation=saturation,
         )
+
+        # ── Matting refinement around fine foreground (foliage) ────────────
+        # Composite the paint with a soft alpha so wispy leaves the mask can't
+        # resolve stay clean instead of showing as ghost edges. The matte is
+        # colour-independent, so it's cached and reused across recolours.
+        matting = getattr(request.app.state, "matting_predictor", None)
+        if PAINT_REFINE_MATTING and matting is not None and not paint_objects:
+            try:
+                matte_src = lighting_source if lighting_source is not None else img
+                matte_rgb = cv2.cvtColor(matte_src, cv2.COLOR_BGR2RGB)
+                key = (
+                    hashlib.md5(mask_bytes).hexdigest()
+                    + hashlib.md5(matte_rgb.tobytes()).hexdigest()
+                )
+                alpha = _MATTE_CACHE.get(key)
+                if alpha is None:
+                    alpha = await asyncio.to_thread(
+                        matting.matte, matte_rgb, paint_mask,
+                        MATTING_MAX_SIDE, MATTING_FG_ERODE, MATTING_BG_DILATE,
+                        MATTING_COLOR_DEMOTE_T,
+                    )
+                    _MATTE_CACHE[key] = alpha
+                    if len(_MATTE_CACHE) > _MATTE_CACHE_MAX:
+                        _MATTE_CACHE.popitem(last=False)
+                a = alpha[:, :, None]
+                result = (a * result.astype(np.float32)
+                          + (1.0 - a) * img.astype(np.float32)).astype(np.uint8)
+            except Exception as exc:
+                logger.warning("Paint matting skipped: %s", exc)
 
         # ── Encode and return ──────────────────────────────────────────────
         ok, buf = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])

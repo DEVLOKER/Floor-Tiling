@@ -14,6 +14,7 @@ import torch
 from transformers import OneFormerProcessor, OneFormerForUniversalSegmentation
 
 from floor_tiling.paths import model_dir
+from floor_tiling.ml.labels import object_class_ids, opening_class_ids
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ class OneFormerManager:
     _instance = None
     _model = None
     _processor = None
+    _object_ids = None   # cached ADE20K ids of wall fixtures/decor to exclude
+    _opening_ids = None  # cached ADE20K ids of doors & windows
     _model_id = "shi-labs/oneformer_ade20k_swin_large"
 
     def __new__(cls):
@@ -75,9 +78,11 @@ class OneFormerManager:
             raise
 
     def predict(self, image_np: np.ndarray):
-        """Semantic segmentation → (floor, wall, ceiling) binary masks.
+        """Semantic segmentation → (floor, wall, ceiling, objects, openings).
 
-        ADE20K IDs: 0 = wall, 3 = floor, 5 = ceiling.
+        ADE20K IDs: 0 = wall, 3 = floor, 5 = ceiling. ``objects`` are wall
+        fixtures/decor (lamp/radiator/tv/…) and ``openings`` are doors & windows
+        — two separate paint-exclusion categories.
         """
         inputs = self._processor(images=image_np, task_inputs=["semantic"], return_tensors="pt")
         with torch.no_grad():
@@ -88,7 +93,18 @@ class OneFormerManager:
         wall = (seg == 0).astype(np.uint8)
         floor = (seg == 3).astype(np.uint8)
         ceiling = (seg == 5).astype(np.uint8)
-        return floor, wall, ceiling
+        if self._object_ids is None:
+            self._object_ids = object_class_ids(self._model.config.id2label)
+            self._opening_ids = opening_class_ids(self._model.config.id2label)
+        objects = (
+            np.isin(seg, list(self._object_ids)).astype(np.uint8)
+            if self._object_ids else np.zeros_like(wall)
+        )
+        openings = (
+            np.isin(seg, list(self._opening_ids)).astype(np.uint8)
+            if self._opening_ids else np.zeros_like(wall)
+        )
+        return floor, wall, ceiling, objects, openings
 
 
 def get_oneformer_predictor() -> OneFormerManager:

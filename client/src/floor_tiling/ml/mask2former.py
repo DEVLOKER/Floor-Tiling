@@ -7,6 +7,7 @@ from PIL import Image
 from transformers import Mask2FormerForUniversalSegmentation, AutoImageProcessor
 
 from floor_tiling.paths import model_dir
+from floor_tiling.ml.labels import object_class_ids, opening_class_ids
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,8 @@ class Mask2FormerManager:
     _instance = None
     _model = None
     _processor = None
+    _object_ids = None   # cached ADE20K ids of wall fixtures/decor to exclude
+    _opening_ids = None  # cached ADE20K ids of doors & windows
     # Swin-LARGE ADE20K gives noticeably cleaner wall/floor/ceiling masks than
     # the base model (fewer confusions like wardrobes→wall, crisper edges).
     # Downloaded once into the local ``models/`` dir, then loaded offline.
@@ -98,6 +101,8 @@ class Mask2FormerManager:
             floor_mask:   Binary numpy array [H, W]
             wall_mask:    Binary numpy array [H, W]
             ceiling_mask: Binary numpy array [H, W]
+            object_mask:  Binary [H, W] — wall fixtures/decor to EXCLUDE.
+            opening_mask: Binary [H, W] — doors & windows to EXCLUDE.
         """
         inputs = self._processor(images=image_np, return_tensors="pt")
 
@@ -117,7 +122,21 @@ class Mask2FormerManager:
         floor_mask = (semantic_map == 3).astype(np.uint8)
         ceiling_mask = (semantic_map == 5).astype(np.uint8)
 
-        return floor_mask, wall_mask, ceiling_mask
+        # Excluded classes, split into fixtures/decor vs doors&windows (resolved
+        # once from the model's label map).
+        if self._object_ids is None:
+            self._object_ids = object_class_ids(self._model.config.id2label)
+            self._opening_ids = opening_class_ids(self._model.config.id2label)
+        object_mask = (
+            np.isin(semantic_map, list(self._object_ids)).astype(np.uint8)
+            if self._object_ids else np.zeros_like(wall_mask)
+        )
+        opening_mask = (
+            np.isin(semantic_map, list(self._opening_ids)).astype(np.uint8)
+            if self._opening_ids else np.zeros_like(wall_mask)
+        )
+
+        return floor_mask, wall_mask, ceiling_mask, object_mask, opening_mask
 
 def get_mask2former_predictor() -> Mask2FormerManager:
     """Get singleton Mask2Former predictor instance."""

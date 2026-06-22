@@ -25,12 +25,19 @@ from floor_tiling.config.settings import (
     MAX_UPLOAD_SIZE_BYTES,
     SEG_USE_MASK2FORMER,
     SEG_USE_ONEFORMER,
+    USE_OPEN_VOCAB_OBJECTS,
+    OPEN_VOCAB_DETECTOR,
+    PAINT_REFINE_MATTING,
 )
 from floor_tiling.ml import (
     get_mask2former_predictor,
     get_oneformer_predictor,
     get_depth_predictor,
     get_mlsd_predictor,
+    get_grounding_dino_predictor,
+    get_yolo_world_predictor,
+    get_sam_predictor,
+    get_matting_predictor,
 )
 from floor_tiling.licensing import verify_license, LicenseError
 
@@ -96,6 +103,41 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("Failed to load M-LSD: %s", exc, exc_info=True)
         app.state.mlsd_predictor = None
+
+    # ── Load open-vocab object detector + SAM (wall objects to exclude) ────
+    # Catch wall objects the semantic model lacks (AC, sockets, pipes…) and cut
+    # them precisely. The detector backend is chosen by OPEN_VOCAB_DETECTOR
+    # (YOLO-World is fast; Grounding DINO is the slower, higher-recall option).
+    # Best-effort: detection still works without them.
+    app.state.object_detector = None
+    app.state.sam_predictor = None
+    if USE_OPEN_VOCAB_OBJECTS:
+        try:
+            if OPEN_VOCAB_DETECTOR == "grounding_dino":
+                app.state.object_detector = await asyncio.to_thread(get_grounding_dino_predictor)
+            else:
+                app.state.object_detector = await asyncio.to_thread(get_yolo_world_predictor)
+            app.state.sam_predictor = await asyncio.to_thread(get_sam_predictor)
+            logger.info("Open-vocab detector (%s) + SAM ready.", OPEN_VOCAB_DETECTOR)
+        except Exception as exc:
+            logger.error("Failed to load open-vocab detector/SAM: %s", exc, exc_info=True)
+            app.state.object_detector = None
+            app.state.sam_predictor = None
+    else:
+        logger.info("Open-vocab object exclusion disabled (USE_OPEN_VOCAB_OBJECTS=False).")
+
+    # ── Load ViTMatte (refines paint edges around fine foliage) ───────────
+    # Best-effort: painting falls back to the hard mask if it fails to load.
+    app.state.matting_predictor = None
+    if PAINT_REFINE_MATTING:
+        try:
+            app.state.matting_predictor = await asyncio.to_thread(get_matting_predictor)
+            logger.info("ViTMatte model ready.")
+        except Exception as exc:
+            logger.error("Failed to load ViTMatte: %s", exc, exc_info=True)
+            app.state.matting_predictor = None
+    else:
+        logger.info("Paint matting disabled (PAINT_REFINE_MATTING=False).")
 
     yield  # ── server is running ─────────────────────────────────────────
 

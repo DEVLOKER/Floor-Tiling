@@ -4,6 +4,22 @@ import { val } from "./helpers.js";
 import { hexToRgbArray } from "./utils.js";
 import { isCheckerPattern, isDualColorPattern } from "./patterns.js";
 
+// ── Marker visibility (auto-hide once a result is shown) ──────────
+// During selection the surface markers stay visible; once a result (tiling /
+// painting) is on screen we fade them out so the clean result shows, revealing
+// them on hover or via the markers FAB. `active` = a result is displayed.
+export function setMarkersAutoHide(active) {
+  const ws = document.querySelector(".canvas-workspace");
+  const fabWrap = document.getElementById("markersFabWrap");
+  if (ws) ws.classList.toggle("result-active", !!active);
+  if (fabWrap) fabWrap.style.display = active ? "" : "none";
+  if (!active && ws) {
+    // Back to selection phase → unpin and reset the toggle.
+    ws.classList.remove("markers-pinned");
+    document.getElementById("markersToggleBtn")?.classList.remove("active");
+  }
+}
+
 // ── AI Label Management ───────────────────────────────────────────
 export function clearAutoLabels() {
   const overlay = document.getElementById("markersOverlay");
@@ -119,6 +135,8 @@ export function invalidateCachedResult() {
   }
   state.editedImage = null;
   state.showingTiledResult = false;
+  // No result on screen → markers return to always-visible (selection phase).
+  setMarkersAutoHide(false);
   // Hide the toggle preview button and download button
   updateTogglePreviewVisibility();
   const downloadWrap = document.getElementById("downloadFabWrap");

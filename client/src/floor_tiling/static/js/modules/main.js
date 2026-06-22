@@ -95,10 +95,11 @@ document.addEventListener("DOMContentLoaded", () => {
     "tileColor", "groutColor", "tileColorLight", "tileColorDark",
     "groutColorChecker", "groutColorTexture", "tilePattern", "gridRotation",
     "perspectiveCompression", "tileWidth", "tileHeight", "groutThickness",
-    "translateX", "translateY",
+    "translateX", "translateY", "autoAlignToggle",
     // painting
     "wallPaintColor", "wallPaintFinish", "wallPaintOpacity", "wallPaintLight",
-    "wallPaintSat", "paintTextureScale",
+    "wallPaintSat", "paintTextureScale", "paintWallObjectsToggle",
+    "paintWallOpeningsToggle",
   ].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", liveApply);
   });
@@ -181,13 +182,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!alignHint) return;
     if (n === 0)
       alignHint.textContent =
-        "Alignement automatique sur les murs. Tracez une ligne le long d'un mur seulement pour corriger.";
+        "Activez l'alignement automatique ci-dessus, ou tracez une ligne le long d'un mur pour aligner manuellement.";
     else if (n === 1)
       alignHint.textContent =
         "1 ligne : rotation alignée. Tracez une 2e ligne sur un mur perpendiculaire si un côté reste de travers.";
     else
       alignHint.textContent =
-        "Aligné sur 2 murs. « Auto » pour revenir à la détection automatique.";
+        "Aligné sur 2 murs. « Effacer » pour retirer les lignes.";
   };
   document.getElementById("tileAlignBtn")?.addEventListener("click", () => {
     if (!state.originalImage) return;
@@ -250,6 +251,17 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("downloadBtn")
     ?.addEventListener("click", downloadResultImage);
+
+  // Markers FAB: pin the surface markers visible (overrides the auto-hide), so
+  // they stay shown on touch or when the user wants to keep selecting.
+  document.getElementById("markersToggleBtn")?.addEventListener("click", () => {
+    const ws = document.querySelector(".canvas-workspace");
+    if (!ws) return;
+    const pinned = ws.classList.toggle("markers-pinned");
+    document
+      .getElementById("markersToggleBtn")
+      .classList.toggle("active", pinned);
+  });
 
   // Redraw highlight if needed (optional)
   // redrawWithFloorHighlight();

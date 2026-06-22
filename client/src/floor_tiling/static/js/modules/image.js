@@ -40,6 +40,8 @@ export async function handleImageUpload(file) {
       invalidateCachedResult();
       updateTogglePreviewVisibility();
       state.floorMask = null;
+      state.paintBaseBlob = null; // new image → drop the paint base / paint state
+      state.hasPaint = false;
       state.tileAlignLines = []; // alignment is per-image (image coords)
       clearAutoLabels();
       const welcomeOverlay = document.getElementById("welcomeOverlay");
@@ -171,16 +173,33 @@ export async function runAutoDetection() {
     const floorFlat = decompressed.slice(base, base + h * w);
     const wallFlat = decompressed.slice(base + h * w, base + 2 * h * w);
     const ceilingFlat = decompressed.slice(base + 2 * h * w, base + 3 * h * w);
+    // 4th/5th channels — objects (fixtures/decor) and openings (doors&windows),
+    // each labelled by the surface they sit on. Only in newer payloads; guard on
+    // the buffer length.
+    const hasObjects = decompressed.length >= base + 4 * h * w;
+    const hasOpenings = decompressed.length >= base + 5 * h * w;
+    const objectFlat = hasObjects
+      ? decompressed.slice(base + 3 * h * w, base + 4 * h * w)
+      : null;
+    const openingFlat = hasOpenings
+      ? decompressed.slice(base + 4 * h * w, base + 5 * h * w)
+      : null;
 
     // Convert flat buffers to 2D arrays (backward compat with mask[y][x])
     const floorMask2D = [];
     const wallMask2D = [];
     const ceilingMask2D = [];
+    const objectMask2D = hasObjects ? [] : null;
+    const openingMask2D = hasOpenings ? [] : null;
     for (let y = 0; y < h; y++) {
       const offset = y * w;
       floorMask2D.push(Array.from(floorFlat.subarray(offset, offset + w)));
       wallMask2D.push(Array.from(wallFlat.subarray(offset, offset + w)));
       ceilingMask2D.push(Array.from(ceilingFlat.subarray(offset, offset + w)));
+      if (hasObjects)
+        objectMask2D.push(Array.from(objectFlat.subarray(offset, offset + w)));
+      if (hasOpenings)
+        openingMask2D.push(Array.from(openingFlat.subarray(offset, offset + w)));
     }
 
     const result = {
@@ -188,6 +207,8 @@ export async function runAutoDetection() {
       floor_mask: floorMask2D,
       wall_mask: wallMask2D,
       ceiling_mask: ceilingMask2D,
+      object_mask: objectMask2D,
+      opening_mask: openingMask2D,
     };
 
     if (!result.labels || result.labels.length === 0) {
@@ -198,6 +219,8 @@ export async function runAutoDetection() {
       state.autoMasks.floor = null;
       state.autoMasks.wall = null;
       state.autoMasks.ceiling = null;
+      state.autoMasks.objects = null;
+      state.autoMasks.openings = null;
       state.selectedSurfaces.clear();
       state.floorMask = null;
       const overlay = document.getElementById("markersOverlay");
@@ -217,6 +240,8 @@ export async function runAutoDetection() {
       state.autoMasks.floor = null;
       state.autoMasks.wall = null;
       state.autoMasks.ceiling = null;
+      state.autoMasks.objects = null;
+      state.autoMasks.openings = null;
       state.selectedSurfaces.clear();
       state.floorMask = null;
       const overlay = document.getElementById("markersOverlay");
@@ -227,6 +252,8 @@ export async function runAutoDetection() {
     state.autoMasks.floor = result.floor_mask;
     state.autoMasks.wall = result.wall_mask;
     state.autoMasks.ceiling = result.ceiling_mask;
+    state.autoMasks.objects = result.object_mask;
+    state.autoMasks.openings = result.opening_mask;
 
     // Fresh image → reset to the default: floor auto-selected for tiling,
     // walls & ceiling deselected. We clear the live selection and the per-tab
@@ -319,6 +346,11 @@ export function toggleSurface(id) {
   if (state.activeMode !== neededMode) {
     setActiveMode(neededMode); // tiling pre-selects floor; painting starts empty
     if (!isFloor) state.selectedSurfaces.add(id);
+  } else if (isFloor) {
+    // The floor is the sole tiling target — clicking always (re)selects it and
+    // never toggles it off, so a click on the already-selected floor doesn't
+    // silently clear the selection ("it forgot the floor").
+    state.selectedSurfaces.add("floor");
   } else if (state.selectedSurfaces.has(id)) {
     state.selectedSurfaces.delete(id);
   } else {

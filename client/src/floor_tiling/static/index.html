@@ -200,6 +200,15 @@
                     </svg>
                 </button>
             </div>
+            <div class="fab-tip-wrap" data-tip="Afficher / masquer les repères" id="markersFabWrap"
+                style="display:none">
+                <button class="fab fab-sm fab-markers" id="markersToggleBtn"
+                    title="Afficher / masquer les repères des surfaces">
+                    <svg class="app-icon">
+                        <use href="#ico-layers" />
+                    </svg>
+                </button>
+            </div>
             <div class="fab-tip-wrap" data-tip="Télécharger le résultat" id="downloadFabWrap" style="display:none">
                 <button class="fab fab-sm fab-download" id="downloadBtn" title="Télécharger le résultat">
                     <svg class="app-icon">
@@ -260,11 +269,16 @@
             <!-- Alignment (draw a line along a wall to straighten the grid) -->
             <div class="panel-section">
                 <div class="section-label">Alignement des joints</div>
-                <div class="quick-chips">
+                <label class="live-toggle" data-tip="Aligner automatiquement les joints sur les murs détectés (algorithme Profondeur)">
+                    <input type="checkbox" id="autoAlignToggle" />
+                    <span class="live-switch"></span>
+                    <span class="live-toggle-label">Alignement automatique</span>
+                </label>
+                <div class="quick-chips" style="margin-top:8px">
                     <button type="button" class="quick-chip" id="tileAlignBtn">Aligner sur un mur</button>
-                    <button type="button" class="quick-chip quick-chip-clear" id="tileAlignReset">Auto</button>
+                    <button type="button" class="quick-chip quick-chip-clear" id="tileAlignReset">Effacer</button>
                 </div>
-                <div class="paint-lead" id="tileAlignHint">Alignement automatique sur les murs. Tracez une ligne le long d'un mur seulement pour corriger.</div>
+                <div class="paint-lead" id="tileAlignHint">Désactivé par défaut. Activez l'alignement automatique sur les murs, ou tracez une ligne le long d'un mur pour aligner manuellement.</div>
             </div>
 
             <!-- Pattern selector -->
@@ -558,6 +572,16 @@
                         <div class="range-label">Saturation <span class="value-badge" id="wallPaintSatValue">86 %</span></div>
                         <input type="range" id="wallPaintSat" min="0" max="100" step="2" value="86" />
                     </div>
+                    <label class="live-toggle" style="margin-top:14px" data-tip="Peindre par-dessus les objets du mur (radiateur, miroir, TV, lampe, prise…) au lieu de les préserver">
+                        <input type="checkbox" id="paintWallObjectsToggle" />
+                        <span class="live-switch"></span>
+                        <span class="live-toggle-label">Peindre les objets du mur</span>
+                    </label>
+                    <label class="live-toggle" style="margin-top:10px" data-tip="Peindre par-dessus les portes et fenêtres (et rideaux/stores) au lieu de les préserver">
+                        <input type="checkbox" id="paintWallOpeningsToggle" />
+                        <span class="live-switch"></span>
+                        <span class="live-toggle-label">Peindre les portes et fenêtres</span>
+                    </label>
                 </div>
             </div><!-- /tabPaintPanel -->
 

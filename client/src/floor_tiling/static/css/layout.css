@@ -594,6 +594,38 @@ body.fullscreen-mode .top-btn-close {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+/* ── Auto-hide markers once a result is shown ───────────────────── */
+/* During selection the markers are always visible. Once tiling/painting has
+   been applied (`.result-active`), they fade away so the user sees the clean
+   result — and reappear on hover (desktop) or when pinned via the markers FAB
+   (works on touch). */
+.canvas-workspace.result-active #markersOverlay {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.canvas-workspace.result-active #markersOverlay .surface-marker-group {
+  pointer-events: none; /* don't catch clicks while hidden */
+}
+@media (hover: hover) {
+  .canvas-workspace.result-active:hover #markersOverlay {
+    opacity: 1;
+  }
+  .canvas-workspace.result-active:hover #markersOverlay .surface-marker-group {
+    pointer-events: auto;
+  }
+}
+.canvas-workspace.result-active.markers-pinned #markersOverlay {
+  opacity: 1;
+}
+.canvas-workspace.result-active.markers-pinned #markersOverlay .surface-marker-group {
+  pointer-events: auto;
+}
+/* Pinned state on the toggle FAB */
+.fab.fab-markers.active {
+  background: #ff7f50;
+  color: #fff;
+}
+
 /* ── Floor badge ───────────────────────────────────────────────── */
 .floor-badge {
   position: fixed;

@@ -15,7 +15,25 @@ from fastapi.responses import StreamingResponse
 from PIL import Image
 
 from floor_tiling.core.planes import split_wall_planes
-from floor_tiling.core.masks import refine_mask, fill_surface_gaps
+from floor_tiling.core.masks import (
+    refine_mask,
+    fill_surface_gaps,
+    snap_mask_to_lines,
+    grow_walls_to_objects,
+)
+from floor_tiling.config.settings import (
+    PAINT_IGNORE_WALL_OBJECTS,
+    WALL_OBJECT_DILATE_FRAC,
+    SNAP_EDGES_TO_LINES,
+    WALL_FILL_GAPS_PX,
+    USE_OPEN_VOCAB_OBJECTS,
+    OPEN_VOCAB_DETECTOR,
+    OPEN_VOCAB_OBJECT_PROMPT,
+    OPEN_VOCAB_BOX_THRESHOLD,
+    OPEN_VOCAB_TEXT_THRESHOLD,
+    OPEN_VOCAB_MAX_BOX_FRAC,
+    YOLO_WORLD_CONF,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,21 +98,79 @@ async def auto_detect_features(
             if not seg_predictors:
                 raise RuntimeError("No segmentation model available.")
 
-            floor_mask = wall_mask = ceiling_mask = None
+            floor_mask = wall_mask = ceiling_mask = object_mask = opening_mask = None
             for p in seg_predictors:
-                f2, w2, c2 = await asyncio.to_thread(p.predict, image_np)
+                f2, w2, c2, o2, op2 = await asyncio.to_thread(p.predict, image_np)
                 if floor_mask is None:
-                    floor_mask, wall_mask, ceiling_mask = f2, w2, c2
+                    floor_mask, wall_mask, ceiling_mask, object_mask, opening_mask = f2, w2, c2, o2, op2
                 else:
                     floor_mask = ((floor_mask > 0) | (f2 > 0)).astype(np.uint8)
                     wall_mask = ((wall_mask > 0) | (w2 > 0)).astype(np.uint8)
                     ceiling_mask = ((ceiling_mask > 0) | (c2 > 0)).astype(np.uint8)
+                    object_mask = ((object_mask > 0) | (o2 > 0)).astype(np.uint8)
+                    opening_mask = ((opening_mask > 0) | (op2 > 0)).astype(np.uint8)
 
             # Keep the three surfaces mutually exclusive (a union can overlap at
             # junctions): floor > ceiling > wall.
             floor_mask = (floor_mask > 0).astype(np.uint8)
             ceiling_mask = (ceiling_mask & ~(floor_mask > 0)).astype(np.uint8)
             wall_mask = (wall_mask & ~(floor_mask > 0) & ~(ceiling_mask > 0)).astype(np.uint8)
+
+            # ── Open-vocab objects the semantic model lacks ───────────────
+            # Air conditioner, sockets, pipes, thermostats… have no ADE20K class,
+            # so Grounding DINO finds them by text prompt and SAM cuts them
+            # precisely. Their masks are unioned into the exclusion set.
+            detector = getattr(request.app.state, "object_detector", None)
+            sam = getattr(request.app.state, "sam_predictor", None)
+            if USE_OPEN_VOCAB_OBJECTS and detector is not None and sam is not None:
+                try:
+                    def _open_vocab():
+                        # Grounding DINO takes a text prompt + 2 thresholds;
+                        # YOLO-World has the prompt baked in and one conf gate.
+                        if OPEN_VOCAB_DETECTOR == "grounding_dino":
+                            boxes = detector.detect(
+                                image_np, OPEN_VOCAB_OBJECT_PROMPT,
+                                OPEN_VOCAB_BOX_THRESHOLD, OPEN_VOCAB_TEXT_THRESHOLD,
+                            )
+                        else:
+                            boxes = detector.detect(image_np, YOLO_WORLD_CONF)
+                        if len(boxes):
+                            area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
+                            boxes = boxes[area < OPEN_VOCAB_MAX_BOX_FRAC * h * w]
+                        return sam.segment_boxes(image_np, boxes)
+                    ov_mask = await asyncio.to_thread(_open_vocab)
+                    object_mask = (
+                        ov_mask if object_mask is None
+                        else ((object_mask > 0) | (ov_mask > 0)).astype(np.uint8)
+                    )
+                    logger.info("Open-vocab objects: %d px", int(ov_mask.sum()))
+                except Exception as exc:
+                    logger.warning("Open-vocab object detection skipped: %s", exc)
+
+            # ── Surfaces' objects to EXCLUDE from painting ────────────────
+            # Two categories, each paintable-on-demand via its own UI toggle but
+            # BOTH excluded by default: fixtures/decor (object_mask) and doors &
+            # windows (opening_mask). Grow a touch (to catch frames) when carving.
+            if object_mask is None:
+                object_mask = np.zeros((h, w), np.uint8)
+            if opening_mask is None:
+                opening_mask = np.zeros((h, w), np.uint8)
+            object_mask = (object_mask.astype(np.uint8) & ~(floor_mask > 0)).astype(np.uint8)
+            opening_mask = (opening_mask.astype(np.uint8) & ~(floor_mask > 0)).astype(np.uint8)
+            obj_excl = None
+            obj_tight = None
+            if PAINT_IGNORE_WALL_OBJECTS and (object_mask.any() or opening_mask.any()):
+                excl_all = ((object_mask > 0) | (opening_mask > 0)).astype(np.uint8)
+                r = max(1, int(WALL_OBJECT_DILATE_FRAC * max(h, w)))
+                obj_excl = cv2.dilate(
+                    excl_all,
+                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)),
+                )
+                obj_excl = (obj_excl & ~(floor_mask > 0)).astype(np.uint8)
+                # TIGHT (undilated) mask — the wall-grow stops here, so the wall
+                # reaches the real object edge (a dilated bound would leave a halo
+                # of unpainted wall around every object).
+                obj_tight = excl_all
 
             # ── Edge-aware mask refinement ────────────────────────────────
             # Snap jagged model boundaries to the photo's real edges and clean
@@ -108,6 +184,32 @@ async def auto_detect_features(
             floor_mask, wall_mask, ceiling_mask = await asyncio.to_thread(
                 _refine_all, image_np, floor_mask, wall_mask, ceiling_mask
             )
+
+            # ── Snap wall/ceiling boundaries onto architectural lines ─────
+            # Straighten the refined boundaries onto M-LSD's detected straight
+            # lines (wall↔ceiling/floor edges, corners) so painting ends exactly
+            # on the real architecture rather than a wavy approximation.
+            mlsd_predictor = getattr(request.app.state, "mlsd_predictor", None)
+            if SNAP_EDGES_TO_LINES and mlsd_predictor is not None:
+                try:
+                    segments = await asyncio.to_thread(mlsd_predictor.predict, image_np)
+
+                    def _snap(wl, c):
+                        return (
+                            snap_mask_to_lines(wl, segments),
+                            snap_mask_to_lines(c, segments),
+                        )
+                    wall_mask, ceiling_mask = await asyncio.to_thread(
+                        _snap, wall_mask, ceiling_mask
+                    )
+                except Exception as exc:
+                    logger.warning("Edge line-snapping skipped: %s", exc)
+
+            # Carve the objects out of the wall/ceiling (refine may have closed
+            # over them) so the painted region has real holes where they are.
+            if obj_excl is not None:
+                wall_mask = (wall_mask & ~(obj_excl > 0)).astype(np.uint8)
+                ceiling_mask = (ceiling_mask & ~(obj_excl > 0)).astype(np.uint8)
             logger.info(
                 "Segmentation done — floor px: %d, wall px: %d, ceiling px: %d",
                 int(floor_mask.sum()), int(wall_mask.sum()), int(ceiling_mask.sum()),
@@ -153,6 +255,22 @@ async def auto_detect_features(
                 floor_mask, labeled_walls, ceiling_mask
             )
 
+            # Gap-fill can re-grow over objects — carve them out once more so the
+            # final wall/ceiling masks keep clean holes around them.
+            if obj_excl is not None:
+                labeled_walls[obj_excl > 0] = 0
+                ceiling_mask = (ceiling_mask & ~(obj_excl > 0)).astype(np.uint8)
+
+            # ── Grow walls into the unpainted gaps around objects ─────────────
+            # Segmentation leaves bands of unclassified wall (tile between the
+            # wall mask and an object, or wall the model missed) that paint as
+            # halos. Extend the wall planes into those gaps up to the TIGHT
+            # object mask / floor / ceiling so paint reaches right to the edges.
+            if WALL_FILL_GAPS_PX > 0 and obj_tight is not None:
+                labeled_walls = grow_walls_to_objects(
+                    labeled_walls, floor_mask, ceiling_mask, obj_tight, WALL_FILL_GAPS_PX
+                )
+
             wall_count = 0
             for pid in np.unique(labeled_walls):
                 if pid == 0:
@@ -185,14 +303,47 @@ async def auto_detect_features(
                 wall_count, 1 if ceiling_center else 0,
             )
 
+            # ── Excluded items, labelled by the surface they sit on ───────
+            # So the UI can optionally PAINT OVER each category (two toggles:
+            # fixtures/decor, and doors&windows). Each excluded pixel is tagged
+            # with its nearest paintable surface — wall plane id, or 255 for the
+            # ceiling — so the frontend adds it to the matching surface's mask.
+            object_labeled = np.zeros((h, w), np.uint8)
+            opening_labeled = np.zeros((h, w), np.uint8)
+            holes = (labeled_walls == 0) & (ceiling_mask == 0) & (floor_mask == 0)
+            if holes.any():
+                # Nearest paintable surface for every pixel (computed once, reused
+                # for both categories).
+                surfaces = [(255, (ceiling_mask > 0).astype(np.uint8))]
+                for wid in [int(i) for i in np.unique(labeled_walls) if i != 0]:
+                    surfaces.append((wid, (labeled_walls == wid).astype(np.uint8)))
+                best = np.full((h, w), np.inf, np.float32)
+                nearest = np.zeros((h, w), np.int32)
+                for sid, sm in surfaces:
+                    if not sm.any():
+                        continue
+                    dist = cv2.distanceTransform(1 - sm, cv2.DIST_L2, 3)
+                    upd = dist < best
+                    best[upd] = dist[upd]
+                    nearest[upd] = sid
+                opix = holes & (object_mask > 0)
+                wpix = holes & (opening_mask > 0)
+                object_labeled[opix] = nearest[opix].astype(np.uint8)
+                opening_labeled[wpix] = nearest[wpix].astype(np.uint8)
+
             # ── Step 5: Compress & encode binary payload ──────────────────
             yield _sse({"step": 5, "total": 5, "message": "Compression et envoi des résultats…"})
             labels_json = json.dumps(labels).encode("utf-8")
             floor_bytes = floor_mask.astype(np.uint8).tobytes()
             wall_bytes = labeled_walls.astype(np.uint8).tobytes()
             ceiling_bytes = ceiling_mask.astype(np.uint8).tobytes()
+            object_bytes = object_labeled.astype(np.uint8).tobytes()
+            opening_bytes = opening_labeled.astype(np.uint8).tobytes()
             header = struct.pack("<III", len(labels_json), h, w)
-            raw = header + labels_json + floor_bytes + wall_bytes + ceiling_bytes
+            raw = (
+                header + labels_json + floor_bytes + wall_bytes + ceiling_bytes
+                + object_bytes + opening_bytes
+            )
             compressed = gzip.compress(raw, compresslevel=1)
             b64 = base64.b64encode(compressed).decode("ascii")
             logger.info("Payload: %d bytes (raw) → %d bytes (compressed)", len(raw), len(compressed))

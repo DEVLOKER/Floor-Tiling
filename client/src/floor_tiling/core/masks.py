@@ -124,6 +124,104 @@ def refine_mask(
     return m
 
 
+def snap_mask_to_lines(
+    mask: np.ndarray,
+    segments,
+    angle_tol: float = 10.0,
+    dist_frac: float = 0.02,
+    min_line_frac: float = 0.08,
+    max_move_frac: float = 0.03,
+) -> np.ndarray:
+    """Straighten a mask's boundary onto detected straight lines (e.g. M-LSD).
+
+    The boundary is polygon-approximated; each edge that runs close and parallel
+    to a long detected line adopts that line as its support, and every vertex is
+    recomputed as the intersection of its two adjacent support lines. Moves are
+    clamped (``max_move_frac``) so a bad match can't distort the shape — edges
+    with no nearby line keep their original direction. This removes the wavy
+    boundaries on textureless walls without bridging real openings.
+    """
+    h, w = mask.shape
+    m = (mask > 0).astype(np.uint8)
+    if segments is None or len(segments) == 0 or not m.any():
+        return m
+    diag = float(max(h, w))
+    Tdist, minlen, max_move = dist_frac * diag, min_line_frac * diag, max_move_frac * diag
+
+    lines = []  # (point, unit_dir, angle_deg)
+    for seg in np.asarray(segments, dtype=np.float64).reshape(-1, 4):
+        d = seg[2:] - seg[:2]
+        L = np.hypot(d[0], d[1])
+        if L < minlen:
+            continue
+        lines.append((seg[:2], d / L, np.degrees(np.arctan2(d[1], d[0])) % 180.0))
+    if not lines:
+        return m
+
+    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    out = np.zeros_like(m)
+    used_lines = []  # architectural lines an edge actually snapped to
+    for c in cnts:
+        if cv2.contourArea(c) < 0.004 * h * w:
+            continue
+        poly = cv2.approxPolyDP(c, 0.008 * cv2.arcLength(c, True), True).reshape(-1, 2).astype(np.float64)
+        n = len(poly)
+        if n < 3:
+            cv2.drawContours(out, [c], -1, 1, cv2.FILLED)
+            continue
+        # Support line per edge (snapped to a matching detected line if close).
+        supports = []
+        for i in range(n):
+            a, b = poly[i], poly[(i + 1) % n]
+            d = b - a
+            L = np.hypot(d[0], d[1])
+            u = d / L if L > 1e-6 else np.array([1.0, 0.0])
+            eang = np.degrees(np.arctan2(d[1], d[0])) % 180.0
+            mid = (a + b) / 2.0
+            best, bestd, matched = (a, u), Tdist, False
+            for (p0, lu, lang) in lines:
+                da = abs(eang - lang) % 180.0
+                da = min(da, 180.0 - da)
+                if da > angle_tol:
+                    continue
+                dist = abs(float(np.cross(lu, mid - p0)))
+                if dist < bestd:
+                    bestd, best, matched = dist, (p0, lu), True
+            supports.append(best)
+            if matched:
+                used_lines.append(best)
+        # Each vertex = intersection of its two adjacent support lines (clamped).
+        new = poly.copy()
+        for i in range(n):
+            p_prev, u_prev = supports[(i - 1) % n]
+            p_cur, u_cur = supports[i]
+            denom = u_prev[0] * (-u_cur[1]) - u_prev[1] * (-u_cur[0])
+            if abs(denom) < 1e-6:
+                continue
+            rhs = p_cur - p_prev
+            t = (rhs[0] * (-u_cur[1]) - rhs[1] * (-u_cur[0])) / denom
+            pt = p_prev + t * u_prev
+            if np.hypot(pt[0] - poly[i][0], pt[1] - poly[i][1]) <= max_move:
+                new[i] = pt
+        cv2.drawContours(out, [np.round(new).astype(np.int32)], -1, 1, cv2.FILLED)
+
+    # ── Apply the straightening ONLY near real architectural lines ──────────
+    # The polygon rebuild above coarsens the *whole* boundary, which mangles
+    # intricate silhouettes (plants, decor) and leaves unpainted slivers around
+    # them. So keep the snapped result only inside a thin band around the lines
+    # that were actually matched (wall↔ceiling/floor, corners) and fall back to
+    # the original mask everywhere else.
+    if not used_lines:
+        return m
+    band = np.zeros_like(m)
+    tline = max(2, int(round(max_move)))
+    for (p0, lu) in used_lines:
+        p1 = (p0 - lu * diag * 2.0).astype(np.int32)
+        p2 = (p0 + lu * diag * 2.0).astype(np.int32)
+        cv2.line(band, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), 1, thickness=2 * tline)
+    return np.where(band > 0, out, m).astype(np.uint8)
+
+
 def fill_surface_gaps(
     floor: np.ndarray,
     wall_labeled: np.ndarray,
@@ -178,4 +276,48 @@ def fill_surface_gaps(
     return floor, wl, ceiling
 
 
-__all__ = ["refine_mask", "fill_surface_gaps"]
+def grow_walls_to_objects(
+    wall_labeled: np.ndarray,
+    floor: np.ndarray,
+    ceiling: np.ndarray,
+    objects: np.ndarray,
+    grow_px: int = 18,
+) -> np.ndarray:
+    """Extend wall planes into the unpainted gaps around objects.
+
+    Segmentation leaves a "no-man's-land" of wall pixels belonging to nothing —
+    the tile between the wall mask and an object, or wall the model simply
+    missed — which paints as an unpainted band/halo.  We grow the wall labels
+    into any unclassified pixel within ``grow_px``, bounded by floor, ceiling and
+    the (TIGHT) object mask, so paint reaches right up to objects without
+    covering them.  Newly-filled pixels take their nearest wall plane's id.
+
+    Args:
+        objects: TIGHT object mask (no exclusion dilation) — the grow stops here,
+                 so a dilated mask would re-introduce the halo it's meant to fix.
+    """
+    wl = wall_labeled.copy()
+    walls = (wl > 0).astype(np.uint8)
+    if not walls.any():
+        return wl
+
+    forbidden = (floor > 0) | (ceiling > 0) | (objects > 0)
+    region = (~forbidden) & (wl == 0)  # paintable but currently unassigned
+    grown = cv2.dilate(walls, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * grow_px + 1, 2 * grow_px + 1)))
+    newpix = (grown > 0) & region
+    if not newpix.any():
+        return wl
+
+    best = np.full(wl.shape, np.inf, np.float32)
+    choice = np.full(wl.shape, -1, np.int32)
+    for wid in [int(i) for i in np.unique(wl) if i != 0]:
+        dist = cv2.distanceTransform((wl != wid).astype(np.uint8), cv2.DIST_L2, 3)
+        upd = newpix & (dist < best)
+        best[upd] = dist[upd]
+        choice[upd] = wid
+    for wid in [int(i) for i in np.unique(wl) if i != 0]:
+        wl[newpix & (choice == wid)] = wid
+    return wl
+
+
+__all__ = ["refine_mask", "fill_surface_gaps", "snap_mask_to_lines", "grow_walls_to_objects"]
