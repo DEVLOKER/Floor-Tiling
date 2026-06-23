@@ -16,8 +16,19 @@ import torch
 from transformers import SamModel, SamProcessor
 
 from floor_tiling.paths import model_dir
+from floor_tiling.config.settings import SAM_VARIANT
 
 logger = logging.getLogger(__name__)
+
+# SlimSAM (pruned, tiny, CPU-friendly) vs full facebook SAM (sharper, slower).
+# All load through the same transformers SamModel/SamProcessor.
+_VARIANTS = {
+    "slim50": "Zigeng/SlimSAM-uniform-50",
+    "slim77": "Zigeng/SlimSAM-uniform-77",
+    "base": "facebook/sam-vit-base",
+    "large": "facebook/sam-vit-large",
+    "huge": "facebook/sam-vit-huge",
+}
 
 
 class SamManager:
@@ -26,8 +37,8 @@ class SamManager:
     _instance = None
     _model = None
     _processor = None
-    # SlimSAM-77 — pruned SAM, tiny & CPU-friendly, MobileSAM-class quality.
-    _model_id = "Zigeng/SlimSAM-uniform-77"
+    # Size variant chosen in settings (SAM_VARIANT); SlimSAM is tiny/fast.
+    _model_id = _VARIANTS.get(SAM_VARIANT, _VARIANTS["slim77"])
 
     def __new__(cls):
         if cls._instance is None:

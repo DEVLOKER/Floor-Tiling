@@ -19,8 +19,14 @@ import torch
 from transformers import VitMatteForImageMatting, VitMatteImageProcessor
 
 from floor_tiling.paths import model_dir
+from floor_tiling.config.settings import VITMATTE_VARIANT
 
 logger = logging.getLogger(__name__)
+
+_VARIANTS = {
+    "small": "hustvl/vitmatte-small-composition-1k",
+    "base": "hustvl/vitmatte-base-composition-1k",
+}
 
 
 class VitMatteManager:
@@ -29,7 +35,8 @@ class VitMatteManager:
     _instance = None
     _model = None
     _processor = None
-    _model_id = "hustvl/vitmatte-small-composition-1k"
+    # Size variant chosen in settings (VITMATTE_VARIANT).
+    _model_id = _VARIANTS.get(VITMATTE_VARIANT, _VARIANTS["small"])
 
     def __new__(cls):
         if cls._instance is None:

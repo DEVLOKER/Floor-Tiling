@@ -17,9 +17,11 @@ import logging
 import numpy as np
 
 from floor_tiling.paths import model_dir
-from floor_tiling.config.settings import OPEN_VOCAB_OBJECT_PROMPT
+from floor_tiling.config.settings import OPEN_VOCAB_OBJECT_PROMPT, YOLO_WORLD_VARIANT
 
 logger = logging.getLogger(__name__)
+
+_VALID_VARIANTS = {"s", "m", "l", "x"}
 
 
 def _prompt_classes() -> list:
@@ -31,9 +33,12 @@ class YoloWorldManager:
 
     _instance = None
     _model = None
-    # The X variant is still <1 s on CPU and gives the best recall.
-    _base_name = "yolov8x-worldv2.pt"
-    _baked_name = "ft_world.pt"
+    # Size variant chosen in settings (YOLO_WORLD_VARIANT): s/m/l/x. x gives the
+    # best recall (~1s CPU); s is smallest/fastest. Baked file is per-variant so
+    # switching size rebuilds the right one.
+    _variant = YOLO_WORLD_VARIANT if YOLO_WORLD_VARIANT in _VALID_VARIANTS else "x"
+    _base_name = f"yolov8{_variant}-worldv2.pt"
+    _baked_name = f"ft_world_{_variant}.pt"
 
     def __new__(cls):
         if cls._instance is None:

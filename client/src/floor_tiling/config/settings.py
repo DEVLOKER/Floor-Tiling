@@ -1,7 +1,25 @@
-"""Application settings and configuration"""
-# Upload size limit
-MAX_UPLOAD_SIZE_BYTES = 1024 * 1024 * 10  # 10 MB
-# CORS origins
+"""Application settings & configuration.
+
+All tunables live here. Sections:
+
+    1. SERVER & I/O            — uploads, CORS, image encoding
+    2. AI MODEL SIZES          — speed↔quality variant of every model (one place)
+    3. SURFACE SEGMENTATION    — which segmenter(s) detect floor/wall/ceiling
+    4. OBJECT EXCLUSION (semantic) — keep wall objects out of painting
+    5. OBJECT EXCLUSION (open-vocab) — catch objects ADE20K can't name (AC, …)
+    6. WALL PAINTING           — colour, finish, matting, edge snapping
+    7. FLOOR TILING            — tile/grout defaults & limits
+    8. DEPTH GEOMETRY (tiling) — depth→distance mapping for perspective tiles
+
+Changing any model VARIANT (section 2) re-downloads that model on next start;
+unknown values fall back to the manager's default.
+"""
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 1. SERVER & I/O
+# ═════════════════════════════════════════════════════════════════════════════
+MAX_UPLOAD_SIZE_BYTES = 1024 * 1024 * 10  # 10 MB upload limit
+
 CORS_ORIGINS = [
     "http://127.0.0.1:5500",
     "http://localhost:5500",
@@ -10,18 +28,76 @@ CORS_ORIGINS = [
     "https://127.0.0.1:8000",
     "https://localhost:8000",
 ]
-# ── Segmentation model selection (A/B testing) ──────────────────────────────
-# Toggle which segmentation model(s) feed detection, then restart the server.
-#   both True  → ensemble (union of the two) — best coverage
-#   one True   → use that model alone
-SEG_USE_MASK2FORMER = True
-SEG_USE_ONEFORMER =True
 
-# ── Wall-object exclusion (painting) ────────────────────────────────────────
+# Output JPEG quality, and the max width images are processed/returned at.
+JPEG_QUALITY = 95
+JPEG_SCALE_MAX_WIDTH = 1000
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 2. AI MODEL SIZES  (the speed ↔ quality dial — bigger = better, slower)
+# ═════════════════════════════════════════════════════════════════════════════
+# ONE dial sets every model's size at once. Changing it re-downloads the affected
+# models on next server start.
+#   "fast"     — smallest models, quickest detection
+#   "balanced" — mid sizes, good speed/quality trade-off
+#   "quality"  — largest models, best masks (slowest)
+#   "custom"   — ignore the profile and use the per-model *_VARIANT values below
+DETECTION_PROFILE = "custom"
+
+# Per-model size variants. Used as-is when DETECTION_PROFILE = "custom";
+# OVERWRITTEN by the chosen profile otherwise (see the override block below).
+MASK2FORMER_VARIANT = "tiny"      # "tiny" | "small" | "base" | "large"   (floor/wall/ceiling)
+ONEFORMER_VARIANT = "tiny"        # "tiny" | "large" | "dinat_large"      (dinat needs `natten`)
+DEPTH_VARIANT = "base"            # "small" | "base" | "large"            (wall-plane split)
+YOLO_WORLD_VARIANT = "x"          # "s" | "m" | "l" | "x"                 (x≈140MB best recall, s≈25MB fastest)
+GROUNDING_DINO_VARIANT = "tiny"   # "tiny" | "base"                       (only if detector=grounding_dino)
+SAM_VARIANT = "slim77"            # "slim50" | "slim77" (tiny/fast) | "base" | "large" | "huge"
+VITMATTE_VARIANT = "small"        # "small" | "base"                      (paint-edge matting)
+
+# Profile presets — each maps every model to a size. Edit a preset to retune it.
+_DETECTION_PROFILES = {
+    "fast": {
+        "MASK2FORMER_VARIANT": "tiny",  "ONEFORMER_VARIANT": "tiny",
+        "DEPTH_VARIANT": "small",       "YOLO_WORLD_VARIANT": "s",
+        "GROUNDING_DINO_VARIANT": "tiny", "SAM_VARIANT": "slim50",
+        "VITMATTE_VARIANT": "small",
+    },
+    "balanced": {
+        "MASK2FORMER_VARIANT": "base",  "ONEFORMER_VARIANT": "tiny",
+        "DEPTH_VARIANT": "base",        "YOLO_WORLD_VARIANT": "m",
+        "GROUNDING_DINO_VARIANT": "tiny", "SAM_VARIANT": "slim77",
+        "VITMATTE_VARIANT": "small",
+    },
+    "quality": {
+        "MASK2FORMER_VARIANT": "large", "ONEFORMER_VARIANT": "large",
+        "DEPTH_VARIANT": "large",       "YOLO_WORLD_VARIANT": "x",
+        "GROUNDING_DINO_VARIANT": "base", "SAM_VARIANT": "base",
+        "VITMATTE_VARIANT": "base",
+    },
+}
+# Apply the profile (a known name overrides the per-model values above; "custom"
+# or any unknown value leaves them untouched).
+if DETECTION_PROFILE in _DETECTION_PROFILES:
+    globals().update(_DETECTION_PROFILES[DETECTION_PROFILE])
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 3. SURFACE SEGMENTATION  (which model(s) detect floor / wall / ceiling)
+# ═════════════════════════════════════════════════════════════════════════════
+# Restart the server after changing. (Sizes are in section 2.)
+#   both True → ensemble (union of the two) — best wall coverage, slower
+#   one True  → that model alone
+SEG_USE_MASK2FORMER = True
+SEG_USE_ONEFORMER = True
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 4. OBJECT EXCLUSION — semantic  (keep wall objects out of painting)
+# ═════════════════════════════════════════════════════════════════════════════
 # When painting walls/ceiling, never cover objects mounted on them. We detect
 # these ADE20K classes by label keyword and subtract them from the wall/ceiling
 # masks. Add/remove keywords to tune (matched as case-insensitive substrings).
-# TEMP: disabled for testing — set back to True to re-enable object exclusion.
 PAINT_IGNORE_WALL_OBJECTS = True
 WALL_OBJECT_KEYWORDS = (
     "window", "door", "curtain", "blind", "painting", "mirror",
@@ -49,17 +125,18 @@ WALL_OBJECT_DILATE_FRAC = 0.003
 # halos around objects on textured walls. 0 disables.
 WALL_FILL_GAPS_PX = 18
 
-# ── Open-vocabulary wall-object exclusion (Grounding DINO + SAM) ─────────────
-# ADE20K segmentation lacks classes for many wall objects (air conditioner,
-# pipe, socket, thermostat, vent…), so they get painted over. Grounding DINO
-# detects anything named in the prompt below; SAM turns each detection into a
-# pixel-perfect mask that is excluded from painting (no halo). Offline models.
-# NOTE: this controls DETECTION of objects (for showing/excluding them). Whether
-# they're actually skipped while painting is the separate PAINT_IGNORE_WALL_OBJECTS
-# flag above. Kept ON so AC/sockets/pipes are detected & shown on the image; set
-# False to skip loading YOLO-World + SAM (faster start, only semantic objects).
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 5. OBJECT EXCLUSION — open-vocabulary  (objects ADE20K has no class for)
+# ═════════════════════════════════════════════════════════════════════════════
+# ADE20K segmentation lacks classes for many wall objects (air conditioner, pipe,
+# socket, thermostat, vent…). An open-vocab detector finds anything named in the
+# prompt below; SAM turns each detection into a pixel-perfect mask. Offline.
+# NOTE: this is DETECTION (for showing/excluding). Whether they're skipped while
+# painting is PAINT_IGNORE_WALL_OBJECTS (section 4). Set False to skip loading the
+# detector + SAM (faster start, semantic objects only). Sizes are in section 2.
 USE_OPEN_VOCAB_OBJECTS = True
-# Which open-vocab detector finds the objects (SAM then cuts them precisely):
+# Which detector finds the objects:
 #   "yolo_world"     → YOLO-World, ~0.8 s/image on CPU (fast, default)
 #   "grounding_dino" → Grounding DINO, ~7 s/image (slightly higher recall)
 OPEN_VOCAB_DETECTOR = "yolo_world"
@@ -84,11 +161,20 @@ OPEN_VOCAB_TEXT_THRESHOLD = 0.25
 # huge box is almost always a mis-grounding onto the whole wall.
 OPEN_VOCAB_MAX_BOX_FRAC = 0.45
 
-# ── Paint edge matting (ViTMatte) ───────────────────────────────────────────
-# Semantic masks can't resolve fine foliage, so painting leaves faint "ghost"
-# leaf edges. ViTMatte refines the wall mask into a soft alpha that captures
-# thin edges; the paint route composites with it so foliage stays clean. The
-# alpha depends only on image+mask (not colour), so it's cached across recolours.
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 6. WALL PAINTING
+# ═════════════════════════════════════════════════════════════════════════════
+DEFAULT_PAINT_COLOR = "#C8D6E5"
+DEFAULT_PAINT_FINISH = "matte"
+PAINT_FINISHES = ("matte", "satin", "gloss")
+
+# ── Edge matting (ViTMatte) ──────────────────────────────────────────────────
+# Semantic masks can't resolve fine foliage, so painting can leave faint "ghost"
+# leaf edges. ViTMatte refines the wall mask into a soft alpha that captures thin
+# edges; the paint route composites with it so foliage stays clean. The alpha
+# depends only on image+mask (not colour), so it's cached across recolours.
+# (Model size = VITMATTE_VARIANT in section 2.)
 PAINT_REFINE_MATTING = False
 MATTING_MAX_SIDE = 768          # matte at this long-side px (CPU speed vs detail)
 MATTING_FG_ERODE = 9            # sure-foreground erosion (px)
@@ -102,17 +188,21 @@ MATTING_BG_DILATE = 5
 # 0 disables. Higher = only stronger outliers demoted.
 MATTING_COLOR_DEMOTE_T = 22.0
 
-# ── Architectural edge snapping (painting) ──────────────────────────────────
+# ── Architectural edge snapping ──────────────────────────────────────────────
 # After edge-aware refinement, snap the wall/ceiling mask boundaries onto the
 # straight architectural lines detected by M-LSD (wall↔ceiling, wall↔floor,
-# corners). This removes the residual wavy boundaries on textureless walls
-# without bridging real openings (moves are distance-clamped).
+# corners). Removes residual wavy boundaries on textureless walls without
+# bridging real openings (moves are distance-clamped).
 SNAP_EDGES_TO_LINES = True
 
-# Tile rendering constants
-DEFAULT_REAL_WIDTH_CM = 300.0
-DEFAULT_TILE_WIDTH = 30.0
-DEFAULT_TILE_HEIGHT = 30.0
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 7. FLOOR TILING
+# ═════════════════════════════════════════════════════════════════════════════
+# Defaults
+DEFAULT_REAL_WIDTH_CM = 300.0   # assumed real-world width of the floor (scale ref)
+DEFAULT_TILE_WIDTH = 30.0       # cm
+DEFAULT_TILE_HEIGHT = 30.0      # cm
 DEFAULT_GROUT_THICKNESS = 1
 DEFAULT_PATTERN = "grid"
 DEFAULT_ROTATION = 0.0
@@ -120,25 +210,23 @@ DEFAULT_TRANSLATE_X = 0.0
 DEFAULT_TRANSLATE_Y = 0.0
 # Perspective compression (0.0 = natural/linear perspective, 1.0 = maximum).
 # Default 0.0 keeps real-world foreshortening — tiles shrink naturally into
-# depth.  Higher values enlarge tiles & reduce row count, which reads as fake
+# depth. Higher values enlarge tiles & reduce row count, which reads as fake
 # (giant tiles, flat-looking floor), so it's opt-in via the UI slider.
 DEFAULT_PERSPECTIVE_COMPRESSION = 0.0
-# Tile size constraints
+
+# UI constraints (slider ranges)
 TILE_WIDTH_MIN = 5.0
 TILE_WIDTH_MAX = 200.0
 TILE_HEIGHT_MIN = 5.0
 TILE_HEIGHT_MAX = 200.0
 GROUT_THICKNESS_MIN = 0
 GROUT_THICKNESS_MAX = 20
-# Wall painting
-DEFAULT_PAINT_COLOR = "#C8D6E5"
-DEFAULT_PAINT_FINISH = "matte"
-PAINT_FINISHES = ("matte", "satin", "gloss")
-# Depth calculation
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 8. DEPTH GEOMETRY  (depth→distance mapping for perspective tiling)
+# ═════════════════════════════════════════════════════════════════════════════
 DEPTH_MIN_CM = 50
 DEPTH_MAX_CM = 900   # depth_ratio ceiling is 2.5 × DEFAULT_REAL_WIDTH_CM (300 cm)
 DEPTH_FAR_RATIO_MIN = 0.05
 DEPTH_FAR_RATIO_MAX = 0.99
-# Image encoding
-JPEG_QUALITY = 95
-JPEG_SCALE_MAX_WIDTH = 1000

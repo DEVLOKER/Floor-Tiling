@@ -15,8 +15,17 @@ from transformers import OneFormerProcessor, OneFormerForUniversalSegmentation
 
 from floor_tiling.paths import model_dir
 from floor_tiling.ml.labels import object_class_ids, opening_class_ids
+from floor_tiling.config.settings import ONEFORMER_VARIANT
 
 logger = logging.getLogger(__name__)
+
+# ADE20K OneFormer variants (tiny is ~3-4× faster than large; dinat needs the
+# `natten` package installed).
+_VARIANTS = {
+    "tiny": "shi-labs/oneformer_ade20k_swin_tiny",
+    "large": "shi-labs/oneformer_ade20k_swin_large",
+    "dinat_large": "shi-labs/oneformer_ade20k_dinat_large",
+}
 
 
 class OneFormerManager:
@@ -27,7 +36,9 @@ class OneFormerManager:
     _processor = None
     _object_ids = None   # cached ADE20K ids of wall fixtures/decor to exclude
     _opening_ids = None  # cached ADE20K ids of doors & windows
-    _model_id = "shi-labs/oneformer_ade20k_swin_large"
+    # Size variant chosen in settings (ONEFORMER_VARIANT); tiny is much faster.
+    # Re-downloads automatically when the id changes (manager cleans old weights).
+    _model_id = _VARIANTS.get(ONEFORMER_VARIANT, _VARIANTS["tiny"])
 
     def __new__(cls):
         if cls._instance is None:

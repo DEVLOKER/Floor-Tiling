@@ -27,6 +27,10 @@ from floor_tiling.config.settings import (
     SEG_USE_ONEFORMER,
     USE_OPEN_VOCAB_OBJECTS,
     OPEN_VOCAB_DETECTOR,
+    OPEN_VOCAB_OBJECT_PROMPT,
+    OPEN_VOCAB_BOX_THRESHOLD,
+    OPEN_VOCAB_TEXT_THRESHOLD,
+    YOLO_WORLD_CONF,
     PAINT_REFINE_MATTING,
 )
 from floor_tiling.ml import (
@@ -138,6 +142,57 @@ async def lifespan(app: FastAPI):
             app.state.matting_predictor = None
     else:
         logger.info("Paint matting disabled (PAINT_REFINE_MATTING=False).")
+
+    # ── Warm up models (one dummy inference) ──────────────────────────────
+    # The FIRST real inference of each model is 2-4× slower due to lazy graph
+    # init. Running a tiny dummy now moves that cost to startup, so the user's
+    # first detection isn't penalised. Best-effort: never block startup.
+    try:
+        import numpy as _np
+        # Warm at a realistic resolution (~the app's 1000px-wide working size) —
+        # CPU kernels auto-tune per input shape, so warming a tiny image wouldn't
+        # speed up the first real (large) detection.
+        dummy = _np.full((750, 1000, 3), 127, dtype=_np.uint8)
+
+        def _warmup():
+            for p in (
+                app.state.mask2former_predictor,
+                app.state.oneformer_predictor,
+                app.state.depth_predictor,
+                app.state.mlsd_predictor,
+            ):
+                if p is not None:
+                    try:
+                        p.predict(dummy)
+                    except Exception:
+                        pass
+            det = app.state.object_detector
+            if det is not None:
+                try:
+                    if OPEN_VOCAB_DETECTOR == "grounding_dino":
+                        det.detect(dummy, OPEN_VOCAB_OBJECT_PROMPT,
+                                   OPEN_VOCAB_BOX_THRESHOLD, OPEN_VOCAB_TEXT_THRESHOLD)
+                    else:
+                        det.detect(dummy, YOLO_WORLD_CONF)
+                except Exception:
+                    pass
+            if app.state.sam_predictor is not None:
+                try:
+                    app.state.sam_predictor.segment_boxes(
+                        dummy, _np.array([[10, 10, 120, 120]], dtype=_np.float32))
+                except Exception:
+                    pass
+            if app.state.matting_predictor is not None:
+                try:
+                    app.state.matting_predictor.matte(
+                        dummy, _np.ones((256, 256), dtype=_np.uint8))
+                except Exception:
+                    pass
+
+        await asyncio.to_thread(_warmup)
+        logger.info("Model warmup complete — first detection will be fast.")
+    except Exception as exc:
+        logger.warning("Model warmup skipped: %s", exc)
 
     yield  # ── server is running ─────────────────────────────────────────
 

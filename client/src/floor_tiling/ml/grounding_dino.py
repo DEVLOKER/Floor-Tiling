@@ -17,8 +17,14 @@ import torch
 from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 
 from floor_tiling.paths import model_dir
+from floor_tiling.config.settings import GROUNDING_DINO_VARIANT
 
 logger = logging.getLogger(__name__)
+
+_VARIANTS = {
+    "tiny": "IDEA-Research/grounding-dino-tiny",
+    "base": "IDEA-Research/grounding-dino-base",
+}
 
 
 class GroundingDINOManager:
@@ -27,8 +33,8 @@ class GroundingDINOManager:
     _instance = None
     _model = None
     _processor = None
-    # Tiny variant — open-vocab detection at a few seconds on CPU.
-    _model_id = "IDEA-Research/grounding-dino-tiny"
+    # Size variant chosen in settings (GROUNDING_DINO_VARIANT). Tiny is fastest.
+    _model_id = _VARIANTS.get(GROUNDING_DINO_VARIANT, _VARIANTS["tiny"])
 
     def __new__(cls):
         if cls._instance is None:

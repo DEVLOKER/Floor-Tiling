@@ -14,8 +14,16 @@ import torch
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
 from floor_tiling.paths import model_dir
+from floor_tiling.config.settings import DEPTH_VARIANT
 
 logger = logging.getLogger(__name__)
+
+# Metric-indoor Depth-Anything-V2 sizes (bigger = more accurate normals, slower).
+_VARIANTS = {
+    "small": "depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf",
+    "base": "depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf",
+    "large": "depth-anything/Depth-Anything-V2-Metric-Indoor-Large-hf",
+}
 
 
 class DepthManager:
@@ -24,9 +32,9 @@ class DepthManager:
     _instance = None
     _model = None
     _processor = None
-    # Metric indoor variant — trained on interior scenes, so planes stay flat
-    # in the back-projected point cloud (clean, consistent surface normals).
-    _model_id = "depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf"
+    # Metric indoor variant — trained on interior scenes, so planes stay flat in
+    # the back-projected point cloud. Size chosen in settings (DEPTH_VARIANT).
+    _model_id = _VARIANTS.get(DEPTH_VARIANT, _VARIANTS["base"])
 
     def __new__(cls):
         if cls._instance is None:

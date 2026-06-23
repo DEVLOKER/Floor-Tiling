@@ -165,7 +165,15 @@
       "Bash(echo \"launched pid $!\")",
       "Bash(cat \"C:/Users/me/AppData/Local/Temp/claude/d--Projects-Python-Projects-Floor-Tiling/8a167886-5c3e-4fe5-a7ba-2212330c0dea/tasks/b5kv8kbt7.output\" 2>/dev/null | tail -25; echo \"=== /tmp/ft2.log ===\"; cat /tmp/ft2.log 2>/dev/null | tail -25)",
       "Bash(curl -s -o /dev/null -m 3 http://localhost:8000/)",
-      "Bash(break)"
+      "Bash(break)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/app.py src/floor_tiling/ml/oneformer.py)",
+      "Bash(nohup bash -c 'PYTHONPATH=src python -m floor_tiling > /tmp/ft5.log 2>&1')",
+      "Bash(nohup bash -c 'PYTHONPATH=src python -m floor_tiling > /tmp/ft6.log 2>&1')",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/ml/mask2former.py src/floor_tiling/ml/oneformer.py src/floor_tiling/config/settings.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/ml/depth.py src/floor_tiling/ml/yolo_world.py src/floor_tiling/config/settings.py)",
+      "Bash(rm -f models/yolo_world/ft_world.pt)",
+      "Bash(du -sh models/yolo_world/*)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m compileall -q src/floor_tiling/ml/grounding_dino.py src/floor_tiling/ml/sam.py src/floor_tiling/ml/matting.py src/floor_tiling/config/settings.py)"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"

@@ -8,8 +8,17 @@ from transformers import Mask2FormerForUniversalSegmentation, AutoImageProcessor
 
 from floor_tiling.paths import model_dir
 from floor_tiling.ml.labels import object_class_ids, opening_class_ids
+from floor_tiling.config.settings import MASK2FORMER_VARIANT
 
 logger = logging.getLogger(__name__)
+
+# ADE20K-semantic Swin variants (bigger = cleaner masks, slower).
+_VARIANTS = {
+    "tiny": "facebook/mask2former-swin-tiny-ade-semantic",
+    "small": "facebook/mask2former-swin-small-ade-semantic",
+    "base": "facebook/mask2former-swin-base-ade-semantic",
+    "large": "facebook/mask2former-swin-large-ade-semantic",
+}
 
 
 class Mask2FormerManager:
@@ -20,10 +29,10 @@ class Mask2FormerManager:
     _processor = None
     _object_ids = None   # cached ADE20K ids of wall fixtures/decor to exclude
     _opening_ids = None  # cached ADE20K ids of doors & windows
-    # Swin-LARGE ADE20K gives noticeably cleaner wall/floor/ceiling masks than
-    # the base model (fewer confusions like wardrobes→wall, crisper edges).
-    # Downloaded once into the local ``models/`` dir, then loaded offline.
-    _model_id = "facebook/mask2former-swin-large-ade-semantic"
+    # Size variant chosen in settings (MASK2FORMER_VARIANT); bigger = cleaner
+    # masks but slower. Downloaded once into the local ``models/`` dir, then
+    # loaded offline; changing the variant re-downloads on next start.
+    _model_id = _VARIANTS.get(MASK2FORMER_VARIANT, _VARIANTS["large"])
     
     def __new__(cls):
         if cls._instance is None:
