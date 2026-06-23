@@ -878,6 +878,81 @@ input[type="range"]::-moz-range-progress {
   margin-bottom: 10px;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   Consumer-friendly polish — clearer hierarchy, guided feel.
+   (Overrides earlier rules; restyles existing classes only — no JS impact.)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Section headings: legible label + a small accent tick so each control group
+   reads as a titled block rather than a faint dev caption. */
+.section-label {
+  font-size: 0.7em;
+  letter-spacing: 0.07em;
+  color: var(--txt-secondary);
+  padding-left: 9px;
+  position: relative;
+  margin-bottom: 9px;
+}
+.section-label::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 11px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+}
+
+/* Guiding intro copy: a touch more readable than the muted default. */
+.paint-lead {
+  font-size: 0.8em;
+  line-height: 1.5;
+  color: var(--txt-secondary);
+}
+
+/* "Advanced settings" becomes an obvious, tappable expander card rather than a
+   tiny uppercase dev label — so the default view stays simple but power users
+   clearly see where the extra controls live. */
+.adv-section {
+  border-top: none;
+  margin: 6px 12px 4px;
+}
+.adv-section > summary {
+  padding: 12px 14px;
+  background: var(--ctrl-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  font-size: 0.74em;
+  letter-spacing: 0.04em;
+  color: var(--txt-secondary);
+}
+.adv-section > summary:hover {
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.06);
+  color: var(--txt-primary);
+}
+.adv-section[open] > summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--txt-primary);
+}
+/* Open body sits visually attached to its summary card. */
+.adv-section[open] {
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.015);
+  padding-bottom: 6px;
+}
+.adv-section[open] > summary {
+  border: none;
+  border-bottom: 1px solid var(--panel-border);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
 .btn-clear-sm {
   margin-top: 8px;
   padding: 8px 14px;
