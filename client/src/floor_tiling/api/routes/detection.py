@@ -157,20 +157,19 @@ async def auto_detect_features(
                 opening_mask = np.zeros((h, w), np.uint8)
             object_mask = (object_mask.astype(np.uint8) & ~(floor_mask > 0)).astype(np.uint8)
             opening_mask = (opening_mask.astype(np.uint8) & ~(floor_mask > 0)).astype(np.uint8)
+            # TIGHT (undilated) object mask — ALWAYS computed (independent of the
+            # exclusion flag) because the wall-grow uses it as a bound to fill the
+            # unclassified gaps up to the real object edge. Painting reaches the
+            # whole wall plane even when object exclusion is off.
+            obj_tight = ((object_mask > 0) | (opening_mask > 0)).astype(np.uint8)
             obj_excl = None
-            obj_tight = None
-            if PAINT_IGNORE_WALL_OBJECTS and (object_mask.any() or opening_mask.any()):
-                excl_all = ((object_mask > 0) | (opening_mask > 0)).astype(np.uint8)
+            if PAINT_IGNORE_WALL_OBJECTS and obj_tight.any():
                 r = max(1, int(WALL_OBJECT_DILATE_FRAC * max(h, w)))
                 obj_excl = cv2.dilate(
-                    excl_all,
+                    obj_tight,
                     cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)),
                 )
                 obj_excl = (obj_excl & ~(floor_mask > 0)).astype(np.uint8)
-                # TIGHT (undilated) mask — the wall-grow stops here, so the wall
-                # reaches the real object edge (a dilated bound would leave a halo
-                # of unpainted wall around every object).
-                obj_tight = excl_all
 
             # ── Edge-aware mask refinement ────────────────────────────────
             # Snap jagged model boundaries to the photo's real edges and clean
@@ -310,8 +309,13 @@ async def auto_detect_features(
             # ceiling — so the frontend adds it to the matching surface's mask.
             object_labeled = np.zeros((h, w), np.uint8)
             opening_labeled = np.zeros((h, w), np.uint8)
-            holes = (labeled_walls == 0) & (ceiling_mask == 0) & (floor_mask == 0)
-            if holes.any():
+            # Label EVERY detected object/opening pixel (not just those in
+            # unassigned "holes"): small fixtures the segmenter lumps into the
+            # wall (sockets, towel rail, pipe, AC…) still belong to a category and
+            # must be shown/paintable, even when they overlap the wall mask.
+            opix = object_mask > 0
+            wpix = opening_mask > 0
+            if opix.any() or wpix.any():
                 # Nearest paintable surface for every pixel (computed once, reused
                 # for both categories).
                 surfaces = [(255, (ceiling_mask > 0).astype(np.uint8))]
@@ -326,8 +330,6 @@ async def auto_detect_features(
                     upd = dist < best
                     best[upd] = dist[upd]
                     nearest[upd] = sid
-                opix = holes & (object_mask > 0)
-                wpix = holes & (opening_mask > 0)
                 object_labeled[opix] = nearest[opix].astype(np.uint8)
                 opening_labeled[wpix] = nearest[wpix].astype(np.uint8)
 

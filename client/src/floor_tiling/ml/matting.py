@@ -113,14 +113,18 @@ class VitMatteManager:
         k = lambda s: cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (s, s))
         fg = cv2.erode(m, k(fg_erode))
         # Demote colour-outliers (foliage, dark objects) inside the mask so they
-        # become "unknown" rather than forced-paint.
+        # become "unknown" rather than forced-paint. Use CHROMA only (LAB a,b) —
+        # NOT lightness L — otherwise a bright/blown wall (flooded by window
+        # light) reads as "far from wall colour" and gets carved out, reverting
+        # to the white original (ghost blooms). Green leaves differ in chroma;
+        # bright walls differ only in lightness, so chroma distance keeps them.
         if color_demote_t > 0:
             lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
             sure = cv2.erode(m, k(31))
             sample = lab[(sure > 0) if sure.any() else (fg > 0)]
             if len(sample):
                 wall_col = np.median(sample, axis=0)
-                dist = np.linalg.norm(lab - wall_col, axis=2)
+                dist = np.linalg.norm(lab[:, :, 1:] - wall_col[1:], axis=2)
                 fg = ((fg > 0) & (dist <= color_demote_t)).astype(np.uint8)
         bg = 1 - cv2.dilate(m, k(bg_dilate))
         tri = np.full((h, w), 0.5, np.float32)

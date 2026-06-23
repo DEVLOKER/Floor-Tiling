@@ -266,21 +266,6 @@
             <!-- ══ Tab: Floor tiling ═════════════════════════════════ -->
             <div class="tab-panel active" id="tabTilePanel" role="tabpanel">
 
-            <!-- Alignment (draw a line along a wall to straighten the grid) -->
-            <div class="panel-section">
-                <div class="section-label">Alignement des joints</div>
-                <label class="live-toggle" data-tip="Aligner automatiquement les joints sur les murs détectés (algorithme Profondeur)">
-                    <input type="checkbox" id="autoAlignToggle" />
-                    <span class="live-switch"></span>
-                    <span class="live-toggle-label">Alignement automatique</span>
-                </label>
-                <div class="quick-chips" style="margin-top:8px">
-                    <button type="button" class="quick-chip" id="tileAlignBtn">Aligner sur un mur</button>
-                    <button type="button" class="quick-chip quick-chip-clear" id="tileAlignReset">Effacer</button>
-                </div>
-                <div class="paint-lead" id="tileAlignHint">Désactivé par défaut. Activez l'alignement automatique sur les murs, ou tracez une ligne le long d'un mur pour aligner manuellement.</div>
-            </div>
-
             <!-- Pattern selector -->
             <div class="panel-section">
                 <div class="section-label">Motif</div>
@@ -404,76 +389,6 @@
 
             <div class="panel-divider"></div>
 
-            <!-- Perspective algorithm -->
-            <div class="panel-section">
-                <div class="section-label">Algorithme de perspective</div>
-                <div class="tile-source-toggle" id="tileAlgoToggle">
-                    <button type="button" class="tile-source-btn active" data-algo="vanishing">Lignes de fuite</button>
-                    <button type="button" class="tile-source-btn" data-algo="depth">Profondeur (IA)</button>
-                </div>
-                <input type="hidden" id="tileAlgorithm" value="vanishing" />
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Grout -->
-            <div class="panel-section">
-                <div class="section-label">Épaisseur du joint</div>
-                <div class="range-item">
-                    <div class="range-label">
-                        Joint <span class="value-badge" id="groutValue"></span>
-                    </div>
-                    <input type="range" id="groutThickness" min="0" max="20" step="1" />
-                    <div class="thickness-hint">
-                        <div class="thickness-bar-h" id="hintGrout"></div>
-                        <span class="hint-label">aperçu</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Translation -->
-            <div class="panel-section">
-                <div class="section-label">Décalage du carrelage</div>
-                <div class="range-pair">
-                    <div class="range-item">
-                        <div class="range-label">
-                            ↔ Horizontal <span class="value-badge" id="translateXValue">0</span>
-                        </div>
-                        <input type="range" id="translateX" min="-200" max="200" step="1" value="0" />
-                    </div>
-                    <div class="range-item">
-                        <div class="range-label">
-                            ↕ Vertical <span class="value-badge" id="translateYValue">0</span>
-                        </div>
-                        <input type="range" id="translateY" min="-200" max="200" step="1" value="0" />
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Grid Rotation -->
-            <div class="panel-section">
-                <div class="section-label">Rotation du carrelage <span class="value-badge"
-                        id="gridRotationValue">0°</span>
-                </div>
-                <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Perspective Compression -->
-            <div class="panel-section">
-                <div class="section-label">Compression de la perspective <span class="value-badge"
-                        id="perspectiveCompressionValue">0%</span>
-                </div>
-                <input type="range" id="perspectiveCompression" min="0" max="100" step="5" value="0" />
-            </div>
-
-            <div class="panel-divider"></div>
-
             <!-- Tile size -->
             <div class="panel-section">
                 <div class="section-label">Taille du carrelage</div>
@@ -492,6 +407,99 @@
                     </div>
                 </div>
             </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Grout thickness -->
+            <div class="panel-section">
+                <div class="section-label">Épaisseur du joint</div>
+                <div class="range-item">
+                    <div class="range-label">
+                        Joint <span class="value-badge" id="groutValue"></span>
+                    </div>
+                    <input type="range" id="groutThickness" min="0" max="20" step="1" />
+                    <div class="thickness-hint">
+                        <div class="thickness-bar-h" id="hintGrout"></div>
+                        <span class="hint-label">aperçu</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Advanced settings (collapsible) ──────────────────── -->
+            <details class="adv-section">
+                <summary>
+                    <span>Réglages avancés</span>
+                    <svg class="app-icon adv-chevron"><use href="#ico-chevron" /></svg>
+                </summary>
+
+                <!-- Perspective algorithm -->
+                <div class="panel-section">
+                    <div class="section-label">Algorithme de perspective</div>
+                    <div class="tile-source-toggle" id="tileAlgoToggle">
+                        <button type="button" class="tile-source-btn active" data-algo="vanishing">Lignes de fuite</button>
+                        <button type="button" class="tile-source-btn" data-algo="depth">Profondeur (IA)</button>
+                    </div>
+                    <input type="hidden" id="tileAlgorithm" value="vanishing" />
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <!-- Alignment (draw a line along a wall to straighten the grid) -->
+                <div class="panel-section">
+                    <div class="section-label">Alignement des joints</div>
+                    <label class="live-toggle" data-tip="Aligner automatiquement les joints sur les murs détectés (algorithme Profondeur)">
+                        <input type="checkbox" id="autoAlignToggle" />
+                        <span class="live-switch"></span>
+                        <span class="live-toggle-label">Alignement automatique</span>
+                    </label>
+                    <div class="quick-chips" style="margin-top:8px">
+                        <button type="button" class="quick-chip" id="tileAlignBtn">Aligner sur un mur</button>
+                        <button type="button" class="quick-chip quick-chip-clear" id="tileAlignReset">Effacer</button>
+                    </div>
+                    <div class="paint-lead" id="tileAlignHint">Désactivé par défaut. Activez l'alignement automatique sur les murs, ou tracez une ligne le long d'un mur pour aligner manuellement.</div>
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <!-- Grid Rotation -->
+                <div class="panel-section">
+                    <div class="section-label">Rotation du carrelage <span class="value-badge"
+                            id="gridRotationValue">0°</span>
+                    </div>
+                    <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <!-- Translation -->
+                <div class="panel-section">
+                    <div class="section-label">Décalage du carrelage</div>
+                    <div class="range-pair">
+                        <div class="range-item">
+                            <div class="range-label">
+                                ↔ Horizontal <span class="value-badge" id="translateXValue">0</span>
+                            </div>
+                            <input type="range" id="translateX" min="-200" max="200" step="1" value="0" />
+                        </div>
+                        <div class="range-item">
+                            <div class="range-label">
+                                ↕ Vertical <span class="value-badge" id="translateYValue">0</span>
+                            </div>
+                            <input type="range" id="translateY" min="-200" max="200" step="1" value="0" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <!-- Perspective Compression -->
+                <div class="panel-section">
+                    <div class="section-label">Compression de la perspective <span class="value-badge"
+                            id="perspectiveCompressionValue">0%</span>
+                    </div>
+                    <input type="range" id="perspectiveCompression" min="0" max="100" step="5" value="0" />
+                </div>
+            </details>
 
             </div><!-- /tabTilePanel -->
 
@@ -558,31 +566,39 @@
                         </div>
                     </div>
 
-                    <!-- Realism adjustments (apply to colour & texture) -->
-                    <div class="finish-label">Réglages</div>
-                    <div class="range-item">
-                        <div class="range-label">Opacité <span class="value-badge" id="wallPaintOpacityValue">80 %</span></div>
-                        <input type="range" id="wallPaintOpacity" min="20" max="100" step="5" value="80" />
+                </div><!-- /paint essentials panel-section -->
+
+                <!-- ── Advanced paint settings (collapsible) ───────────── -->
+                <details class="adv-section">
+                    <summary>
+                        <span>Réglages avancés</span>
+                        <svg class="app-icon adv-chevron"><use href="#ico-chevron" /></svg>
+                    </summary>
+                    <div class="panel-section">
+                        <div class="range-item">
+                            <div class="range-label">Opacité <span class="value-badge" id="wallPaintOpacityValue">100 %</span></div>
+                            <input type="range" id="wallPaintOpacity" min="20" max="100" step="5" value="100" />
+                        </div>
+                        <div class="range-item" style="margin-top:10px">
+                            <div class="range-label">Éclairage <span class="value-badge" id="wallPaintLightValue">100 %</span></div>
+                            <input type="range" id="wallPaintLight" min="0" max="150" step="5" value="100" />
+                        </div>
+                        <div class="range-item" style="margin-top:10px">
+                            <div class="range-label">Saturation <span class="value-badge" id="wallPaintSatValue">86 %</span></div>
+                            <input type="range" id="wallPaintSat" min="0" max="100" step="2" value="86" />
+                        </div>
+                        <label class="live-toggle" style="margin-top:14px" data-tip="Peindre par-dessus les objets du mur (radiateur, miroir, TV, lampe, prise…) au lieu de les préserver">
+                            <input type="checkbox" id="paintWallObjectsToggle" />
+                            <span class="live-switch"></span>
+                            <span class="live-toggle-label">Peindre les objets du mur</span>
+                        </label>
+                        <label class="live-toggle" style="margin-top:10px" data-tip="Peindre par-dessus les portes et fenêtres (et rideaux/stores) au lieu de les préserver">
+                            <input type="checkbox" id="paintWallOpeningsToggle" />
+                            <span class="live-switch"></span>
+                            <span class="live-toggle-label">Peindre les portes et fenêtres</span>
+                        </label>
                     </div>
-                    <div class="range-item" style="margin-top:10px">
-                        <div class="range-label">Éclairage <span class="value-badge" id="wallPaintLightValue">100 %</span></div>
-                        <input type="range" id="wallPaintLight" min="0" max="150" step="5" value="100" />
-                    </div>
-                    <div class="range-item" style="margin-top:10px">
-                        <div class="range-label">Saturation <span class="value-badge" id="wallPaintSatValue">86 %</span></div>
-                        <input type="range" id="wallPaintSat" min="0" max="100" step="2" value="86" />
-                    </div>
-                    <label class="live-toggle" style="margin-top:14px" data-tip="Peindre par-dessus les objets du mur (radiateur, miroir, TV, lampe, prise…) au lieu de les préserver">
-                        <input type="checkbox" id="paintWallObjectsToggle" />
-                        <span class="live-switch"></span>
-                        <span class="live-toggle-label">Peindre les objets du mur</span>
-                    </label>
-                    <label class="live-toggle" style="margin-top:10px" data-tip="Peindre par-dessus les portes et fenêtres (et rideaux/stores) au lieu de les préserver">
-                        <input type="checkbox" id="paintWallOpeningsToggle" />
-                        <span class="live-switch"></span>
-                        <span class="live-toggle-label">Peindre les portes et fenêtres</span>
-                    </label>
-                </div>
+                </details>
             </div><!-- /tabPaintPanel -->
 
         </div><!-- /panel-body -->

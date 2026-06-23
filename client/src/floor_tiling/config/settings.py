@@ -14,13 +14,14 @@ CORS_ORIGINS = [
 # Toggle which segmentation model(s) feed detection, then restart the server.
 #   both True  → ensemble (union of the two) — best coverage
 #   one True   → use that model alone
-SEG_USE_MASK2FORMER = False
-SEG_USE_ONEFORMER = True
+SEG_USE_MASK2FORMER = True
+SEG_USE_ONEFORMER =True
 
 # ── Wall-object exclusion (painting) ────────────────────────────────────────
 # When painting walls/ceiling, never cover objects mounted on them. We detect
 # these ADE20K classes by label keyword and subtract them from the wall/ceiling
 # masks. Add/remove keywords to tune (matched as case-insensitive substrings).
+# TEMP: disabled for testing — set back to True to re-enable object exclusion.
 PAINT_IGNORE_WALL_OBJECTS = True
 WALL_OBJECT_KEYWORDS = (
     "window", "door", "curtain", "blind", "painting", "mirror",
@@ -53,6 +54,10 @@ WALL_FILL_GAPS_PX = 18
 # pipe, socket, thermostat, vent…), so they get painted over. Grounding DINO
 # detects anything named in the prompt below; SAM turns each detection into a
 # pixel-perfect mask that is excluded from painting (no halo). Offline models.
+# NOTE: this controls DETECTION of objects (for showing/excluding them). Whether
+# they're actually skipped while painting is the separate PAINT_IGNORE_WALL_OBJECTS
+# flag above. Kept ON so AC/sockets/pipes are detected & shown on the image; set
+# False to skip loading YOLO-World + SAM (faster start, only semantic objects).
 USE_OPEN_VOCAB_OBJECTS = True
 # Which open-vocab detector finds the objects (SAM then cuts them precisely):
 #   "yolo_world"     → YOLO-World, ~0.8 s/image on CPU (fast, default)
@@ -62,13 +67,15 @@ OPEN_VOCAB_DETECTOR = "yolo_world"
 # low for recall on small fixtures (sockets); the semantic model + box-area
 # filter guard against the occasional false box.
 YOLO_WORLD_CONF = 0.05
-# Lower-case, period-separated phrases. Focus on wall-mounted things that the
-# semantic segmenter misses or cuts poorly.
+# Lower-case, period-separated phrases. ONLY list things the semantic segmenter
+# CAN'T (no ADE20K class) — lamps/mirrors/tv/fan/radiator/clock are already in
+# WALL_OBJECT_KEYWORDS, so listing them here just adds false positives (e.g. a
+# lit ceiling soffit grounded as "wall lamp"). Keep this to the real gaps.
 OPEN_VOCAB_OBJECT_PROMPT = (
-    "air conditioner. radiator. heater. electric socket. power outlet. "
-    "light switch. thermostat. wall vent. pipe. television. picture frame. "
-    "mirror. wall clock. speaker. smoke detector. wall lamp. sconce. "
-    "fan. fuse box. intercom. towel rail."
+    "air conditioner. electric socket. power outlet. light switch. "
+    "thermostat. air vent. wall vent. exhaust vent. pipe. water pipe. "
+    "drain pipe. conduit. smoke detector. fuse box. electrical panel. "
+    "junction box. intercom. doorbell. speaker. towel rail."
 )
 # Grounding DINO confidence gates (box / text).
 OPEN_VOCAB_BOX_THRESHOLD = 0.30
@@ -82,7 +89,7 @@ OPEN_VOCAB_MAX_BOX_FRAC = 0.45
 # leaf edges. ViTMatte refines the wall mask into a soft alpha that captures
 # thin edges; the paint route composites with it so foliage stays clean. The
 # alpha depends only on image+mask (not colour), so it's cached across recolours.
-PAINT_REFINE_MATTING = True
+PAINT_REFINE_MATTING = False
 MATTING_MAX_SIDE = 768          # matte at this long-side px (CPU speed vs detail)
 MATTING_FG_ERODE = 9            # sure-foreground erosion (px)
 # Keep the boundary "unknown" band SMALL so hard-edged objects (sockets, frames)

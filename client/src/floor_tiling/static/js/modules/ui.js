@@ -647,31 +647,65 @@ export function redrawWithFloorHighlight() {
   // stay visible while the user selects another surface to edit.
   const base = state.editedImage || state.originalImage;
   state.ctx.drawImage(base, 0, 0, state.canvas.width, state.canvas.height);
-  // No active selection → just the clean base (this also clears any stale
-  // highlight left over from a surface the user just deselected).
-  if (!state.floorMask) return;
-  const imageData = state.ctx.getImageData(
-    0,
-    0,
-    state.canvas.width,
-    state.canvas.height,
-  );
+
+  const w = state.canvas.width;
+  const h = state.canvas.height;
+  // Show the detected wall objects (orange) and doors/windows (blue) over the
+  // image — ONLY while working on wall/ceiling painting (not floor tiling), and
+  // before any result is applied, so the user sees what's on the walls. Cleared
+  // once an edit is composited.
+  const showObjects =
+    state.showDetectedObjects &&
+    state.activeMode === "paint" &&
+    !state.editedImage &&
+    (state.autoMasks.objects || state.autoMasks.openings);
+
+  // Nothing to tint → just the clean base (also clears a stale highlight).
+  if (!state.floorMask && !showObjects) return;
+
+  const imageData = state.ctx.getImageData(0, 0, w, h);
   const d = imageData.data;
-  // Use helper to parse CONFIG.floorHighlightColor
-  const highlightRGB = hexToRgbArray(CONFIG.floorHighlightColor);
-  const opacity = 0.8;
-  for (let y = 0; y < state.canvas.height; y++) {
-    for (let x = 0; x < state.canvas.width; x++) {
-      if (state.floorMask[y]?.[x] > 0) {
-        const i = (y * state.canvas.width + x) * 4;
-        d[i] = d[i] * opacity + highlightRGB[0];
-        d[i + 1] = d[i + 1] * opacity + highlightRGB[1];
-        d[i + 2] = d[i + 2] * opacity + highlightRGB[2];
+
+  if (state.floorMask) {
+    const highlightRGB = hexToRgbArray(CONFIG.floorHighlightColor);
+    const opacity = 0.8;
+    for (let y = 0; y < h; y++) {
+      const row = state.floorMask[y];
+      if (!row) continue;
+      for (let x = 0; x < w; x++) {
+        if (row[x] > 0) {
+          const i = (y * w + x) * 4;
+          d[i] = d[i] * opacity + highlightRGB[0];
+          d[i + 1] = d[i + 1] * opacity + highlightRGB[1];
+          d[i + 2] = d[i + 2] * opacity + highlightRGB[2];
+        }
       }
     }
   }
+
+  if (showObjects) {
+    const tint = (mask, r, g, b) => {
+      if (!mask) return;
+      for (let y = 0; y < h; y++) {
+        const row = mask[y];
+        if (!row) continue;
+        for (let x = 0; x < w; x++) {
+          if (row[x] > 0) {
+            const i = (y * w + x) * 4;
+            d[i] = d[i] * 0.5 + r * 0.5;
+            d[i + 1] = d[i + 1] * 0.5 + g * 0.5;
+            d[i + 2] = d[i + 2] * 0.5 + b * 0.5;
+          }
+        }
+      }
+    };
+    // All detected objects (fixtures AND doors/windows) → orange.
+    tint(state.autoMasks.objects, 255, 140, 0);
+    tint(state.autoMasks.openings, 255, 140, 0);
+  }
+
   state.ctx.putImageData(imageData, 0, 0);
-  drawFloorOutline();
+  if (state.floorMask) drawFloorOutline();
 }
 
 export function drawFloorOutline() {

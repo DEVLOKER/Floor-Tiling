@@ -24,10 +24,11 @@ from .tile_renderer import _feather_mask
 
 # Strength knobs (tuned conservative — believable paint, not a filter look).
 SHADING_MIN = 0.62             # clamp on relative luminance (deepest shadow)
-SHADING_MAX = 1.22             # clamp on relative luminance (tame highlight blooms)
+SHADING_MAX = 1.12             # clamp on relative luminance (tame highlight blooms)
 SHEEN_GAIN = {"matte": 0.0, "satin": 22.0, "gloss": 48.0}  # additive specular
 MICRO_GRAIN_STD = 2.0          # subtle surface grain so flat paint isn't plastic
 PAINT_SATURATION = 0.86        # pull the fill toward neutral so it reads as paint, not a neon fill
+PAINT_TEXTURE_AMOUNT = 0.35    # always-on fine wall texture (high-freq only) for realism
 
 
 def _tile_texture(texture: np.ndarray, h: int, w: int) -> np.ndarray:
@@ -315,9 +316,19 @@ def apply_wall_paint(
         gray = painted.mean(axis=2, keepdims=True)
         painted = painted * sat + gray * (1.0 - sat)
 
+    # ── Fine surface texture (high-frequency only) ──────────────────────────
+    # Add the wall's fine detail (orange-peel, scuffs, trim shadows) for realism
+    # — but NEVER its broad brightness, which on bright/blown walls would wash the
+    # colour to white. Always on (independent of opacity); it's a zero-mean
+    # signal so it can't shift the colour toward white.
+    dk = max(3, min(h_img, w_img) // 120) | 1
+    detail = src_f - cv2.GaussianBlur(src_f, (dk, dk), 0)
+    painted = painted + PAINT_TEXTURE_AMOUNT * detail
     painted = np.clip(painted, 0, 255)
 
-    # ── Opacity: let the original wall bleed through for wash effects ────────
+    # ── Opacity = paint coverage ────────────────────────────────────────────
+    # 1.0 (default) = fully opaque, the new colour covers the wall. Lower lets
+    # the original wall show through as a translucent tint/wash (user opt-in).
     opacity = float(np.clip(opacity, 0.0, 1.0))
     if opacity < 1.0:
         painted = opacity * painted + (1.0 - opacity) * src_f

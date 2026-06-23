@@ -500,17 +500,20 @@ export async function applyTilesToFloor() {
     // This tiles-only composite is the base future wall paints build on.
     state.paintBaseBlob = resultBlob;
     updateTogglePreviewVisibility();
-    // If paint is active, skip the tiles-only frame and re-apply paint over the
-    // new tiled base so both (disjoint) edits stay in the final composite.
-    if (state.hasPaint) {
-      state.isLoading = false;
-      applyPaintToWalls();
-      return;
-    }
     const img = new Image();
     img.onload = () => {
       state.editedImage = img;
       state.ctx.drawImage(img, 0, 0, state.canvas.width, state.canvas.height);
+      // If walls were painted, re-apply that paint over the new tiled base so
+      // both edits persist — using the SAVED paint selection (not the current
+      // floor selection, which would build an empty wall mask and error).
+      const paintSel = state.surfaceSelections && state.surfaceSelections.paint;
+      if (state.hasPaint && paintSel && paintSel.size) {
+        const tileSel = new Set(state.selectedSurfaces);
+        state.selectedSurfaces = new Set(paintSel);
+        applyPaintToWalls(); // builds the wall mask synchronously, then awaits
+        state.selectedSurfaces = tileSel; // restore floor selection for the UI
+      }
       document.getElementById("downloadFabWrap").style.display = "";
       showStatus(
         "✅ Carrelage appliqué ! Cliquez sur l'icône ⬇ pour télécharger.",
