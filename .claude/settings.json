@@ -198,7 +198,8 @@
       "PowerShell(.\\\\docker-build.ps1 -WithModels:$false -Profile balanced -DryRun)",
       "PowerShell(.\\\\docker-build.ps1 -WithModels:$false -DryRun; \"--- simulate nomodels runtime: docker run -e DETECTION_PROFILE=quality -e SAM_VARIANT=huge ---\"; $env:DETECTION_PROFILE='quality'; $env:SAM_VARIANT='huge'; Push-Location client; python -c \"import os,sys; sys.path.insert\\(0,'src'\\); from floor_tiling.config import settings as s; print\\('profile',s.DETECTION_PROFILE,'m2f',s.MASK2FORMER_VARIANT,'sam',s.SAM_VARIANT,'yolo',s.YOLO_WORLD_VARIANT,'offline',os.environ.get\\('HF_HUB_OFFLINE'\\)\\)\"; Pop-Location; Remove-Item Env:DETECTION_PROFILE,Env:SAM_VARIANT)",
       "PowerShell(.\\\\docker-build.ps1 -Profile fast -DryRun)",
-      "PowerShell($p = \".\\\\docker-space-saver.ps1\"; $c = Get-Content -Raw -Encoding UTF8 $p; [System.IO.File]::WriteAllText\\(\\(Resolve-Path $p\\), $c, \\(New-Object System.Text.UTF8Encoding $true\\)\\); $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\\(Resolve-Path $p\\), [ref]$null, [ref]\\([System.Management.Automation.Language.ParseError[]]$e\\)\\); if \\($e\\) { \"PARSE ERRORS:\"; $e } else { \"saved with BOM, parses OK\" })"
+      "PowerShell($p = \".\\\\docker-space-saver.ps1\"; $c = Get-Content -Raw -Encoding UTF8 $p; [System.IO.File]::WriteAllText\\(\\(Resolve-Path $p\\), $c, \\(New-Object System.Text.UTF8Encoding $true\\)\\); $null = [System.Management.Automation.Language.Parser]::ParseFile\\(\\(Resolve-Path $p\\), [ref]$null, [ref]\\([System.Management.Automation.Language.ParseError[]]$e\\)\\); if \\($e\\) { \"PARSE ERRORS:\"; $e } else { \"saved with BOM, parses OK\" })",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('.github/workflows/docker-build-push.yml'\\)\\); print\\('YAML OK'\\)\")"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"

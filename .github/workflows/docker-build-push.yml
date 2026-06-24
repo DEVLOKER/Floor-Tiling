@@ -1,23 +1,33 @@
 name: Build & Push Docker Image
 
-# Builds the baked, offline image for a DETECTION_PROFILE (default: fast) and
-# pushes it to GitHub Container Registry (ghcr.io). No extra secrets needed —
-# the built-in GITHUB_TOKEN authenticates the push.
+# Builds the Docker image(s) for a DETECTION_PROFILE (default: fast) and pushes
+# them to GitHub Container Registry (ghcr.io). No extra secrets needed — the
+# built-in GITHUB_TOKEN authenticates the push.
+#
+# Two variants (select with the "variant" input; both by default):
+#   • baked     → models baked in, offline runtime   → tag  :<profile>
+#   • nomodels  → no weights; downloaded at runtime  → tag  :<profile>-nomodels
 on:
   workflow_dispatch:
     inputs:
       profile:
-        description: "Model profile to bake (fast | balanced | quality | custom)"
+        description: "Model profile (fast | balanced | quality | custom)"
         required: false
         default: "fast"
         type: choice
         options: ["fast", "balanced", "quality", "custom"]
+      variant:
+        description: "Which image(s) to build"
+        required: false
+        default: "nomodels"
+        type: choice
+        options: ["nomodels", "baked", "both"]
       push:
         description: "Push to GHCR (uncheck to build only)"
         required: false
         default: true
         type: boolean
-  # Build on release tags too (e.g. v1.2.3).
+  # Build on release tags too (e.g. v1.2.3) — builds both variants.
   push:
     tags:
       - "v*"
@@ -28,11 +38,31 @@ concurrency:
 
 jobs:
   build-and-push:
-    name: Build & Push (${{ github.event.inputs.profile || 'fast' }})
+    name: Build & Push (${{ matrix.variant }} / ${{ github.event.inputs.profile || 'fast' }})
     runs-on: ubuntu-latest
+    # Skip the matrix legs not requested by the "variant" input. On the tag
+    # trigger (no inputs) both legs run.
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.variant == 'both' ||
+      github.event.inputs.variant == matrix.variant
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Weights baked into the image → fully offline at runtime.
+          - variant: baked
+            with_models: "true"
+            hf_offline: "1"
+            suffix: ""
+          # No weights → downloaded at runtime into a mounted volume.
+          - variant: nomodels
+            with_models: "false"
+            hf_offline: "0"
+            suffix: "-nomodels"
     env:
       PROFILE: ${{ github.event.inputs.profile || 'fast' }}
       # Default to pushing unless the dispatch explicitly unchecked it.
@@ -42,9 +72,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Baked image carries torch (CPU) + the profile's model weights, so reclaim
-      # space the hosted runner wastes on unused toolchains before building.
+      # Only the baked image is huge (torch + weights); reclaim runner space the
+      # hosted image wastes on unused toolchains before building it.
       - name: Free disk space
+        if: ${{ matrix.with_models == 'true' }}
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
                       /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
@@ -66,22 +97,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push (profile=${{ env.PROFILE }})
+      - name: Build and push (${{ matrix.variant }}, profile=${{ env.PROFILE }})
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: ${{ env.DO_PUSH == 'true' }}
-          # amd64 only: an emulated arm64 build would download torch + the models
-          # under QEMU and is impractically slow / disk-heavy.
+          # amd64 only: an emulated arm64 build would download torch (+ models for
+          # the baked variant) under QEMU and is impractically slow / disk-heavy.
           platforms: linux/amd64
           build-args: |
-            WITH_MODELS=true
+            WITH_MODELS=${{ matrix.with_models }}
             DETECTION_PROFILE=${{ env.PROFILE }}
-            HF_HUB_OFFLINE=1
+            HF_HUB_OFFLINE=${{ matrix.hf_offline }}
           tags: |
-            ${{ steps.img.outputs.name }}:${{ env.PROFILE }}
-            ${{ steps.img.outputs.name }}:${{ env.PROFILE }}-${{ github.sha }}
-          # Per-profile cache scope so profiles don't clobber each other.
-          cache-from: type=gha,scope=${{ env.PROFILE }}
-          cache-to: type=gha,mode=max,scope=${{ env.PROFILE }}
+            ${{ steps.img.outputs.name }}:${{ env.PROFILE }}${{ matrix.suffix }}
+            ${{ steps.img.outputs.name }}:${{ env.PROFILE }}${{ matrix.suffix }}-${{ github.sha }}
+          # Per-variant+profile cache scope so builds don't clobber each other.
+          cache-from: type=gha,scope=${{ env.PROFILE }}-${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ env.PROFILE }}-${{ matrix.variant }}
