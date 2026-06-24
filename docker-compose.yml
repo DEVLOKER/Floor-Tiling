@@ -1,17 +1,17 @@
 # ── Floor Tiling Visualizer — CUSTOMER deployment (offline, weights baked) ──
-# This is the production/customer path: the image is built with MODEL_SOURCE=local
-# so all three models are baked in and the container runs FULLY OFFLINE — no
-# volume, no network, ever.
+# The image is built with WITH_MODELS=true, so the DETECTION_PROFILE's models are
+# baked in and the container runs FULLY OFFLINE (HF_HUB_OFFLINE=1) — no volume,
+# no network, ever.
 #
-#   docker compose build      # needs the weights present in client/models/<name>/
+#   docker compose build      # downloads/bakes the profile's models at build time
 #   docker compose up         # runs offline
 #
-# Build the weights into the context first (run the app once, or copy in the
-# model.safetensors files under client/models/{mask2former,oneformer,depth}/).
-# Deliver the result with `docker save floortiling:latest | gzip > app.tar.gz`.
+# Pick the profile (default "fast") at build time:
+#   DETECTION_PROFILE=quality docker compose build
+# Deliver with `docker save floortiling:latest | gzip > app.tar.gz`.
 #
-# For local/internal development that downloads weights once into a cache volume
-# instead of baking them, use the dev override:
+# For development that downloads weights once into a cache volume instead of
+# baking them, use the dev override:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 services:
@@ -20,12 +20,17 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        MODEL_SOURCE: local
-    image: floortiling:latest
+        WITH_MODELS: "true"
+        # Profile baked into the image: fast | balanced | quality | custom
+        DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
+        HF_HUB_OFFLINE: "1"
+    # Tag carries the profile so it matches the docker-build script's output
+    # (e.g. floortiling:fast) — `docker compose up` then reuses that exact image.
+    image: "floortiling:${DETECTION_PROFILE:-fast}"
     ports:
       - "8000:8000"
-    # The license file is read from a mounted path at runtime. Point this at the
-    # customer's USB / license directory (read-only).
+    # The license file is read from a mounted path at runtime (currently the
+    # license gate is disabled in code — re-enable for production, then mount it).
     # volumes:
     #   - "D:/license:/license:ro"
     restart: unless-stopped

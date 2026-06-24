@@ -61,11 +61,12 @@ async def lifespan(app: FastAPI):
     """Startup: verify license and load ML models.  Shutdown: nothing extra."""
 
     # ── License check ─────────────────────────────────────────────────────
-    try:
-        verify_license()
-    except LicenseError as exc:
-        logger.critical("License check failed: %s", exc)
-        sys.exit(1)
+    # NOTE: temporarily disabled (re-enable for licensed/production builds).
+    # try:
+    #     verify_license()
+    # except LicenseError as exc:
+    #     logger.critical("License check failed: %s", exc)
+    #     sys.exit(1)
 
     # ── Load segmentation model(s) — see SEG_USE_* flags in settings ──────
     app.state.mask2former_predictor = None
@@ -209,7 +210,8 @@ def create_app() -> FastAPI:
         description="Floor segmentation and perspective-correct tile visualization",
         version="1.0.0",
         lifespan=lifespan,
-        dependencies=[Depends(require_license)],
+        # NOTE: license gate temporarily disabled (re-enable for production).
+        # dependencies=[Depends(require_license)],
     )
 
     # ── Request size limit ────────────────────────────────────────────────

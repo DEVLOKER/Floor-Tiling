@@ -13,7 +13,36 @@ All tunables live here. Sections:
 
 Changing any model VARIANT (section 2) re-downloads that model on next start;
 unknown values fall back to the manager's default.
+
+Every model-size knob (DETECTION_PROFILE + the per-model *_VARIANT values) and the
+key feature flags can be overridden by an environment variable of the same name.
+This is what lets a Docker image be built/run for a chosen profile without editing
+this file (see the project Dockerfile / docker-compose files).
 """
+
+import os
+
+
+def _env(name: str, default: str) -> str:
+    """Read a string from the environment, treating empty/whitespace as absent.
+
+    Docker exposes every declared ARG to RUN as an environment variable — an
+    unset one arrives as "" — so a plain os.environ.get would read "" and wipe
+    out the intended default. Coalescing empty → default avoids that trap.
+    """
+    val = os.environ.get(name)
+    if val is None or not val.strip():
+        return default
+    return val.strip()
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Read a boolean from the environment ("1/true/yes/on" → True)."""
+    val = os.environ.get(name)
+    if val is None or not val.strip():
+        return default
+    return val.strip().lower() in ("1", "true", "yes", "on")
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # 1. SERVER & I/O
@@ -43,17 +72,19 @@ JPEG_SCALE_MAX_WIDTH = 1000
 #   "balanced" — mid sizes, good speed/quality trade-off
 #   "quality"  — largest models, best masks (slowest)
 #   "custom"   — ignore the profile and use the per-model *_VARIANT values below
-DETECTION_PROFILE = "custom"
+# (env override: DETECTION_PROFILE)
+DETECTION_PROFILE = _env("DETECTION_PROFILE", "custom")
 
 # Per-model size variants. Used as-is when DETECTION_PROFILE = "custom";
 # OVERWRITTEN by the chosen profile otherwise (see the override block below).
-MASK2FORMER_VARIANT = "tiny"      # "tiny" | "small" | "base" | "large"   (floor/wall/ceiling)
-ONEFORMER_VARIANT = "tiny"        # "tiny" | "large" | "dinat_large"      (dinat needs `natten`)
-DEPTH_VARIANT = "base"            # "small" | "base" | "large"            (wall-plane split)
-YOLO_WORLD_VARIANT = "x"          # "s" | "m" | "l" | "x"                 (x≈140MB best recall, s≈25MB fastest)
-GROUNDING_DINO_VARIANT = "tiny"   # "tiny" | "base"                       (only if detector=grounding_dino)
-SAM_VARIANT = "slim77"            # "slim50" | "slim77" (tiny/fast) | "base" | "large" | "huge"
-VITMATTE_VARIANT = "small"        # "small" | "base"                      (paint-edge matting)
+# Each can also be overridden by an env var of the same name.
+MASK2FORMER_VARIANT = _env("MASK2FORMER_VARIANT", "tiny")      # "tiny" | "small" | "base" | "large"   (floor/wall/ceiling)
+ONEFORMER_VARIANT = _env("ONEFORMER_VARIANT", "tiny")          # "tiny" | "large" | "dinat_large"      (dinat needs `natten`)
+DEPTH_VARIANT = _env("DEPTH_VARIANT", "base")                  # "small" | "base" | "large"            (wall-plane split)
+YOLO_WORLD_VARIANT = _env("YOLO_WORLD_VARIANT", "x")           # "s" | "m" | "l" | "x"                 (x≈140MB best recall, s≈25MB fastest)
+GROUNDING_DINO_VARIANT = _env("GROUNDING_DINO_VARIANT", "tiny")  # "tiny" | "base"                     (only if detector=grounding_dino)
+SAM_VARIANT = _env("SAM_VARIANT", "slim77")                    # "slim50" | "slim77" (tiny/fast) | "base" | "large" | "huge"
+VITMATTE_VARIANT = _env("VITMATTE_VARIANT", "small")           # "small" | "base"                      (paint-edge matting)
 
 # Profile presets — each maps every model to a size. Edit a preset to retune it.
 _DETECTION_PROFILES = {
@@ -77,9 +108,11 @@ _DETECTION_PROFILES = {
     },
 }
 # Apply the profile (a known name overrides the per-model values above; "custom"
-# or any unknown value leaves them untouched).
+# or any unknown value leaves them untouched). An explicit per-model env var still
+# wins over the profile, so e.g. DETECTION_PROFILE=fast + SAM_VARIANT=base works.
 if DETECTION_PROFILE in _DETECTION_PROFILES:
-    globals().update(_DETECTION_PROFILES[DETECTION_PROFILE])
+    for _k, _v in _DETECTION_PROFILES[DETECTION_PROFILE].items():
+        globals()[_k] = _env(_k, _v)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -88,8 +121,8 @@ if DETECTION_PROFILE in _DETECTION_PROFILES:
 # Restart the server after changing. (Sizes are in section 2.)
 #   both True → ensemble (union of the two) — best wall coverage, slower
 #   one True  → that model alone
-SEG_USE_MASK2FORMER = True
-SEG_USE_ONEFORMER = True
+SEG_USE_MASK2FORMER = _env_bool("SEG_USE_MASK2FORMER", True)
+SEG_USE_ONEFORMER = _env_bool("SEG_USE_ONEFORMER", True)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -98,7 +131,7 @@ SEG_USE_ONEFORMER = True
 # When painting walls/ceiling, never cover objects mounted on them. We detect
 # these ADE20K classes by label keyword and subtract them from the wall/ceiling
 # masks. Add/remove keywords to tune (matched as case-insensitive substrings).
-PAINT_IGNORE_WALL_OBJECTS = True
+PAINT_IGNORE_WALL_OBJECTS = _env_bool("PAINT_IGNORE_WALL_OBJECTS", True)
 WALL_OBJECT_KEYWORDS = (
     "window", "door", "curtain", "blind", "painting", "mirror",
     "lamp", "light", "chandelier", "sconce", "fan", "radiator",
@@ -135,11 +168,11 @@ WALL_FILL_GAPS_PX = 18
 # NOTE: this is DETECTION (for showing/excluding). Whether they're skipped while
 # painting is PAINT_IGNORE_WALL_OBJECTS (section 4). Set False to skip loading the
 # detector + SAM (faster start, semantic objects only). Sizes are in section 2.
-USE_OPEN_VOCAB_OBJECTS = True
+USE_OPEN_VOCAB_OBJECTS = _env_bool("USE_OPEN_VOCAB_OBJECTS", True)
 # Which detector finds the objects:
 #   "yolo_world"     → YOLO-World, ~0.8 s/image on CPU (fast, default)
 #   "grounding_dino" → Grounding DINO, ~7 s/image (slightly higher recall)
-OPEN_VOCAB_DETECTOR = "yolo_world"
+OPEN_VOCAB_DETECTOR = _env("OPEN_VOCAB_DETECTOR", "yolo_world")
 # YOLO-World confidence gate (its scores run lower than Grounding DINO's). Kept
 # low for recall on small fixtures (sockets); the semantic model + box-area
 # filter guard against the occasional false box.
@@ -175,7 +208,7 @@ PAINT_FINISHES = ("matte", "satin", "gloss")
 # edges; the paint route composites with it so foliage stays clean. The alpha
 # depends only on image+mask (not colour), so it's cached across recolours.
 # (Model size = VITMATTE_VARIANT in section 2.)
-PAINT_REFINE_MATTING = False
+PAINT_REFINE_MATTING = _env_bool("PAINT_REFINE_MATTING", False)
 MATTING_MAX_SIDE = 768          # matte at this long-side px (CPU speed vs detail)
 MATTING_FG_ERODE = 9            # sure-foreground erosion (px)
 # Keep the boundary "unknown" band SMALL so hard-edged objects (sockets, frames)

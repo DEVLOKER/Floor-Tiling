@@ -1,65 +1,87 @@
-name: Build and Push Docker Image
+name: Build & Push Docker Image
 
+# Builds the baked, offline image for a DETECTION_PROFILE (default: fast) and
+# pushes it to GitHub Container Registry (ghcr.io). No extra secrets needed —
+# the built-in GITHUB_TOKEN authenticates the push.
 on:
-  pull_request:
-    branches:
-      - prod
   workflow_dispatch:
     inputs:
-      version:
-        description: "Image version tag (leave empty to use the commit SHA)"
+      profile:
+        description: "Model profile to bake (fast | balanced | quality | custom)"
         required: false
-        type: string
+        default: "fast"
+        type: choice
+        options: ["fast", "balanced", "quality", "custom"]
+      push:
+        description: "Push to GHCR (uncheck to build only)"
+        required: false
+        default: true
+        type: boolean
+  # Build on release tags too (e.g. v1.2.3).
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: docker-${{ github.ref }}-${{ github.event.inputs.profile || 'fast' }}
+  cancel-in-progress: true
 
 jobs:
   build-and-push:
-    name: Build & Push (${{ matrix.variant }})
+    name: Build & Push (${{ github.event.inputs.profile || 'fast' }})
     runs-on: ubuntu-latest
-    # Use the supplied version, else fall back to the commit SHA.
+    permissions:
+      contents: read
+      packages: write
     env:
-      VERSION: ${{ inputs.version || github.sha }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Full / offline image — weights baked in (downloaded from HF at build).
-          - variant: full
-            model_source: download
-            suffix: ""
-          # Slim / app-only image — no weights; models mounted as a /models volume.
-          - variant: slim
-            model_source: volume
-            suffix: "-slim"
+      PROFILE: ${{ github.event.inputs.profile || 'fast' }}
+      # Default to pushing unless the dispatch explicitly unchecked it.
+      DO_PUSH: ${{ github.event.inputs.push != 'false' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Baked image carries torch (CPU) + the profile's model weights, so reclaim
+      # space the hosted runner wastes on unused toolchains before building.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
 
-      - name: Set up QEMU (cross-compilation support for arm64)
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
+      # Lowercase image name (GHCR requires lowercase; the repo owner has caps).
+      - name: Resolve image name
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker image (${{ matrix.variant }})
+      - name: Log in to GHCR
+        if: ${{ env.DO_PUSH == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (profile=${{ env.PROFILE }})
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
+          push: ${{ env.DO_PUSH == 'true' }}
+          # amd64 only: an emulated arm64 build would download torch + the models
+          # under QEMU and is impractically slow / disk-heavy.
+          platforms: linux/amd64
           build-args: |
-            MODEL_SOURCE=${{ matrix.model_source }}
+            WITH_MODELS=true
+            DETECTION_PROFILE=${{ env.PROFILE }}
+            HF_HUB_OFFLINE=1
           tags: |
-            berghout/ceramic:${{ env.VERSION }}${{ matrix.suffix }}
-          # Per-variant cache scope so the full/slim builds don't clobber each other.
-          cache-from: type=gha,scope=${{ matrix.variant }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
+            ${{ steps.img.outputs.name }}:${{ env.PROFILE }}
+            ${{ steps.img.outputs.name }}:${{ env.PROFILE }}-${{ github.sha }}
+          # Per-profile cache scope so profiles don't clobber each other.
+          cache-from: type=gha,scope=${{ env.PROFILE }}
+          cache-to: type=gha,mode=max,scope=${{ env.PROFILE }}
