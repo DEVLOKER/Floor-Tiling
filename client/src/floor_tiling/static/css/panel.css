@@ -912,6 +912,80 @@ input[type="range"]::-moz-range-progress {
   color: var(--txt-secondary);
 }
 
+/* Quick-pick presets (tile format, grout) — tap a common value instead of
+   fiddling sliders; exact control stays in Advanced. */
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+.preset-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.preset-chip {
+  padding: 11px 6px;
+  border: 1.5px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  background: var(--ctrl-bg);
+  color: var(--txt-secondary);
+  font-family: inherit;
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.12s;
+}
+.preset-chip:hover {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  color: var(--txt-primary);
+  transform: translateY(-1px);
+}
+.preset-chip.active {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: #c8c5ff;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.preset-hint {
+  font-size: 0.68em;
+  color: var(--txt-muted);
+  margin-top: 7px;
+}
+
+/* Quick colour palette — tap a common tone instead of using the picker. */
+.color-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+.color-preset {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: var(--c);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform 0.12s var(--ease-spring),
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+.color-preset:hover {
+  transform: scale(1.14);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.color-preset.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 /* "Advanced settings" becomes an obvious, tappable expander card rather than a
    tiny uppercase dev label — so the default view stays simple but power users
    clearly see where the extra controls live. */

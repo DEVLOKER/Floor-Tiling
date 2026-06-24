@@ -271,13 +271,14 @@ body.fullscreen-mode .top-btn-close {
   pointer-events: all;
 }
 .loading-card {
-  background: #16151f;
+  background: linear-gradient(180deg, #1a1827, #141320);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--r-xl);
-  padding: 40px 48px;
+  padding: 34px 38px 28px;
   text-align: center;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
-  min-width: 220px;
+  min-width: 300px;
+  max-width: 360px;
   animation: popIn 0.3s var(--ease-spring);
   position: relative;
   overflow: hidden;
@@ -291,20 +292,174 @@ body.fullscreen-mode .top-btn-close {
   height: 3px;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
-.loading-ring {
-  width: 48px;
-  height: 48px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  margin: 0 auto 20px;
+
+/* ── Animated AI orb ───────────────────────────────────────────── */
+.loading-orb {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
 }
-.loading-text {
-  color: #9896b8;
-  font-size: 0.92em;
-  font-weight: 500;
-  line-height: 1.55;
+/* spinning gradient ring */
+.loading-orb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 55%,
+    var(--accent) 80%,
+    var(--accent-2) 100%
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 4px),
+    #000 calc(100% - 3px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 4px),
+    #000 calc(100% - 3px)
+  );
+  animation: spin 1s linear infinite;
+}
+/* center icon pulses */
+.loading-orb-icon {
+  width: 26px;
+  height: 26px;
+  color: #c8c5ff;
+  z-index: 1;
+  animation: orb-pulse 1.6s ease-in-out infinite;
+}
+/* two orbiting dots */
+.loading-orb-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.loading-orb-dot--1 {
+  animation: orbit 1.8s linear infinite;
+}
+.loading-orb-dot--2 {
+  animation: orbit 1.8s linear infinite;
+  animation-delay: -0.9s;
+  opacity: 0.65;
+}
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.14); opacity: 1; }
+}
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(31px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(31px) rotate(-360deg); }
+}
+
+/* ── Step list (vertical stepper) ──────────────────────────────── */
+.loading-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  margin-top: 2px;
+  min-height: 24px;
+}
+.lstep {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.lstep-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--txt-muted);
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.lstep-label {
+  font-size: 0.76em;
+  line-height: 1.35;
+  color: var(--txt-muted);
+  transition:
+    color 0.2s,
+    font-size 0.2s;
+}
+
+/* Completed steps: filled disc + check, small muted label. */
+.lstep.done .lstep-mark {
+  background: rgba(var(--accent-rgb), 0.55);
+  border-color: transparent;
+}
+.lstep.done .lstep-mark::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.lstep.done .lstep-label {
+  font-size: 0.72em;
+  color: var(--txt-muted);
+}
+
+/* Current step: brighter, larger label, pulsing dot, slides in. */
+.lstep.active {
+  animation: slideUp 0.26s ease;
+}
+.lstep.active .lstep-mark {
+  border-color: var(--accent);
+  animation: lstep-pulse 1.3s ease-in-out infinite;
+}
+.lstep.active .lstep-mark::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.lstep.active .lstep-label {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #ede9ff;
+}
+@keyframes lstep-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12); }
+  50% { box-shadow: 0 0 0 7px rgba(var(--accent-rgb), 0.03); }
+}
+
+/* ── Step label + elapsed timer ────────────────────────────────── */
+.loading-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+  font-size: 0.72em;
+  color: var(--txt-muted);
+}
+.loading-step {
+  font-weight: 600;
+}
+.loading-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--txt-secondary);
 }
 
 /* ── Floating action buttons ───────────────────────────────────── */

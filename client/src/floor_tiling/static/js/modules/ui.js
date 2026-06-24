@@ -153,16 +153,94 @@ export function invalidateCachedResult() {
   }
 }
 
-// UI-related functions (to be filled in next steps)
+// \u2500\u2500 Loading overlay (waiting popup): vertical stepper + elapsed timer \u2500\u2500\u2500\u2500\u2500\u2500\u2500
+let _loadingStart = 0;
+let _loadingTimer = null;
+let _steps = {}; // step index \u2192 label
+let _stepCurrent = 0;
+let _stepTotal = 0;
+
+function _stopLoadingTimer() {
+  if (_loadingTimer) {
+    clearInterval(_loadingTimer);
+    _loadingTimer = null;
+  }
+}
+
+// Render done steps (small, muted, checked) above the current one (large,
+// animated) \u2014 the modern "stepper" look.
+function _renderSteps() {
+  const c = document.getElementById("loadingSteps");
+  if (!c) return;
+  c.innerHTML = "";
+  for (let i = 1; i <= _stepCurrent; i++) {
+    const row = document.createElement("div");
+    row.className = "lstep " + (i < _stepCurrent ? "done" : "active");
+    const mark = document.createElement("span");
+    mark.className = "lstep-mark";
+    const lbl = document.createElement("span");
+    lbl.className = "lstep-label";
+    lbl.textContent = _steps[i] || "\u2026";
+    row.append(mark, lbl);
+    c.appendChild(row);
+  }
+}
+
 export function showStatus(msg, type) {
   const overlay = document.getElementById("loadingOverlay");
   if (type === "info") {
     const plain = msg.replace(/<[^>]*>/g, "").trim();
-    document.getElementById("loadingText").textContent =
-      plain || "Processing\u2026";
-    overlay.style.display = "flex";
+    // Parse a "[3/5]" step marker, then strip it + any leading emoji/symbols.
+    const m = plain.match(/\[(\d+)\s*\/\s*(\d+)\]/);
+    const clean =
+      plain
+        .replace(/\[\d+\s*\/\s*\d+\]/, "")
+        .replace(/^[^\p{L}\d]+/u, "")
+        .trim() || "Traitement\u2026";
+    const fresh = overlay.style.display !== "flex";
+
+    if (m) {
+      const k = +m[1], total = +m[2];
+      // New run \u2192 start a fresh step list.
+      if (fresh || k === 1 || total !== _stepTotal) {
+        _steps = {};
+        _stepTotal = total;
+      }
+      _steps[k] = clean;
+      _stepCurrent = k;
+    } else {
+      // A plain status (e.g. painting/tiling) \u2192 a single active step.
+      _steps = { 1: clean };
+      _stepCurrent = 1;
+      _stepTotal = 1;
+    }
+    _renderSteps();
+
+    const stepEl = document.getElementById("loadingStep");
+    if (stepEl) {
+      stepEl.textContent =
+        _stepTotal > 1 ? `\u00c9tape ${_stepCurrent} / ${_stepTotal}` : "";
+    }
+
+    // Start the elapsed-time counter the first time the overlay opens.
+    if (fresh) {
+      overlay.style.display = "flex";
+      _loadingStart = performance.now();
+      const t = document.getElementById("loadingTimer");
+      if (t) t.textContent = "0,0 s";
+      _stopLoadingTimer();
+      _loadingTimer = setInterval(() => {
+        if (!t) return;
+        const secs = (performance.now() - _loadingStart) / 1000;
+        t.textContent = secs.toFixed(1).replace(".", ",") + " s";
+      }, 100);
+    }
   } else {
     overlay.style.display = "none";
+    _stopLoadingTimer();
+    _steps = {};
+    _stepCurrent = 0;
+    _stepTotal = 0;
     _showToast(msg, type);
   }
 }

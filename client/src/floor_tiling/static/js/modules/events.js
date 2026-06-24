@@ -173,6 +173,71 @@ export function initEventListeners() {
       .style.setProperty("--th", e.target.value + "px");
   });
 
+  // ── Quick presets (primary controls; exact sliders live in Advanced) ──────
+  // Highlight the preset chip that matches the current exact value (or none).
+  function refreshTileSizeChips() {
+    const w = val("tileWidth"), h = val("tileHeight");
+    document.querySelectorAll("#tileSizePresets .preset-chip").forEach((c) => {
+      c.classList.toggle("active", +c.dataset.w === +w && +c.dataset.h === +h);
+    });
+  }
+  function refreshGroutChips() {
+    const g = val("groutThickness");
+    document.querySelectorAll("#groutPresets .preset-chip").forEach((c) => {
+      c.classList.toggle("active", +c.dataset.grout === +g);
+    });
+  }
+  // Clicking a size preset sets BOTH exact sliders, refreshes the UI, applies.
+  document.querySelectorAll("#tileSizePresets .preset-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const ws = document.getElementById("tileWidth");
+      const hs = document.getElementById("tileHeight");
+      ws.value = chip.dataset.w;
+      hs.value = chip.dataset.h;
+      ws.dispatchEvent(new Event("input", { bubbles: true }));  // badge/track/preview
+      hs.dispatchEvent(new Event("input", { bubbles: true }));
+      refreshTileSizeChips();
+      ws.dispatchEvent(new Event("change", { bubbles: true }));  // save + liveApply (once)
+    });
+  });
+  document.querySelectorAll("#groutPresets .preset-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const gs = document.getElementById("groutThickness");
+      gs.value = chip.dataset.grout;
+      gs.dispatchEvent(new Event("input", { bubbles: true }));
+      refreshGroutChips();
+      gs.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+  // Keep chip highlight in sync when the exact (advanced) sliders are used.
+  document.getElementById("tileWidth").addEventListener("input", refreshTileSizeChips);
+  document.getElementById("tileHeight").addEventListener("input", refreshTileSizeChips);
+  document.getElementById("groutThickness").addEventListener("input", refreshGroutChips);
+  refreshTileSizeChips();
+  refreshGroutChips();
+
+  // ── Preset colour palettes (click a swatch → set the colour picker) ───────
+  document.querySelectorAll(".color-presets").forEach((row) => {
+    const inp = document.getElementById(row.dataset.target);
+    if (!inp) return;
+    const syncActive = () => {
+      const cur = (inp.value || "").toLowerCase();
+      row.querySelectorAll(".color-preset").forEach((s) =>
+        s.classList.toggle("active", (s.dataset.color || "").toLowerCase() === cur),
+      );
+    };
+    row.querySelectorAll(".color-preset").forEach((sw) => {
+      sw.addEventListener("click", () => {
+        inp.value = sw.dataset.color;
+        inp.dispatchEvent(new Event("input", { bubbles: true }));  // preview + save
+        syncActive();
+        inp.dispatchEvent(new Event("change", { bubbles: true }));  // liveApply
+      });
+    });
+    inp.addEventListener("input", syncActive); // reflect manual picker choice
+    syncActive();
+  });
+
   document.getElementById("tilePattern").addEventListener("change", () => {
     syncPatternUI();
     const pattern = val("tilePattern");
