@@ -22,6 +22,11 @@ on:
         default: "nomodels"
         type: choice
         options: ["nomodels", "baked", "both"]
+      version:
+        description: "Optional version appended to the tag, e.g. -v1.2.0 (include your own separator). Empty = profile tag only."
+        required: false
+        default: ""
+        type: string
       push_ghcr:
         description: "Push to GHCR (ghcr.io)"
         required: false
@@ -101,20 +106,20 @@ jobs:
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           PROFILE: ${{ env.PROFILE }}
           SUFFIX: ${{ matrix.suffix }}
-          SHA: ${{ github.sha }}
+          VERSION: ${{ github.event.inputs.version }}
         run: |
           ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"   # GHCR requires lowercase
           ghcr_on=false; dh_on=false
           {
             echo "tags<<EOF"
             if [ "$PUSH_GHCR" = "true" ]; then
-              echo "${ghcr}:${PROFILE}${SUFFIX}"
-              echo "${ghcr}:${PROFILE}${SUFFIX}-${SHA}"
+              echo "${ghcr}:${PROFILE}${SUFFIX}${VERSION}"
+              echo "${ghcr}:${PROFILE}${SUFFIX}-latest"
               ghcr_on=true
             fi
             if [ "$PUSH_DH" = "true" ] && [ -n "$DH_USER" ]; then
-              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}"
-              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-${SHA}"
+              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}${VERSION}"
+              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-latest"
               dh_on=true
             fi
             echo "EOF"
