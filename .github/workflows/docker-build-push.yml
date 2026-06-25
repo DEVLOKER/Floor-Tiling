@@ -4,7 +4,7 @@ name: Build & Push Docker Image
 # them to GitHub Container Registry (ghcr.io). No extra secrets needed — the
 # built-in GITHUB_TOKEN authenticates the push.
 #
-# Two variants (select with the "variant" input; both by default):
+# Two variants (select with the "variant" input; both on tag builds):
 #   • baked     → models baked in, offline runtime   → tag  :<profile>
 #   • nomodels  → no weights; downloaded at runtime  → tag  :<profile>-nomodels
 on:
@@ -37,32 +37,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Compute the matrix so only the requested variant(s) become build legs.
+  # (A job-level `if` can't read the matrix context, so we filter here instead.)
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - id: gen
+        env:
+          VARIANT: ${{ github.event.inputs.variant || 'both' }}
+        run: |
+          baked='{"variant":"baked","with_models":"true","hf_offline":"1","suffix":""}'
+          nomodels='{"variant":"nomodels","with_models":"false","hf_offline":"0","suffix":"-nomodels"}'
+          case "$VARIANT" in
+            baked)    include="[$baked]" ;;
+            nomodels) include="[$nomodels]" ;;
+            *)        include="[$baked,$nomodels]" ;;
+          esac
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+
   build-and-push:
+    needs: setup
     name: Build & Push (${{ matrix.variant }} / ${{ github.event.inputs.profile || 'fast' }})
     runs-on: ubuntu-latest
-    # Skip the matrix legs not requested by the "variant" input. On the tag
-    # trigger (no inputs) both legs run.
-    if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.variant == 'both' ||
-      github.event.inputs.variant == matrix.variant
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Weights baked into the image → fully offline at runtime.
-          - variant: baked
-            with_models: "true"
-            hf_offline: "1"
-            suffix: ""
-          # No weights → downloaded at runtime into a mounted volume.
-          - variant: nomodels
-            with_models: "false"
-            hf_offline: "0"
-            suffix: "-nomodels"
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     env:
       PROFILE: ${{ github.event.inputs.profile || 'fast' }}
       # Default to pushing unless the dispatch explicitly unchecked it.
