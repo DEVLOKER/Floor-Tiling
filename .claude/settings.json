@@ -204,7 +204,12 @@
       "Bash(git ls-tree *)",
       "Bash(git remote *)",
       "Bash(DH_USER=myuser PROFILE=fast SUFFIX=-nomodels SHA=abc123 GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'ghcr=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; echo \"${ghcr}:${PROFILE}${SUFFIX}\"; echo \"${ghcr}:${PROFILE}${SUFFIX}-${SHA}\"; [ -n \"$DH_USER\" ] && { echo \"docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}\"; echo \"docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-${SHA}\"; }')",
-      "Bash(DH_USER='' PROFILE=fast SUFFIX=-nomodels SHA=abc123 GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'ghcr=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; echo \"${ghcr}:${PROFILE}${SUFFIX}\"; [ -n \"$DH_USER\" ] && echo dh || echo \"\\(ghcr only\\)\"')"
+      "Bash(DH_USER='' PROFILE=fast SUFFIX=-nomodels SHA=abc123 GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'ghcr=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; echo \"${ghcr}:${PROFILE}${SUFFIX}\"; [ -n \"$DH_USER\" ] && echo dh || echo \"\\(ghcr only\\)\"')",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(git fetch *)",
+      "Bash(PUSH_GHCR=true PUSH_DH=true DH_USER=myuser PROFILE=fast SUFFIX=-nomodels SHA=abc GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'ghcr=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; g=false;d=false; [ \"$PUSH_GHCR\" = true ] && { echo \"$ghcr:$PROFILE$SUFFIX\"; g=true; }; { [ \"$PUSH_DH\" = true ] && [ -n \"$DH_USER\" ]; } && { echo \"docker.io/$DH_USER/floor-tiling:$PROFILE$SUFFIX\"; d=true; }; echo \"do_push=$\\([ $g = true ] || [ $d = true ] && echo true || echo false\\)\"')",
+      "Bash(PUSH_GHCR=false PUSH_DH=true DH_USER='' PROFILE=fast SUFFIX='' SHA=abc GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'g=false;d=false; [ \"$PUSH_GHCR\" = true ] && g=true; { [ \"$PUSH_DH\" = true ] && [ -n \"$DH_USER\" ]; } && d=true; echo \"ghcr=$g dh=$d do_push=$\\([ $g = true ] || [ $d = true ] && echo true || echo false\\)\"')"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"

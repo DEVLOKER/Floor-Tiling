@@ -22,8 +22,13 @@ on:
         default: "nomodels"
         type: choice
         options: ["nomodels", "baked", "both"]
-      push:
-        description: "Push to GHCR (uncheck to build only)"
+      push_ghcr:
+        description: "Push to GHCR (ghcr.io)"
+        required: false
+        default: true
+        type: boolean
+      push_dockerhub:
+        description: "Push to DockerHub (needs DOCKERHUB_USERNAME/TOKEN secrets)"
         required: false
         default: true
         type: boolean
@@ -69,8 +74,10 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     env:
       PROFILE: ${{ github.event.inputs.profile || 'fast' }}
-      # Default to pushing unless the dispatch explicitly unchecked it.
-      DO_PUSH: ${{ github.event.inputs.push != 'false' }}
+      # Each registry has its own toggle. Default on (also for the tag trigger,
+      # where inputs are empty → '' != 'false' is true).
+      PUSH_GHCR: ${{ github.event.inputs.push_ghcr != 'false' }}
+      PUSH_DH: ${{ github.event.inputs.push_dockerhub != 'false' }}
 
     steps:
       - name: Checkout repository
@@ -85,9 +92,9 @@ jobs:
                       /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           df -h /
 
-      # Build the full tag list for both registries. DockerHub tags are added
-      # only when DOCKERHUB_USERNAME is set, so the run still works (GHCR-only)
-      # if the DockerHub secrets aren't configured yet.
+      # Build the tag list per the toggles. GHCR tags only when push_ghcr is on;
+      # DockerHub tags only when push_dockerhub is on AND DOCKERHUB_USERNAME is
+      # set (so the run never fails just because the DockerHub secrets are absent).
       - name: Resolve image tags
         id: meta
         env:
@@ -97,23 +104,32 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"   # GHCR requires lowercase
+          ghcr_on=false; dh_on=false
           {
             echo "tags<<EOF"
-            echo "${ghcr}:${PROFILE}${SUFFIX}"
-            echo "${ghcr}:${PROFILE}${SUFFIX}-${SHA}"
-            if [ -n "$DH_USER" ]; then
+            if [ "$PUSH_GHCR" = "true" ]; then
+              echo "${ghcr}:${PROFILE}${SUFFIX}"
+              echo "${ghcr}:${PROFILE}${SUFFIX}-${SHA}"
+              ghcr_on=true
+            fi
+            if [ "$PUSH_DH" = "true" ] && [ -n "$DH_USER" ]; then
               echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}"
               echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-${SHA}"
+              dh_on=true
             fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
-          if [ -n "$DH_USER" ]; then echo "dh=true"; else echo "dh=false"; fi >> "$GITHUB_OUTPUT"
+          {
+            echo "ghcr=$ghcr_on"
+            echo "dh=$dh_on"
+            if [ "$ghcr_on" = "true" ] || [ "$dh_on" = "true" ]; then echo "do_push=true"; else echo "do_push=false"; fi
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: ${{ env.DO_PUSH == 'true' }}
+        if: ${{ steps.meta.outputs.ghcr == 'true' }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -121,7 +137,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to DockerHub
-        if: ${{ env.DO_PUSH == 'true' && steps.meta.outputs.dh == 'true' }}
+        if: ${{ steps.meta.outputs.dh == 'true' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -132,7 +148,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ env.DO_PUSH == 'true' }}
+          push: ${{ steps.meta.outputs.do_push == 'true' }}
           # amd64 only: an emulated arm64 build would download torch (+ models for
           # the baked variant) under QEMU and is impractically slow / disk-heavy.
           platforms: linux/amd64
