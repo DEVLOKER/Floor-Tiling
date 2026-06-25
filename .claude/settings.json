@@ -202,7 +202,9 @@
       "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('.github/workflows/docker-build-push.yml'\\)\\); print\\('YAML OK'\\)\")",
       "Bash(git symbolic-ref *)",
       "Bash(git ls-tree *)",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "Bash(DH_USER=myuser PROFILE=fast SUFFIX=-nomodels SHA=abc123 GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'ghcr=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; echo \"${ghcr}:${PROFILE}${SUFFIX}\"; echo \"${ghcr}:${PROFILE}${SUFFIX}-${SHA}\"; [ -n \"$DH_USER\" ] && { echo \"docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}\"; echo \"docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-${SHA}\"; }')",
+      "Bash(DH_USER='' PROFILE=fast SUFFIX=-nomodels SHA=abc123 GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'ghcr=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; echo \"${ghcr}:${PROFILE}${SUFFIX}\"; [ -n \"$DH_USER\" ] && echo dh || echo \"\\(ghcr only\\)\"')"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"
