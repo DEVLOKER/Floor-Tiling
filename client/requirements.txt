@@ -8,8 +8,11 @@ aiofiles>=23.2.0
 cryptography>=42.0.0
 
 # Image processing
+# opencv-contrib-* (headless) is required: core/masks.py uses cv2.ximgproc
+# (guided filter) for edge-aware mask refinement, which is NOT in plain
+# opencv-python. The -headless variant drops GUI deps (server-appropriate).
 numpy>=1.26.0
-opencv-python>=4.9.0
+opencv-contrib-python-headless>=4.9.0
 Pillow>=10.3.0
 
 # Deep learning (PyTorch CPU-only)
@@ -20,9 +23,22 @@ Pillow>=10.3.0
 torch==2.6.0
 torchvision==0.21.0
 
-# Mask2Former (Transformers)
-transformers>=4.40.0
+# Transformers — Mask2Former / OneFormer (segmentation), Depth Anything V2
+# (depth), Grounding DINO, SAM/SlimSAM, ViTMatte. 4.45+ for the Depth-Anything-V2
+# metric models. timm/accelerate are backbone/loader deps several of these need.
+transformers>=4.45.0
+timm>=1.0.0
+accelerate>=0.30.0
+safetensors>=0.4.0
 scipy>=1.11.0
+
+# Open-vocabulary object detection — YOLO-World (ultralytics). rf-clip + ftfy
+# provide the CLIP text encoder that set_classes() needs to bake the prompt into
+# the weights (ml/yolo_world.py). ultralytics pulls in opencv-python; the libgl1
+# system lib in the Dockerfile satisfies its runtime needs.
+ultralytics==8.4.37
+rf-clip>=1.1
+ftfy>=6.0
 
 # System/hardware utilities
 psutil>=7.2.2

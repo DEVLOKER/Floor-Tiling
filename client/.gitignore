@@ -5,6 +5,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyd
+# Cython-generated C sources (emitted next to the compiled modules)
+src/floor_tiling/**/*.c
+shared/**/*.c
 
 # Build / packaging
 build/
@@ -34,14 +38,13 @@ env.bak/
 venv.bak/
 .venv
 
-# SAM2 model files (large — downloaded at build time)
-sam2/models/*.pt
-models/*.pt
-!models/.gitkeep
-
-# Mask2Former model files
-mask2former/models/*.bin
-mask2former/models/*.safetensors
+# ML model weights (large — auto-downloaded at runtime into models/<name>/).
+# Configs/tokenizers stay tracked; only the heavy weights are ignored.
+models/**/*.bin
+models/**/*.safetensors
+models/**/*.pt
+models/**/*.pth
+models/**/*.onnx
 
 # Cache
 .cache/

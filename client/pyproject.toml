@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "floor-tiling"
+version = "1.0.0"
+description = "Floor segmentation and perspective-correct tile / paint visualization"
+requires-python = ">=3.11"
+# Runtime dependencies are NOT listed here on purpose — `requirements.txt` is the
+# single source of truth (it also carries the PyTorch CPU --extra-index-url, which
+# pyproject can't express). Install order:
+#     pip install -r requirements.txt   # deps (incl. CPU torch)
+#     pip install -e . --no-deps        # just the floor_tiling package
+dependencies = []
+
+[project.scripts]
+floor-tiling = "floor_tiling.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+floor_tiling = ["static/**/*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # line length handled by black
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

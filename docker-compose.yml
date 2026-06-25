@@ -1,0 +1,36 @@
+# ── Floor Tiling Visualizer — CUSTOMER deployment (offline, weights baked) ──
+# The image is built with WITH_MODELS=true, so the DETECTION_PROFILE's models are
+# baked in and the container runs FULLY OFFLINE (HF_HUB_OFFLINE=1) — no volume,
+# no network, ever.
+#
+#   docker compose build      # downloads/bakes the profile's models at build time
+#   docker compose up         # runs offline
+#
+# Pick the profile (default "fast") at build time:
+#   DETECTION_PROFILE=quality docker compose build
+# Deliver with `docker save floortiling:latest | gzip > app.tar.gz`.
+#
+# For development that downloads weights once into a cache volume instead of
+# baking them, use the dev override:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  floortiling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        WITH_MODELS: "true"
+        # Profile baked into the image: fast | balanced | quality | custom
+        DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
+        HF_HUB_OFFLINE: "1"
+    # Tag carries the profile so it matches the docker-build script's output
+    # (e.g. floortiling:fast) — `docker compose up` then reuses that exact image.
+    image: "floortiling:${DETECTION_PROFILE:-fast}"
+    ports:
+      - "8000:8000"
+    # The license file is read from a mounted path at runtime (currently the
+    # license gate is disabled in code — re-enable for production, then mount it).
+    # volumes:
+    #   - "D:/license:/license:ro"
+    restart: unless-stopped

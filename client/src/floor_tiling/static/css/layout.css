@@ -1,0 +1,887 @@
+/* =================================================================
+   layout.css — App shell · Canvas · Overlays · FABs · Markers · Toasts
+   ================================================================= */
+
+/* ── App layout ────────────────────────────────────────────────── */
+.app-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  width: 100%;
+  background: #08080f;
+  padding: 10px;
+  gap: 10px;
+}
+
+/* ── Canvas workspace ──────────────────────────────────────────── */
+.canvas-workspace {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0d0c1a;
+  background-image:
+    radial-gradient(
+      ellipse 80% 60% at 35% 50%,
+      rgba(99, 91, 255, 0.06) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 70% 30%,
+      rgba(168, 85, 247, 0.04) 0%,
+      transparent 60%
+    );
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: var(--r-xl);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+#mainCanvas {
+  max-width: 100%;
+  max-height: 100%;
+  cursor: crosshair;
+  z-index: 0;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Welcome overlay ───────────────────────────────────────────── */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 8, 15, 0.88);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    opacity 0.4s ease,
+    visibility 0.4s ease;
+}
+.welcome-overlay.hidden {
+  display: none !important;
+}
+
+.welcome-card {
+  background: #16151f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-2xl);
+  padding: 48px 44px 44px;
+  text-align: center;
+  max-width: 420px;
+  width: 90vw;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(99, 91, 255, 0.15) inset;
+  animation: popIn 0.4s var(--ease-spring);
+  position: relative;
+  overflow: hidden;
+}
+.welcome-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.welcome-icon {
+  margin-bottom: 18px;
+  display: flex;
+  justify-content: center;
+}
+.welcome-icon-bg {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 24px var(--accent-glow);
+}
+
+.welcome-card h2 {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #ede9ff;
+  margin-bottom: 10px;
+  letter-spacing: -0.025em;
+}
+.welcome-card p {
+  color: #9896b8;
+  font-size: 0.92em;
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+.btn-welcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border: none;
+  border-radius: var(--r-pill);
+  padding: 13px 30px;
+  font-size: 0.97rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 20px var(--accent-glow);
+  transition:
+    transform 0.18s,
+    box-shadow 0.18s;
+  letter-spacing: -0.01em;
+}
+.btn-welcome:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(var(--accent-rgb), 0.5);
+}
+.welcome-drag-hint {
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 0.79em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.welcome-drag-hint::before,
+.welcome-drag-hint::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  max-width: 50px;
+}
+
+/* ── Drop overlay ──────────────────────────────────────────────── */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(99, 91, 255, 0.82);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.drop-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+.drop-card {
+  text-align: center;
+  color: #fff;
+}
+.drop-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+  opacity: 0.9;
+}
+.drop-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ── Top-bar (legacy — hidden; branding in panel header) ───────── */
+.top-bar {
+  display: none;
+}
+.top-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border: none;
+  border-radius: var(--r-pill);
+  padding: 8px 18px;
+  font-size: 0.88em;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 2px 12px var(--accent-glow);
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+.top-btn:hover {
+  transform: translateY(-1px);
+}
+.top-btn-close {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  box-shadow: 0 2px 12px rgba(239, 68, 68, 0.35);
+  display: none;
+}
+.top-btn-close:hover {
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.55);
+}
+body.fullscreen-mode .top-btn-close {
+  display: inline-flex;
+}
+
+/* ── HUD pill ──────────────────────────────────────────────────── */
+.hud-pill {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(8, 8, 15, 0.75);
+  color: #e2e8f0;
+  padding: 9px 22px;
+  border-radius: var(--r-pill);
+  font-size: 0.8em;
+  font-weight: 500;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 40;
+  pointer-events: none;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: none;
+}
+
+/* ── Loading overlay ───────────────────────────────────────────── */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 8, 15, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 150;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: all;
+}
+.loading-card {
+  background: linear-gradient(180deg, #1a1827, #141320);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-xl);
+  padding: 34px 38px 28px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+  min-width: 300px;
+  max-width: 360px;
+  animation: popIn 0.3s var(--ease-spring);
+  position: relative;
+  overflow: hidden;
+}
+.loading-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+/* ── Animated AI orb ───────────────────────────────────────────── */
+.loading-orb {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
+}
+/* spinning gradient ring */
+.loading-orb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 55%,
+    var(--accent) 80%,
+    var(--accent-2) 100%
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 4px),
+    #000 calc(100% - 3px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 4px),
+    #000 calc(100% - 3px)
+  );
+  animation: spin 1s linear infinite;
+}
+/* center icon pulses */
+.loading-orb-icon {
+  width: 26px;
+  height: 26px;
+  color: #c8c5ff;
+  z-index: 1;
+  animation: orb-pulse 1.6s ease-in-out infinite;
+}
+/* two orbiting dots */
+.loading-orb-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.loading-orb-dot--1 {
+  animation: orbit 1.8s linear infinite;
+}
+.loading-orb-dot--2 {
+  animation: orbit 1.8s linear infinite;
+  animation-delay: -0.9s;
+  opacity: 0.65;
+}
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.14); opacity: 1; }
+}
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(31px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(31px) rotate(-360deg); }
+}
+
+/* ── Step list (vertical stepper) ──────────────────────────────── */
+.loading-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  margin-top: 2px;
+  min-height: 24px;
+}
+.lstep {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.lstep-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--txt-muted);
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.lstep-label {
+  font-size: 0.76em;
+  line-height: 1.35;
+  color: var(--txt-muted);
+  transition:
+    color 0.2s,
+    font-size 0.2s;
+}
+
+/* Completed steps: filled disc + check, small muted label. */
+.lstep.done .lstep-mark {
+  background: rgba(var(--accent-rgb), 0.55);
+  border-color: transparent;
+}
+.lstep.done .lstep-mark::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.lstep.done .lstep-label {
+  font-size: 0.72em;
+  color: var(--txt-muted);
+}
+
+/* Current step: brighter, larger label, pulsing dot, slides in. */
+.lstep.active {
+  animation: slideUp 0.26s ease;
+}
+.lstep.active .lstep-mark {
+  border-color: var(--accent);
+  animation: lstep-pulse 1.3s ease-in-out infinite;
+}
+.lstep.active .lstep-mark::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.lstep.active .lstep-label {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #ede9ff;
+}
+@keyframes lstep-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12); }
+  50% { box-shadow: 0 0 0 7px rgba(var(--accent-rgb), 0.03); }
+}
+
+/* ── Step label + elapsed timer ────────────────────────────────── */
+.loading-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+  font-size: 0.72em;
+  color: var(--txt-muted);
+}
+.loading-step {
+  font-weight: 600;
+}
+.loading-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--txt-secondary);
+}
+
+/* ── Floating action buttons ───────────────────────────────────── */
+.fab-group {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 40;
+}
+.fab-tip-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.fab-tip-wrap::before {
+  content: attr(data-tip);
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(8, 8, 15, 0.9);
+  color: #e2e8f0;
+  font-size: 0.73em;
+  font-weight: 500;
+  padding: 5px 11px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.fab-tip-wrap:hover::before {
+  opacity: 1;
+}
+
+.fab {
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.2s var(--ease-spring),
+    box-shadow 0.18s,
+    background 0.15s;
+}
+.fab-sm {
+  width: 46px;
+  height: 46px;
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #d1d5e8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.fab-sm:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+}
+.fab-download {
+  background: rgba(168, 85, 247, 0.14) !important;
+  color: #c084fc !important;
+  border: 1px solid rgba(168, 85, 247, 0.3) !important;
+}
+.fab-download:hover {
+  background: rgba(168, 85, 247, 0.28) !important;
+  border-color: rgba(168, 85, 247, 0.55) !important;
+}
+.fab-ai {
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 4px 16px rgba(108, 92, 231, 0.5) !important;
+}
+.fab-ai:hover {
+  transform: scale(1.1) rotate(12deg) !important;
+  box-shadow: 0 6px 22px rgba(108, 92, 231, 0.65) !important;
+}
+.fab-main {
+  width: auto;
+  height: 50px;
+  border-radius: var(--r-pill);
+  padding: 0 22px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  font-size: 0.95em;
+  font-weight: 700;
+  gap: 8px;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
+.fab-main:hover {
+  transform: scale(1.04) translateY(-1px);
+  box-shadow: 0 8px 28px rgba(var(--accent-rgb), 0.55);
+}
+.fab-label {
+  font-size: 0.88em;
+}
+
+/* ── Panel backdrop ────────────────────────────────────────────── */
+.panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.panel-backdrop.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* ── Toast notifications ───────────────────────────────────────── */
+.toast-container {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  width: 330px;
+  max-width: calc(100vw - 40px);
+}
+.toast {
+  background: rgba(12, 11, 22, 0.94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  font-size: 0.83em;
+  font-weight: 500;
+  color: #e2e8f0;
+  line-height: 1.5;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(-12px) scale(0.97);
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s var(--ease-spring);
+  pointer-events: all;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.toast-success {
+  border-left-color: var(--success);
+}
+.toast-error {
+  border-left-color: var(--error);
+}
+.toast-info {
+  border-left-color: var(--accent);
+}
+
+/* ── Surface markers overlay ───────────────────────────────────── */
+#markersOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+.surface-marker-group {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 0.35s ease;
+  z-index: 1001;
+}
+/* Dimmed: surface that belongs to the other activity (e.g. walls while
+   tiling). Still clickable — doing so switches to its activity. */
+.surface-marker-group.inactive {
+  opacity: 0.5;
+  filter: grayscale(0.6);
+}
+.surface-marker-group.inactive:hover {
+  opacity: 0.85;
+  filter: none;
+}
+.surface-label {
+  background: rgba(12, 11, 22, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f1f5f9;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  font-family: "Inter", system-ui, sans-serif;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition:
+    background 0.2s,
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.surface-marker {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  background: #fff;
+  border: 4px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 0.2s var(--ease-spring),
+    box-shadow 0.2s,
+    border-color 0.2s;
+}
+.surface-marker:hover {
+  transform: scale(1.25);
+  border-color: rgba(210, 210, 210, 0.9);
+}
+.surface-marker.floor,
+.surface-marker.wall,
+.surface-marker.ceiling {
+  background: #fff;
+  border: 4px solid rgba(200, 200, 200, 0.65);
+}
+.surface-marker.floor::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  animation: surface-pulse 2s infinite;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Selected state */
+.surface-marker-group.active .surface-marker {
+  transform: scale(1.4);
+  border-color: #ff7f50;
+  border-width: 5px;
+  box-shadow:
+    0 0 18px rgba(255, 127, 80, 0.6),
+    0 4px 16px rgba(0, 0, 0, 0.5);
+}
+.surface-marker-group.active .surface-marker:hover {
+  border-color: #e36030;
+}
+.surface-marker-group.active .surface-marker.floor::after {
+  border-color: #ff7f50;
+  opacity: 1;
+  animation: surface-pulse 1.5s infinite;
+}
+.surface-marker-group.active .surface-label {
+  background: #ff7f50;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(255, 127, 80, 0.45);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Auto-hide markers once a result is shown ───────────────────── */
+/* During selection the markers are always visible. Once tiling/painting has
+   been applied (`.result-active`), they fade away so the user sees the clean
+   result — and reappear on hover (desktop) or when pinned via the markers FAB
+   (works on touch). */
+.canvas-workspace.result-active #markersOverlay {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.canvas-workspace.result-active #markersOverlay .surface-marker-group {
+  pointer-events: none; /* don't catch clicks while hidden */
+}
+@media (hover: hover) {
+  .canvas-workspace.result-active:hover #markersOverlay {
+    opacity: 1;
+  }
+  .canvas-workspace.result-active:hover #markersOverlay .surface-marker-group {
+    pointer-events: auto;
+  }
+}
+.canvas-workspace.result-active.markers-pinned #markersOverlay {
+  opacity: 1;
+}
+.canvas-workspace.result-active.markers-pinned #markersOverlay .surface-marker-group {
+  pointer-events: auto;
+}
+/* Pinned state on the toggle FAB */
+.fab.fab-markers.active {
+  background: #ff7f50;
+  color: #fff;
+}
+
+/* ── Floor badge ───────────────────────────────────────────────── */
+.floor-badge {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  background: rgba(8, 8, 15, 0.78);
+  color: #e2e8f0;
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  font-size: 0.79em;
+  font-weight: 500;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: slideDown 0.3s ease;
+}
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+  box-shadow: 0 0 8px var(--success-glow);
+}
+.badge-conf {
+  background: rgba(255, 255, 255, 0.14);
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  font-size: 0.84em;
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
+
+/* — Tablet ≤ 900px: stack canvas above panel — */
+@media (max-width: 900px) {
+  .app-layout {
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    padding: 8px;
+    gap: 8px;
+  }
+  .canvas-workspace {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border-radius: var(--r-lg);
+  }
+  .fab-group {
+    bottom: 14px;
+    right: 14px;
+  }
+  .floor-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+  }
+  .toast-container {
+    top: 10px;
+  }
+}
+
+/* — Phone ≤ 540px — */
+@media (max-width: 540px) {
+  .app-layout {
+    padding: 6px;
+    gap: 6px;
+  }
+  .canvas-workspace {
+    border-radius: var(--r-md);
+  }
+  .fab-sm {
+    width: 40px;
+    height: 40px;
+  }
+  .fab-main {
+    height: 44px;
+    padding: 0 16px;
+    font-size: 0.88em;
+  }
+  .welcome-card {
+    padding: 36px 24px 28px;
+  }
+  .welcome-card h2 {
+    font-size: 1.3rem;
+  }
+}
+
+/* ── Onboarding: hide side UI for first-time welcome ───────────── */
+body.welcome-first-mode aside.side-panel,
+body.welcome-first-mode .fab-group,
+body.welcome-first-mode .floor-badge,
+body.welcome-first-mode .hud-pill {
+  display: none !important;
+}
+/* Expand canvas to use full width while onboarding */
+body.welcome-first-mode .canvas-workspace {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+}

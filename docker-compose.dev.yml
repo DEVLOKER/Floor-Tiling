@@ -1,0 +1,45 @@
+# ── Floor Tiling Visualizer — DEV / lean override (download-once volume) ─────
+# Builds a lean image with NO weights baked in (WITH_MODELS=false). On first
+# start the app downloads the models — for the chosen DETECTION_PROFILE — into a
+# writable named volume (`model-cache`, mounted at MODELS_DIR=/app/models) and
+# reuses them on later runs.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#       first run needs internet; later runs reuse the volume.
+#
+# Switch profile/sizes at RUNTIME with env (no rebuild) — e.g. set
+# DETECTION_PROFILE=balanced below, or any *_VARIANT.
+
+services:
+  floortiling:
+    # Distinct image name (-nomodels suffix) so the volume build never overwrites
+    # the baked image (floortiling:<profile> from docker-compose.yml). Matches the
+    # docker-build script's tagging scheme: floortiling:<profile>-nomodels.
+    image: "floortiling:${DETECTION_PROFILE:-fast}-nomodels"
+    build:
+      args:
+        WITH_MODELS: "false"
+        DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
+        # Online at runtime so the app can download into the volume.
+        HF_HUB_OFFLINE: "0"
+    environment:
+      # ── Dynamic model selection (no rebuild) ──────────────────────────────
+      # Because no weights are baked, these env vars decide which models the app
+      # downloads + loads on startup. Change the profile (or any single *_VARIANT)
+      # and restart: the new set is fetched into the volume and reused after.
+      DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
+      # Per-model overrides win over the profile. Uncomment / set as needed:
+      # MASK2FORMER_VARIANT: "base"
+      # ONEFORMER_VARIANT: "tiny"
+      # DEPTH_VARIANT: "large"
+      # YOLO_WORLD_VARIANT: "m"
+      # SAM_VARIANT: "base"
+      # VITMATTE_VARIANT: "base"
+      # Must stay 0 so runtime downloads are allowed.
+      HF_HUB_OFFLINE: "0"
+      MODELS_DIR: /app/models
+    volumes:
+      - model-cache:/app/models
+
+volumes:
+  model-cache:

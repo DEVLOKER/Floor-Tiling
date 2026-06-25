@@ -58,15 +58,11 @@ docs/
 # ── Test files (not needed inside the image) ────────────────────────────────
 __tests__/
 
-# ── SAM2 non-runtime files ───────────────────────────────────────────────────
-# CUDA kernel sources (CPU-only build, never compiled inside the image)
-client/sam2/csrc/
-client/sam2/benchmark.py
-
 # ── Local model checkpoints ──────────────────────────────────────────────────
-client/mask2former/models/*.bin
-client/mask2former/models/*.safetensors
-!client/mask2former/models/model.safetensors
+# The whole local cache is excluded: the image rebuilds it via
+# scripts/prefetch_models.py (WITH_MODELS=true) or downloads it at runtime into a
+# mounted volume (WITH_MODELS=false). Keeping it out makes the build context tiny.
+client/models/
 
 # ── Other files to ignore ───────────────────────────────────────────────────────
 *.log

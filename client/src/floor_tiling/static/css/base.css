@@ -1,0 +1,184 @@
+/* =================================================================
+   base.css — Reset · Design tokens · Typography · Keyframes
+   ================================================================= */
+
+/* ── SVG icon helpers ──────────────────────────────────────────── */
+.app-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.app-icon-sm {
+  width: 13px;
+  height: 13px;
+}
+.app-icon-lg {
+  width: 20px;
+  height: 20px;
+}
+.app-icon-xl {
+  width: 44px;
+  height: 44px;
+}
+
+/* ── App logo image (SVG wordmark) ─────────────────────────── */
+.app-logo-img {
+  display: block;
+  object-fit: contain;
+}
+.app-logo-img--welcome {
+  width: 120px;
+  height: auto;
+}
+.app-logo-img--header {
+  width: 120px;
+  height: auto;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Design tokens ─────────────────────────────────────────────── */
+:root {
+  /* Brand colours */
+  --accent: #635bff;
+  --accent-dark: #4f46e5;
+  --accent-2: #a855f7;
+  --accent-rgb: 99, 91, 255;
+  --accent-glow: rgba(99, 91, 255, 0.35);
+
+  /* Semantic */
+  --success: #22c55e;
+  --success-glow: rgba(34, 197, 94, 0.4);
+  --error: #ef4444;
+  --warn: #f59e0b;
+
+  /* Panel */
+  --panel-w: 390px;
+  --panel-bg: #16151f;
+  --panel-hdr-bg: #0d0c17;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --section-bg: #0f0e18;
+  --ctrl-bg: #1e1c2e;
+
+  /* Text */
+  --txt-primary: #ede9ff;
+  --txt-secondary: #9896b8;
+  --txt-muted: #56547a;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.18);
+  --shadow-xl: 0 16px 56px rgba(0, 0, 0, 0.24);
+
+  /* Border-radius scale */
+  --r-xs: 5px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-2xl: 28px;
+  --r-pill: 999px;
+
+  /* Transitions */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Base styles ───────────────────────────────────────────────── */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #08080f;
+  font-family:
+    "Inter",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--txt-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+/* Allow scrolling on small screens */
+@media (max-width: 768px) {
+  html,
+  body {
+    overflow: auto;
+    height: auto;
+  }
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────── */
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes surface-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

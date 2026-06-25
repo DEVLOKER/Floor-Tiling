@@ -13,11 +13,18 @@
 
 import glob
 import os
+import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all, collect_data_files
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 ROOT = Path(SPECPATH)  # = client/
+SRC = ROOT / "src"       # = client/src/  (floor_tiling package root)
 REPO_ROOT = ROOT.parent  # = Floor Tiling/
+
+# Make the package importable while the spec runs (collect_submodules imports it).
+for _p in (str(SRC), str(REPO_ROOT)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 # ── Collect full setuptools / pkg_resources (needed by pyi_rth_pkgres hook) ──
 _st_datas, _st_binaries, _st_hidden = collect_all("setuptools")
@@ -27,9 +34,11 @@ _ad_datas, _ad_binaries, _ad_hidden = collect_all("appdirs")
 # Collect all .pyd files in the sensitive packages.  Each entry is a tuple:
 #   (source_path, dest_directory_inside_the_bundle)
 pyd_binaries = []
-for pkg in ["config", "core", "mask2former", "patterns", "processors", "utils"]:
-    for pyd in glob.glob(str(ROOT / pkg / "*.pyd")):
-        pyd_binaries.append((pyd, pkg))
+for pkg in ["config", "core", "ml", "patterns", "processors", "licensing"]:
+    pkg_dir = SRC / "floor_tiling" / pkg
+    for pyd in glob.glob(str(pkg_dir / "**" / "*.pyd"), recursive=True):
+        rel_dir = os.path.relpath(os.path.dirname(pyd), SRC)  # e.g. floor_tiling/core
+        pyd_binaries.append((pyd, rel_dir))
 # Shared package (lives at repo root) — pyds are in sub-packages, so walk recursively
 for pyd in glob.glob(str(REPO_ROOT / "shared" / "**" / "*.pyd"), recursive=True):
     rel_dir = os.path.relpath(os.path.dirname(pyd), REPO_ROOT)
@@ -68,12 +77,17 @@ def filter_dev_files(datas):
     return filtered
 
 datas = [
-    (str(ROOT / "static"),                           "static"),
-    (str(ROOT / "mask2former" / "models"),            os.path.join("mask2former", "models")),
+    # Frontend assets live inside the package (floor_tiling/static) so the app
+    # factory resolves them relative to app.py.
+    (str(SRC / "floor_tiling" / "static"),            os.path.join("floor_tiling", "static")),
+    # Model weights bundled into the exe so it runs fully offline. These land at
+    # <bundle>/models/<name>, matching floor_tiling.paths.MODELS_DIR.
+    (str(ROOT / "models" / "mask2former"),            os.path.join("models", "mask2former")),
+    (str(ROOT / "models" / "oneformer"),              os.path.join("models", "oneformer")),
+    (str(ROOT / "models" / "depth"),                  os.path.join("models", "depth")),
+    (str(ROOT / "models" / "mlsd"),                   os.path.join("models", "mlsd")),
 ] + shared_datas()
 datas = filter_dev_files(datas)
-#    # SAM2 model checkpoints (large — uncomment if you want to bundle them)
-#    # (str(ROOT / "sam2" / "models"), os.path.join("sam2", "models")),
 
 # ── Hidden imports ────────────────────────────────────────────────────────────
 # PyInstaller's static analysis misses these because they are loaded
@@ -122,11 +136,14 @@ hidden = [
     "jaraco.functools",
     "more_itertools",
 ]
+# Compiled floor_tiling subpackages are shipped as .pyd binaries; list them as
+# hidden imports so PyInstaller keeps them in the import graph.
+hidden += collect_submodules("floor_tiling")
 
 # ─────────────────────────────────────────────────────────────────────────────
 a = Analysis(
-    ["server.py"],
-    pathex=[str(ROOT), str(REPO_ROOT)],
+    [str(SRC / "floor_tiling" / "__main__.py")],
+    pathex=[str(SRC), str(REPO_ROOT)],
     binaries=pyd_binaries + _st_binaries + _ad_binaries,
     datas=datas + _st_datas + _ad_datas,
     hiddenimports=hidden + _st_hidden + _ad_hidden,

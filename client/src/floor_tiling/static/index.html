@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Never offer to translate this page (suppresses Chrome's translate popup,
+         independent of browser flags/version). -->
+    <meta name="google" content="notranslate" />
+    <title></title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+    <link rel="shortcut icon" href="/static/logo.svg" />
+
+    <link rel="stylesheet" href="/static/css/main.css" />
+</head>
+
+<!-- ── SVG sprite (inline, hidden) ─────────────────────── -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <!-- home -->
+    <symbol id="ico-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
+        <polyline points="9 21 9 13 15 13 15 21" />
+    </symbol>
+    <!-- layers / stack -->
+    <symbol id="ico-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+        <polyline points="2 12 12 17 22 12" />
+    </symbol>
+    <!-- camera / upload -->
+    <symbol id="ico-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+        <circle cx="12" cy="13" r="4" />
+    </symbol>
+    <!-- trash -->
+    <symbol id="ico-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </symbol>
+    <!-- settings / gear -->
+    <symbol id="ico-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </symbol>
+    <!-- download -->
+    <symbol id="ico-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+    </symbol>
+    <!-- close / X -->
+    <symbol id="ico-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+    </symbol>
+    <!-- image / texture -->
+    <symbol id="ico-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <polyline points="21 15 16 10 5 21" />
+    </symbol>
+    <!-- palette / color -->
+    <symbol id="ico-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="8" cy="14" r="1" fill="currentColor" />
+        <circle cx="12" cy="9" r="1" fill="currentColor" />
+        <circle cx="16" cy="14" r="1" fill="currentColor" />
+        <path d="M12 22c0-4-4-6-4-10" />
+    </symbol>
+    <!-- book / how-to -->
+    <symbol id="ico-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </symbol>
+    <!-- tile / grid -->
+    <symbol id="ico-tile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+    </symbol>
+
+    <symbol id="ico-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+        <circle cx="12" cy="12" r="3" />
+    </symbol>
+    <!-- sparkles / AI -->
+    <symbol id="ico-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path
+            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-11.314l.707.707m11.314 11.314l.707.707" />
+        <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+    </symbol>
+    <!-- chevron down -->
+    <symbol id="ico-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9" />
+    </symbol>
+    <!-- paint roller -->
+    <symbol id="ico-roller" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="14" height="6" rx="1.5" />
+        <path d="M17 7h2.5A1.5 1.5 0 0 1 21 8.5V11a1.5 1.5 0 0 1-1.5 1.5H11a1.5 1.5 0 0 0-1.5 1.5V16" />
+        <rect x="8" y="16" width="3" height="5" rx="1" />
+    </symbol>
+</svg>
+
+<!-- ── Full-page canvas ────────────────────────────────────── -->
+<main class="app-layout">
+    <div class="canvas-workspace" style="position:relative;">
+        <canvas id="mainCanvas"></canvas>
+        <div id="markersOverlay"></div>
+
+        <!-- ── Loading overlay (AI processing) ──────────────────── -->
+        <div class="loading-overlay" id="loadingOverlay" style="display:none">
+            <div class="loading-card">
+                <div class="loading-orb">
+                    <span class="loading-orb-ring"></span>
+                    <span class="loading-orb-dot loading-orb-dot--1"></span>
+                    <span class="loading-orb-dot loading-orb-dot--2"></span>
+                    <svg class="app-icon loading-orb-icon"><use href="#ico-sparkles" /></svg>
+                </div>
+                <div class="loading-steps" id="loadingSteps"></div>
+                <div class="loading-meta">
+                    <span class="loading-step" id="loadingStep"></span>
+                    <span class="loading-timer" id="loadingTimer">0,0 s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Welcome state (pre-upload) ─────────────────────────── -->
+        <div class="welcome-overlay" id="welcomeOverlay">
+            <div class="welcome-card">
+                <div class="welcome-icon">
+                    <img data-app-logo class="app-logo-img app-logo-img--welcome" />
+                </div>
+                <h2 data-app-name></h2>
+                <p>Téléchargez une photo de pièce, cliquez sur le sol et prévisualisez n'importe quel style de carrelage
+                    instantanément.</p>
+                <button class="btn-welcome" id="welcomeUploadBtn">
+                    <svg class="app-icon">
+                        <use href="#ico-camera" />
+                    </svg> Choisir une photo
+                </button>
+                <div class="welcome-drag-hint">ou glissez-déposez n'importe où sur cet écran</div>
+            </div>
+        </div>
+
+        <!-- ── Drag-and-drop overlay ───────────────────────────────── -->
+        <div class="drop-overlay" id="dropOverlay">
+            <div class="drop-card">
+                <div class="drop-icon">
+                    <svg class="app-icon app-icon-xl">
+                        <use href="#ico-camera" />
+                    </svg>
+                </div>
+                <div class="drop-text">Déposez votre photo ici</div>
+            </div>
+        </div>
+
+        <!-- Header moved to side panel -->
+
+        <!-- ── HUD: instruction / coords pill ────────────────────── -->
+        <div class="hud-pill" id="coordsInfo">Cliquez sur le sol pour le sélectionner</div>
+
+        <!-- ── Floor selection badge ──────────────────────────────── -->
+        <!-- ── Info sidebar (fixed left) ───────────────────────────── -->
+
+        <!-- ── Floating action buttons ───────────────────────────── -->
+        <div class="fab-group">
+            <div class="fab-tip-wrap" data-tip="Importer une photo">
+                <button class="fab fab-sm" id="uploadBtn" title="Importer une photo">
+                    <svg class="app-icon">
+                        <use href="#ico-camera" />
+                    </svg>
+                </button>
+            </div>
+            <!-- Removed openSettingsBtn since sidebar is always visible -->
+            <div class="fab-tip-wrap" data-tip="Afficher l'original / Résultat" id="togglePreviewFabWrap"
+                style="display:none">
+                <button class="fab fab-sm fab-toggle-preview" id="togglePreviewBtn"
+                    title="Afficher l'original / Résultat">
+                    <svg class="app-icon">
+                        <use href="#ico-eye" />
+                    </svg>
+                </button>
+            </div>
+            <div class="fab-tip-wrap" data-tip="Afficher / masquer les repères" id="markersFabWrap"
+                style="display:none">
+                <button class="fab fab-sm fab-markers" id="markersToggleBtn"
+                    title="Afficher / masquer les repères des surfaces">
+                    <svg class="app-icon">
+                        <use href="#ico-layers" />
+                    </svg>
+                </button>
+            </div>
+            <div class="fab-tip-wrap" data-tip="Télécharger le résultat" id="downloadFabWrap" style="display:none">
+                <button class="fab fab-sm fab-download" id="downloadBtn" title="Télécharger le résultat">
+                    <svg class="app-icon">
+                        <use href="#ico-download" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Hidden file input -->
+        <input type="file" id="fileInput" accept="image/*" style="display:none" />
+
+        <!-- ── Toast notifications (anchored to workspace) ───── -->
+        <div class="toast-container" id="toastContainer"></div>
+
+        <!-- No backdrop needed in 2-column layout -->
+    </div> <!-- /canvas-workspace -->
+
+    <!-- ── Side panel ────────────────────────────────────────── -->
+    <aside class="side-panel" id="sidePanel">
+        <div class="panel-header">
+            <div class="top-bar-left">
+                <span class="app-logo">
+                    <img data-app-logo class="app-logo-img app-logo-img--header" />
+                </span>
+                <div class="app-name">
+                    <div class="app-title" data-app-name></div>
+                    <div class="app-subtitle">Propulsé par SCRIPTIHA</div>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <button class="top-btn top-btn-close" id="closeAppBtn" title="Fermer l'application"
+                    onclick="window.close()">
+                    <svg class="app-icon app-icon-sm">
+                        <use href="#ico-close" />
+                    </svg> Fermer
+                </button>
+            </div>
+        </div>
+
+        <!-- ── Activity tabs ─────────────────────────────────────── -->
+        <div class="panel-tabs" role="tablist">
+            <button type="button" class="panel-tab active" id="tabTileBtn" role="tab" aria-selected="true">
+                <svg class="app-icon app-icon-sm">
+                    <use href="#ico-tile" />
+                </svg>
+                <span>Carrelage du sol</span>
+            </button>
+            <button type="button" class="panel-tab" id="tabPaintBtn" role="tab" aria-selected="false">
+                <svg class="app-icon app-icon-sm">
+                    <use href="#ico-roller" />
+                </svg>
+                <span>Peinture murs &amp; plafond</span>
+            </button>
+        </div>
+
+        <div class="panel-body">
+
+            <!-- ══ Tab: Floor tiling ═════════════════════════════════ -->
+            <div class="tab-panel active" id="tabTilePanel" role="tabpanel">
+
+                <div class="panel-section">
+                    <div class="paint-lead">Choisissez un motif et une couleur (ou une texture), réglez la taille, puis
+                        appliquez. Les réglages fins sont dans « Réglages avancés ».</div>
+                </div>
+
+                <!-- Pattern selector -->
+                <div class="panel-section">
+                    <div class="section-label">Motif</div>
+                    <select id="tilePattern" class="panel-select">
+                        <option value="grid">Grille</option>
+                        <option value="brick">Brique (décalée)</option>
+                        <option value="herringbone">Chevrons</option>
+                        <option value="chevron">Chevron ∧</option>
+                        <option value="windmill">Moulin</option>
+                        <option value="straightweave">Tissage Droit</option>
+                        <option value="bookmatch">Bookmatch</option>
+                        <option value="hopscotch">Hopscotch</option>
+                        <option value="checkerboard">Damier</option>
+                    </select>
+                </div>
+
+                <!-- Pattern thumbnail previews -->
+                <div class="tile-preview" id="tilePreview"></div>
+
+                <div class="panel-divider"></div>
+
+                <!-- Fill style -->
+                <div class="panel-section">
+                    <div class="section-label">Style de remplissage</div>
+                    <div class="tile-source-toggle">
+                        <button class="tile-source-btn active" id="btnModeColor">
+                            <svg class="app-icon app-icon-sm">
+                                <use href="#ico-palette" />
+                            </svg> Couleur
+                        </button>
+                        <button class="tile-source-btn" id="btnModeTexture">
+                            <svg class="app-icon app-icon-sm">
+                                <use href="#ico-image" />
+                            </svg> Texture
+                        </button>
+                    </div>
+
+                    <!-- Color panel -->
+                    <div id="colorModePanel" class="active">
+                        <div class="color-presets" data-target="tileColor">
+                            <button type="button" class="color-preset" data-color="#FFFFFF" style="--c:#FFFFFF" title="Blanc"></button>
+                            <button type="button" class="color-preset" data-color="#ECE7DE" style="--c:#ECE7DE" title="Crème"></button>
+                            <button type="button" class="color-preset" data-color="#D8D2C6" style="--c:#D8D2C6" title="Sable"></button>
+                            <button type="button" class="color-preset" data-color="#BFB8A9" style="--c:#BFB8A9" title="Taupe"></button>
+                            <button type="button" class="color-preset" data-color="#9DA2A8" style="--c:#9DA2A8" title="Gris"></button>
+                            <button type="button" class="color-preset" data-color="#707578" style="--c:#707578" title="Ardoise"></button>
+                            <button type="button" class="color-preset" data-color="#44474D" style="--c:#44474D" title="Anthracite"></button>
+                            <button type="button" class="color-preset" data-color="#9C6B53" style="--c:#9C6B53" title="Terracotta"></button>
+                        </div>
+                        <div class="color-row" id="normalColorRow">
+                            <div class="color-swatch-group">
+                                <label>Carrelage</label>
+                                <input type="color" id="tileColor" />
+                            </div>
+                            <div class="color-swatch-group">
+                                <label>Joint</label>
+                                <input type="color" id="groutColor" />
+                            </div>
+                        </div>
+                        <!-- Dual-colour row: used by checkerboard AND chevron -->
+                        <div class="checker-row" id="checkerColorRow">
+                            <div class="color-swatch-group">
+                                <label id="dualColorLabel1">Clair</label>
+                                <input type="color" id="tileColorLight" />
+                            </div>
+                            <div class="color-swatch-group">
+                                <label id="dualColorLabel2">Foncé</label>
+                                <input type="color" id="tileColorDark" />
+                            </div>
+                            <div class="color-swatch-group">
+                                <label>Joint</label>
+                                <input type="color" id="groutColorChecker" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Texture panel -->
+                    <div id="textureModePanel">
+                        <div class="texture-pair-row" id="texturePairRow">
+                            <!-- Primary / light texture -->
+                            <div id="textureLightGroup">
+                                <div class="texture-slot-label" id="textureLightLabel">Texture du carrelage</div>
+                                <div class="texture-upload-area" id="textureUploadArea">
+                                    <div id="textureEmpty">
+                                        <div class="tex-icon">
+                                            <svg class="app-icon app-icon-lg">
+                                                <use href="#ico-image" />
+                                            </svg>
+                                        </div>
+                                        <div class="texture-hint">Cliquer pour importer</div>
+                                        <div class="texture-hint muted">JPG · PNG · WebP</div>
+                                    </div>
+                                    <div id="texturePreview" style="display:none">
+                                        <img id="textureThumb" class="texture-thumb" alt="aperçu texture" />
+                                        <div class="texture-name" id="textureName"></div>
+                                        <div class="texture-hint">Cliquer pour changer</div>
+                                    </div>
+                                    <input type="file" id="textureFileInput" accept="image/*" style="display:none" />
+                                </div>
+                            </div>
+                            <!-- Secondary / dark texture (dual patterns: checker, chevron) -->
+                            <div id="textureDarkGroup" style="display:none">
+                                <div class="texture-slot-label" id="textureDarkLabel">Texture foncée</div>
+                                <div class="texture-upload-area" id="textureDarkUploadArea">
+                                    <div id="textureDarkEmpty">
+                                        <div class="tex-icon">
+                                            <svg class="app-icon app-icon-lg">
+                                                <use href="#ico-image" />
+                                            </svg>
+                                        </div>
+                                        <div class="texture-hint">Cliquer pour importer</div>
+                                        <div class="texture-hint muted">JPG · PNG · WebP</div>
+                                    </div>
+                                    <div id="textureDarkPreview" style="display:none">
+                                        <img id="textureDarkThumb" class="texture-thumb" alt="aperçu texture foncée" />
+                                        <div class="texture-name" id="textureDarkName"></div>
+                                        <div class="texture-hint">Cliquer pour changer</div>
+                                    </div>
+                                    <input type="file" id="textureDarkFileInput" accept="image/*"
+                                        style="display:none" />
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Grout for texture mode -->
+                        <div class="grout-texture-row">
+                            <label class="grout-texture-label">Couleur du joint</label>
+                            <input type="color" id="groutColorTexture" class="grout-texture-input" />
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="panel-divider"></div>
+
+                <!-- Tile format presets (exact size lives in Advanced) -->
+                <div class="panel-section">
+                    <div class="section-label">Format des carreaux</div>
+                    <div class="preset-grid" id="tileSizePresets">
+                        <button type="button" class="preset-chip" data-w="30" data-h="30">30 × 30</button>
+                        <button type="button" class="preset-chip" data-w="45" data-h="45">45 × 45</button>
+                        <button type="button" class="preset-chip" data-w="60" data-h="60">60 × 60</button>
+                        <button type="button" class="preset-chip" data-w="80" data-h="80">80 × 80</button>
+                        <button type="button" class="preset-chip" data-w="60" data-h="120">60 × 120</button>
+                        <button type="button" class="preset-chip" data-w="20" data-h="120">20 × 120</button>
+                    </div>
+                    <div class="preset-hint">cm · formats courants — taille exacte dans « Réglages avancés »</div>
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <!-- Grout presets (exact thickness lives in Advanced) -->
+                <div class="panel-section">
+                    <div class="section-label">Joints</div>
+                    <div class="preset-grid preset-grid-4" id="groutPresets">
+                        <button type="button" class="preset-chip" data-grout="0">Aucun</button>
+                        <button type="button" class="preset-chip" data-grout="1">Fin</button>
+                        <button type="button" class="preset-chip" data-grout="2">Moyen</button>
+                        <button type="button" class="preset-chip" data-grout="3">Large</button>
+                    </div>
+                </div>
+
+                <!-- ── Advanced settings (collapsible) ──────────────────── -->
+                <details class="adv-section">
+                    <summary>
+                        <span>Réglages avancés</span>
+                        <svg class="app-icon adv-chevron">
+                            <use href="#ico-chevron" />
+                        </svg>
+                    </summary>
+
+                    <!-- Exact tile size (presets above cover the common cases) -->
+                    <div class="panel-section">
+                        <div class="section-label">Taille personnalisée (cm)</div>
+                        <div class="range-pair">
+                            <div class="range-item">
+                                <div class="range-label">
+                                    Largeur <span class="value-badge" id="tileWidthValue"></span>
+                                </div>
+                                <input type="range" id="tileWidth" min="10" max="320" step="5" />
+                            </div>
+                            <div class="range-item">
+                                <div class="range-label">
+                                    Hauteur <span class="value-badge" id="tileHeightValue"></span>
+                                </div>
+                                <input type="range" id="tileHeight" min="10" max="320" step="5" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-divider"></div>
+
+                    <!-- Exact grout thickness -->
+                    <div class="panel-section">
+                        <div class="section-label">Épaisseur exacte du joint</div>
+                        <div class="range-item">
+                            <div class="range-label">
+                                Joint <span class="value-badge" id="groutValue"></span>
+                            </div>
+                            <input type="range" id="groutThickness" min="0" max="20" step="1" />
+                            <div class="thickness-hint">
+                                <div class="thickness-bar-h" id="hintGrout"></div>
+                                <span class="hint-label">aperçu</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-divider"></div>
+
+                    <!-- Perspective algorithm -->
+                    <div class="panel-section">
+                        <div class="section-label">Algorithme de perspective</div>
+                        <div class="tile-source-toggle" id="tileAlgoToggle">
+                            <button type="button" class="tile-source-btn active" data-algo="vanishing">Lignes de
+                                fuite</button>
+                            <button type="button" class="tile-source-btn" data-algo="depth">Profondeur (IA)</button>
+                        </div>
+                        <input type="hidden" id="tileAlgorithm" value="vanishing" />
+                    </div>
+
+                    <div class="panel-divider"></div>
+
+                    <!-- Alignment (draw a line along a wall to straighten the grid) -->
+                    <div class="panel-section">
+                        <div class="section-label">Alignement des joints</div>
+                        <label class="live-toggle"
+                            data-tip="Aligner automatiquement les joints sur les murs détectés (algorithme Profondeur)">
+                            <input type="checkbox" id="autoAlignToggle" />
+                            <span class="live-switch"></span>
+                            <span class="live-toggle-label">Alignement automatique</span>
+                        </label>
+                        <div class="quick-chips" style="margin-top:8px">
+                            <button type="button" class="quick-chip" id="tileAlignBtn">Aligner sur un mur</button>
+                            <button type="button" class="quick-chip quick-chip-clear"
+                                id="tileAlignReset">Effacer</button>
+                        </div>
+                        <div class="paint-lead" id="tileAlignHint">Désactivé par défaut. Activez l'alignement
+                            automatique sur les murs, ou tracez une ligne le long d'un mur pour aligner manuellement.
+                        </div>
+                    </div>
+
+                    <div class="panel-divider"></div>
+
+                    <!-- Grid Rotation -->
+                    <div class="panel-section">
+                        <div class="section-label">Rotation du carrelage <span class="value-badge"
+                                id="gridRotationValue">0°</span>
+                        </div>
+                        <input type="range" id="gridRotation" min="-90" max="90" step="1" value="0" />
+                    </div>
+
+                    <div class="panel-divider"></div>
+
+                    <!-- Translation -->
+                    <div class="panel-section">
+                        <div class="section-label">Décalage du carrelage</div>
+                        <div class="range-pair">
+                            <div class="range-item">
+                                <div class="range-label">
+                                    ↔ Horizontal <span class="value-badge" id="translateXValue">0</span>
+                                </div>
+                                <input type="range" id="translateX" min="-200" max="200" step="1" value="0" />
+                            </div>
+                            <div class="range-item">
+                                <div class="range-label">
+                                    ↕ Vertical <span class="value-badge" id="translateYValue">0</span>
+                                </div>
+                                <input type="range" id="translateY" min="-200" max="200" step="1" value="0" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-divider"></div>
+
+                    <!-- Perspective Compression -->
+                    <div class="panel-section">
+                        <div class="section-label">Compression de la perspective <span class="value-badge"
+                                id="perspectiveCompressionValue">0%</span>
+                        </div>
+                        <input type="range" id="perspectiveCompression" min="0" max="100" step="5" value="0" />
+                    </div>
+                </details>
+
+            </div><!-- /tabTilePanel -->
+
+            <!-- ══ Tab: Wall painting ════════════════════════════════ -->
+            <div class="tab-panel" id="tabPaintPanel" role="tabpanel">
+                <div class="panel-section">
+                    <div class="paint-lead">Sélectionnez les surfaces sur l'image, ou utilisez la sélection rapide
+                        ci-dessous, puis choisissez une couleur ou une texture.</div>
+
+                    <!-- Rapid surface selection -->
+                    <div class="quick-select">
+                        <button type="button" class="quick-chip" id="qsWalls">Tous les murs</button>
+                        <button type="button" class="quick-chip" id="qsWallsCeiling">Murs + plafond</button>
+                        <button type="button" class="quick-chip quick-chip-clear" id="qsClear">Effacer</button>
+                    </div>
+
+                    <!-- Color / texture toggle -->
+                    <div class="tile-source-toggle">
+                        <button class="tile-source-btn active" id="btnPaintModeColor">
+                            <svg class="app-icon app-icon-sm">
+                                <use href="#ico-palette" />
+                            </svg> Couleur
+                        </button>
+                        <button class="tile-source-btn" id="btnPaintModeTexture">
+                            <svg class="app-icon app-icon-sm">
+                                <use href="#ico-image" />
+                            </svg> Texture
+                        </button>
+                    </div>
+
+                    <!-- Color panel -->
+                    <div id="paintColorPanel" class="active">
+                        <div class="color-presets" data-target="wallPaintColor">
+                            <button type="button" class="color-preset" data-color="#FFFFFF" style="--c:#FFFFFF" title="Blanc"></button>
+                            <button type="button" class="color-preset" data-color="#F1EDE6" style="--c:#F1EDE6" title="Blanc cassé"></button>
+                            <button type="button" class="color-preset" data-color="#E3DDD2" style="--c:#E3DDD2" title="Greige"></button>
+                            <button type="button" class="color-preset" data-color="#C8D6E5" style="--c:#C8D6E5" title="Bleu doux"></button>
+                            <button type="button" class="color-preset" data-color="#AEC3D4" style="--c:#AEC3D4" title="Bleu-gris"></button>
+                            <button type="button" class="color-preset" data-color="#B7C9B0" style="--c:#B7C9B0" title="Sauge"></button>
+                            <button type="button" class="color-preset" data-color="#E7C4C0" style="--c:#E7C4C0" title="Rosé"></button>
+                            <button type="button" class="color-preset" data-color="#6E7F94" style="--c:#6E7F94" title="Bleu ardoise"></button>
+                        </div>
+                        <div class="color-swatch-group">
+                            <label>Couleur</label>
+                            <input type="color" id="wallPaintColor" />
+                        </div>
+                        <label class="finish-label">Finition</label>
+                        <div class="tile-source-toggle" id="paintFinishToggle">
+                            <button class="tile-source-btn active" data-finish="matte">Mat</button>
+                            <button class="tile-source-btn" data-finish="satin">Satiné</button>
+                            <button class="tile-source-btn" data-finish="gloss">Brillant</button>
+                        </div>
+                        <input type="hidden" id="wallPaintFinish" value="matte" />
+                    </div>
+
+                    <!-- Texture panel -->
+                    <div id="paintTexturePanel">
+                        <div class="texture-slot-label">Texture de la peinture</div>
+                        <div class="texture-upload-area" id="paintTextureUploadArea">
+                            <div id="paintTextureEmpty">
+                                <div class="tex-icon">
+                                    <svg class="app-icon app-icon-lg">
+                                        <use href="#ico-image" />
+                                    </svg>
+                                </div>
+                                <div class="texture-hint">Cliquer pour importer</div>
+                                <div class="texture-hint muted">JPG · PNG · WebP</div>
+                            </div>
+                            <div id="paintTexturePreview" style="display:none">
+                                <img id="paintTextureThumb" class="texture-thumb" alt="aperçu texture" />
+                                <div class="texture-name" id="paintTextureName"></div>
+                                <div class="texture-hint">Cliquer pour changer</div>
+                            </div>
+                            <input type="file" id="paintTextureFileInput" accept="image/*" style="display:none" />
+                        </div>
+                        <div class="range-item" style="margin-top:12px">
+                            <div class="range-label">
+                                Échelle de la texture <span class="value-badge" id="paintTextureScaleValue">130
+                                    cm</span>
+                            </div>
+                            <input type="range" id="paintTextureScale" min="40" max="300" step="10" value="130" />
+                        </div>
+                    </div>
+
+                </div><!-- /paint essentials panel-section -->
+
+                <!-- ── Advanced paint settings (collapsible) ───────────── -->
+                <details class="adv-section">
+                    <summary>
+                        <span>Réglages avancés</span>
+                        <svg class="app-icon adv-chevron">
+                            <use href="#ico-chevron" />
+                        </svg>
+                    </summary>
+                    <div class="panel-section">
+                        <div class="range-item">
+                            <div class="range-label">Opacité <span class="value-badge" id="wallPaintOpacityValue">100
+                                    %</span></div>
+                            <input type="range" id="wallPaintOpacity" min="20" max="100" step="5" value="100" />
+                        </div>
+                        <div class="range-item" style="margin-top:10px">
+                            <div class="range-label">Éclairage <span class="value-badge" id="wallPaintLightValue">100
+                                    %</span></div>
+                            <input type="range" id="wallPaintLight" min="0" max="150" step="5" value="100" />
+                        </div>
+                        <div class="range-item" style="margin-top:10px">
+                            <div class="range-label">Saturation <span class="value-badge" id="wallPaintSatValue">86
+                                    %</span></div>
+                            <input type="range" id="wallPaintSat" min="0" max="100" step="2" value="86" />
+                        </div>
+                        <label class="live-toggle" style="margin-top:14px"
+                            data-tip="Peindre par-dessus les objets du mur (radiateur, miroir, TV, lampe, prise…) au lieu de les préserver">
+                            <input type="checkbox" id="paintWallObjectsToggle" />
+                            <span class="live-switch"></span>
+                            <span class="live-toggle-label">Peindre les objets du mur</span>
+                        </label>
+                        <label class="live-toggle" style="margin-top:10px"
+                            data-tip="Peindre par-dessus les portes et fenêtres (et rideaux/stores) au lieu de les préserver">
+                            <input type="checkbox" id="paintWallOpeningsToggle" />
+                            <span class="live-switch"></span>
+                            <span class="live-toggle-label">Peindre les portes et fenêtres</span>
+                        </label>
+                    </div>
+                </details>
+            </div><!-- /tabPaintPanel -->
+
+        </div><!-- /panel-body -->
+
+        <div class="panel-footer" id="panelFooter">
+            <label class="live-toggle">
+                <input type="checkbox" id="liveApplyToggle" checked />
+                <span class="live-switch"></span>
+                <span class="live-toggle-label">Aperçu en direct</span>
+            </label>
+            <div class="footer-hint" id="footerHint">Sélectionnez le sol sur l'image</div>
+            <button class="btn-apply-panel" id="applyActionBtn">
+                Appliquer le carrelage
+            </button>
+        </div>
+    </aside>
+
+    <!-- ── Toast notifications ───────────────────────────────── -->
+    <div class="toast-container" id="toastContainer"></div>
+
+</main> <!-- /app-layout -->
+
+<script type="module" src="/static/js/modules/main.js"></script>
+</body>
+
+</html>

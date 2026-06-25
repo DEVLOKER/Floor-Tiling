@@ -1,14 +1,15 @@
 # Floor Tiling Visualizer
 
-An AI-powered floor-tile visualisation tool.  
-Click on any floor surface in a photo, let SAM 2 segment it automatically, then preview different tile patterns, colours, grout widths, and textures — all in the browser.
+An AI-powered room re-finishing visualiser.  
+Upload a room photo, let the AI auto-detect the floor, walls and ceiling, then preview tile patterns on the floor and paint (colour **or** texture) on the walls/ceiling — all in the browser.
 
 ---
 
 ## Features
 
-- **One-click floor segmentation** using Meta's SAM 2 (Segment Anything Model 2)
+- **Automatic surface detection** – floor, individual wall planes, and ceiling, using an ensemble of Mask2Former + OneFormer (semantic segmentation) + Depth Anything V2 (depth → per-wall plane separation)
 - **Multiple tile patterns** – grid, brick offset, herringbone, chevron, checker, and more
+- **Wall & ceiling painting** – solid colour or perspective-mapped texture, with the room's real lighting preserved
 - **Colour + texture support** – solid colours or real-texture images per tile
 - **Dual-texture checker** – assign a different texture to light and dark tiles
 - **Perspective-correct rendering** – homography warp so tiles follow the floor plane
@@ -21,26 +22,33 @@ Click on any floor surface in a photo, let SAM 2 segment it automatically, then 
 
 ```
 .
-├── server.py               # FastAPI application & API routes
+├── server.py               # FastAPI entry-point (imports app.py)
+├── app.py                  # FastAPI application & lifespan (loads models)
 ├── requirements.txt        # Python dependencies
 ├── config/
-│   └── settings.py         # Model variant, device, tile constraints, JPEG quality
+│   └── settings.py         # Tile/paint constraints, JPEG quality, etc.
 ├── core/
-│   └── helpers.py          # Shared utility functions
-├── ml_models/
-│   └── __init__.py         # SAM 2 model loader (singleton)
+│   ├── geometry.py         # Vanishing-point floor-quad estimation
+│   ├── planes.py           # Depth-normal wall-plane separation
+│   └── masks.py            # Edge-aware mask refinement
+├── mask2former/
+│   ├── mask2former.py      # Segmentation model loader (floor/walls/ceiling)
+│   └── models/             # Auto-downloaded weights (config + safetensors)
+├── oneformer/
+│   ├── oneformer.py        # Second segmentation model (ensembled with above)
+│   └── models/             # Auto-downloaded weights (config + safetensors)
+├── depth/
+│   ├── depth.py            # Depth model loader (Depth Anything V2)
+│   └── models/             # Auto-downloaded weights (config + safetensors)
 ├── patterns/
-│   └── __init__.py         # Tile pattern generators (grid, herringbone, etc.)
+│   └── patterns.py         # Tile pattern generators (grid, herringbone, etc.)
 ├── processors/
-│   └── __init__.py         # Perspective-correct tile renderer
-├── sam2/                   # Local copy of Meta's SAM 2 library
-│   ├── configs/            # Hydra YAML configs for each model variant
-│   ├── models/             # Model checkpoint files (.pt)
-│   └── modeling/           # SAM 2 architecture source
+│   ├── tile_renderer.py    # Perspective-correct tile renderer
+│   └── wall_painter.py     # Wall/ceiling colour + texture painter
 └── static/
     ├── index.html          # Application shell
-    ├── css/style.css       # Styles
-    └── js/app.js           # Frontend logic
+    ├── css/                # Styles
+    └── js/modules/         # Frontend logic
 ```
 
 ---
@@ -111,62 +119,22 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 ```
 
-### 5. Download SAM 2.1 model checkpoints
+### 5. Models (downloaded automatically on first run)
 
-Download the checkpoint(s) you need and place them in the `sam2/models/` folder.
+No manual download is needed. On first start the app fetches and caches both
+models into their local `models/` folders, then loads them offline thereafter:
 
-| Variant | File | Download |
+| Purpose | Model | Cached to |
 |---|---|---|
-| Tiny *(default, fastest)* | `sam2.1_hiera_tiny.pt` | [Download](https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt) |
-| Small | `sam2.1_hiera_small.pt` | [Download](https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt) |
-| Base+ | `sam2.1_hiera_base_plus.pt` | [Download](https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt) |
-| Large *(most accurate, slowest)* | `sam2.1_hiera_large.pt` | [Download](https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt) |
+| Segmentation (floor / walls / ceiling) | `facebook/mask2former-swin-large-ade-semantic` (~866 MB) | `mask2former/models/` |
+| Segmentation (ensemble partner) | `shi-labs/oneformer_ade20k_swin_large` (~879 MB) | `oneformer/models/` |
+| Depth (per-wall plane separation) | `depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf` (~390 MB) | `depth/models/` |
 
-Using `curl` or `wget` from the project root:
-
-```bash
-# Tiny (recommended starting point — ~38 MB)
-curl -L -o sam2/models/sam2.1_hiera_tiny.pt \
-  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt
-
-# Small (~46 MB)
-curl -L -o sam2/models/sam2.1_hiera_small.pt \
-  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt
-
-# Base+ (~80 MB)
-curl -L -o sam2/models/sam2.1_hiera_base_plus.pt \
-  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt
-
-# Large (~224 MB)
-curl -L -o sam2/models/sam2.1_hiera_large.pt \
-  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
-```
-
-After downloading, the folder should look like:
-
-```
-sam2/models/
-├── sam2.1_hiera_tiny.pt
-├── sam2.1_hiera_small.pt
-├── sam2.1_hiera_base_plus.pt
-└── sam2.1_hiera_large.pt
-```
-
-> You only need to download the variant(s) you intend to use (see step 6).
-
-### 6. (Optional) Change the model variant or device
-
-Open `config/settings.py` and edit `MODEL_CONFIG`:
-
-```python
-MODEL_CONFIG = {
-    "variant": "tiny",   # tiny | small | base_plus | large
-    "device": "cpu",     # cpu  | cuda
-}
-```
-
-Smaller variants (`tiny`, `small`) load faster and use less memory.  
-Use `"device": "cuda"` if you installed the CUDA build of PyTorch.
+> The two segmentation models are **ensembled** (their wall/floor/ceiling masks
+> are unioned) for the most complete coverage.
+> First start needs internet and takes a while (downloads ~2.1 GB). For an
+> air-gapped install, pre-seed those `models/` folders with the weights
+> (or build the Docker image with `MODEL_SOURCE=download`/`local`).
 
 ---
 
@@ -230,12 +198,10 @@ docker rm floor-tile-visualizer
 
 ## Usage
 
-1. **Upload a photo** of a room with a visible floor.
-2. **Click on the floor** in the canvas — SAM 2 will segment it.
-3. Adjust **tile pattern, size, colour, and grout** settings in the right panel.
-4. Optionally upload a **tile texture image** (JPEG/PNG) to replace the solid colour.
-5. For checker patterns, upload a **second texture** for the dark tiles.
-6. Click **Apply Tiles** to render the result.
+1. **Upload a photo** of a room — the floor, walls and ceiling are detected automatically.
+2. Use the **Carrelage du sol** tab: the floor is pre-selected; pick a pattern, size, colour/texture and grout, then **Appliquer le carrelage**.
+3. Use the **Peinture murs & plafond** tab: click one or more walls (or the ceiling) on the image, choose a colour or texture, then **Appliquer la peinture**.
+4. Floor tiles and wall/ceiling paint **compound** into one result, which you can download.
 
 > **Test assets included** — the `__tests__/` folder contains sample images you can use right away:
 >
@@ -258,18 +224,19 @@ All endpoints are served under the `/api` prefix.
 | `GET` | `/` | Serves the web UI |
 | `GET` | `/api` | Returns API info JSON |
 | `GET` | `/health` | Health check |
-| `POST` | `/api/segment-floor` | Segment the floor from an uploaded image + click coordinates |
-| `POST` | `/api/apply-tiles` | Render tiles onto a previously segmented floor mask |
+| `POST` | `/api/auto-detect` | Auto-detect floor / walls / ceiling (streams progress via SSE) |
+| `POST` | `/api/apply-tiles` | Render tiles onto the selected floor mask |
+| `POST` | `/api/apply-paint` | Paint (colour or texture) onto the selected wall/ceiling mask |
 
-### POST `/api/segment-floor`
+### POST `/api/auto-detect`
 
 | Field | Type | Description |
 |---|---|---|
 | `image` | file | JPEG/PNG room photo |
-| `x` | float (form) | Click X coordinate (0–1 normalised) |
-| `y` | float (form) | Click Y coordinate (0–1 normalised) |
 
-Returns `{ mask, confidence, image_width, image_height }`.
+Streams Server-Sent Events with step progress, then a final `done` event whose
+payload is a gzipped binary blob containing the surface labels (floor + wall
+planes + ceiling centroids) and the floor / labeled-wall / ceiling masks.
 
 ### POST `/api/apply-tiles`
 
@@ -286,6 +253,21 @@ Returns `{ mask, confidence, image_width, image_height }`.
 | `grout_thickness` | int (form) | Grout thickness in px (both directions) |
 | `tile_texture` | file (optional) | Texture image for primary tile |
 | `tile_texture2` | file (optional) | Texture image for secondary tile (checker) |
+| `source` | file (optional) | Pristine original (lighting source) for idempotent re-apply |
+
+Returns the composited room image as JPEG.
+
+### POST `/api/apply-paint`
+
+| Field | Type | Description |
+|---|---|---|
+| `image` | file | Image to paint onto (the accumulated composite) |
+| `mask` | file | Labeled wall/ceiling mask blob (one id per plane) |
+| `paint_color` | string (form) | Paint colour (hex) |
+| `finish` | string (form) | `matte` \| `satin` \| `gloss` |
+| `paint_texture` | file (optional) | Texture image (perspective-mapped per plane) |
+| `texture_scale` | float (form, optional) | Real-world texture repeat size in metres |
+| `source` | file (optional) | Pristine original (lighting source) for idempotent re-apply |
 
 Returns the composited room image as JPEG.
 
@@ -300,4 +282,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed description of the process
 ## License
 
 This project is for personal / educational use.  
-SAM 2 is released by Meta under the Apache 2.0 license — see `sam2/` for details.
+Models used: **Mask2Former** (facebook/mask2former-swin-large-ade-semantic) and
+**Depth Anything V2** (depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf),
+each under its respective Hugging Face model license.

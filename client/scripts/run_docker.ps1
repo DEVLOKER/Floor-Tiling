@@ -92,7 +92,7 @@ try {
         # Temp profile so Chrome starts as a new standalone process
         $tempProfile = Join-Path $env:TEMP "floor-tiling-chrome-$(Get-Random)"
         $chromeProc = Start-Process -FilePath $chrome -ArgumentList `
-            "--kiosk $Url --incognito --user-data-dir=`"$tempProfile`" --disable-extensions --no-first-run --remote-debugging-port=0" `
+            "--kiosk $Url --incognito --user-data-dir=`"$tempProfile`" --disable-extensions --no-first-run --remote-debugging-port=0 --disable-features=Translate,TranslateUI --disable-translate" `
             -PassThru
     } else {
         Write-Host "Chrome not found -- opening default browser."
