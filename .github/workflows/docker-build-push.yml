@@ -1,12 +1,5 @@
 name: Build & Push Docker Image
 
-# Builds the Docker image(s) for a DETECTION_PROFILE (default: fast) and pushes
-# them to GitHub Container Registry (ghcr.io). No extra secrets needed — the
-# built-in GITHUB_TOKEN authenticates the push.
-#
-# Two variants (select with the "variant" input; both on tag builds):
-#   • baked     → models baked in, offline runtime   → tag  :<profile>
-#   • nomodels  → no weights; downloaded at runtime  → tag  :<profile>-nomodels
 on:
   workflow_dispatch:
     inputs:
@@ -22,6 +15,16 @@ on:
         default: "nomodels"
         type: choice
         options: ["nomodels", "baked", "both"]
+      version:
+        description: "Optional version appended to the tag, e.g. -v1.2.0 (include your own separator). Empty = profile tag only."
+        required: false
+        default: ""
+        type: string
+      platforms:
+        description: "Comma‑separated list of platforms to build, e.g. linux/amd64,linux/arm64"
+        required: false
+        default: "linux/amd64"
+        type: string
       push_ghcr:
         description: "Push to GHCR (ghcr.io)"
         required: false
@@ -32,18 +35,15 @@ on:
         required: false
         default: true
         type: boolean
-  # Build on release tags too (e.g. v1.2.3) — builds both variants.
   push:
     tags:
       - "v*"
 
 concurrency:
-  group: docker-${{ github.ref }}-${{ github.event.inputs.profile || 'fast' }}
+  group: docker-${{ github.ref }}-${{ github.event.inputs.profile || 'fast' }}-${{ github.event.inputs.platforms || 'linux/amd64' }}
   cancel-in-progress: true
 
 jobs:
-  # Compute the matrix so only the requested variant(s) become build legs.
-  # (A job-level `if` can't read the matrix context, so we filter here instead.)
   setup:
     runs-on: ubuntu-latest
     outputs:
@@ -52,19 +52,44 @@ jobs:
       - id: gen
         env:
           VARIANT: ${{ github.event.inputs.variant || 'both' }}
+          PLATFORMS_INPUT: ${{ github.event.inputs.platforms || 'linux/amd64' }}
         run: |
+          # --- prepare variant objects (unchanged) ---
           baked='{"variant":"baked","with_models":"true","hf_offline":"1","suffix":""}'
           nomodels='{"variant":"nomodels","with_models":"false","hf_offline":"0","suffix":"-nomodels"}'
           case "$VARIANT" in
-            baked)    include="[$baked]" ;;
-            nomodels) include="[$nomodels]" ;;
-            *)        include="[$baked,$nomodels]" ;;
+            baked)    include_variants="[$baked]" ;;
+            nomodels) include_variants="[$nomodels]" ;;
+            *)        include_variants="[$baked,$nomodels]" ;;
           esac
-          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+
+          # --- parse platforms ---
+          IFS=',' read -ra PLATFORMS <<< "$PLATFORMS_INPUT"
+          PLATFORM_COUNT=${#PLATFORMS[@]}
+
+          # --- generate combined matrix entries ---
+          entries="[]"
+          for variant_json in $(echo "$include_variants" | jq -c '.[]'); do
+            for plat in "${PLATFORMS[@]}"; do
+              plat_clean=$(echo "$plat" | xargs)   # trim whitespace
+              # platform tag suffix: only add if >1 platform
+              if [ "$PLATFORM_COUNT" -gt 1 ]; then
+                plat_suffix="-${plat_clean//\//-}"   # e.g. linux/amd64 -> -linux-amd64
+              else
+                plat_suffix=""
+              fi
+              entry=$(echo "$variant_json" | jq -c \
+                --arg plat "$plat_clean" \
+                --arg plat_sfx "$plat_suffix" \
+                '. + {platform: $plat, platform_suffix: $plat_sfx}')
+              entries=$(echo "$entries" | jq -c ". + [$entry]")
+            done
+          done
+          echo "matrix={\"include\":$entries}" >> "$GITHUB_OUTPUT"
 
   build-and-push:
     needs: setup
-    name: Build & Push (${{ matrix.variant }} / ${{ github.event.inputs.profile || 'fast' }})
+    name: Build & Push (${{ matrix.variant }} / ${{ matrix.platform }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -74,8 +99,6 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     env:
       PROFILE: ${{ github.event.inputs.profile || 'fast' }}
-      # Each registry has its own toggle. Default on (also for the tag trigger,
-      # where inputs are empty → '' != 'false' is true).
       PUSH_GHCR: ${{ github.event.inputs.push_ghcr != 'false' }}
       PUSH_DH: ${{ github.event.inputs.push_dockerhub != 'false' }}
 
@@ -83,8 +106,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Only the baked image is huge (torch + weights); reclaim runner space the
-      # hosted image wastes on unused toolchains before building it.
+      # Free disk only for baked images (unchanged)
       - name: Free disk space
         if: ${{ matrix.with_models == 'true' }}
         run: |
@@ -92,29 +114,31 @@ jobs:
                       /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           df -h /
 
-      # Build the tag list per the toggles. GHCR tags only when push_ghcr is on;
-      # DockerHub tags only when push_dockerhub is on AND DOCKERHUB_USERNAME is
-      # set (so the run never fails just because the DockerHub secrets are absent).
+      # Set up QEMU for cross‑platform building (needed when building arm64 on amd64 runner)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Resolve image tags
         id: meta
         env:
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           PROFILE: ${{ env.PROFILE }}
           SUFFIX: ${{ matrix.suffix }}
-          SHA: ${{ github.sha }}
+          VERSION: ${{ github.event.inputs.version }}
+          PLATFORM_SUFFIX: ${{ matrix.platform_suffix }}
         run: |
-          ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"   # GHCR requires lowercase
+          ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"
           ghcr_on=false; dh_on=false
           {
             echo "tags<<EOF"
             if [ "$PUSH_GHCR" = "true" ]; then
-              echo "${ghcr}:${PROFILE}${SUFFIX}"
-              echo "${ghcr}:${PROFILE}${SUFFIX}-${SHA}"
+              echo "${ghcr}:${PROFILE}${SUFFIX}${VERSION}${PLATFORM_SUFFIX}"
+              echo "${ghcr}:${PROFILE}${SUFFIX}-latest${PLATFORM_SUFFIX}"
               ghcr_on=true
             fi
             if [ "$PUSH_DH" = "true" ] && [ -n "$DH_USER" ]; then
-              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}"
-              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-${SHA}"
+              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}${VERSION}${PLATFORM_SUFFIX}"
+              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-latest${PLATFORM_SUFFIX}"
               dh_on=true
             fi
             echo "EOF"
@@ -143,21 +167,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push (${{ matrix.variant }}, profile=${{ env.PROFILE }})
+      - name: Build and push (${{ matrix.variant }}, ${{ matrix.platform }})
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: ${{ steps.meta.outputs.do_push == 'true' }}
-          # amd64 only: an emulated arm64 build would download torch (+ models for
-          # the baked variant) under QEMU and is impractically slow / disk-heavy.
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           build-args: |
             WITH_MODELS=${{ matrix.with_models }}
             DETECTION_PROFILE=${{ env.PROFILE }}
             HF_HUB_OFFLINE=${{ matrix.hf_offline }}
-          # Pushed to GHCR + (when configured) DockerHub.
           tags: ${{ steps.meta.outputs.tags }}
-          # Per-variant+profile cache scope so builds don't clobber each other.
-          cache-from: type=gha,scope=${{ env.PROFILE }}-${{ matrix.variant }}
-          cache-to: type=gha,mode=max,scope=${{ env.PROFILE }}-${{ matrix.variant }}
+          cache-from: type=gha,scope=${{ env.PROFILE }}-${{ matrix.variant }}-${{ matrix.platform_suffix }}
+          cache-to: type=gha,mode=max,scope=${{ env.PROFILE }}-${{ matrix.variant }}-${{ matrix.platform_suffix }}
