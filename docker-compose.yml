@@ -24,9 +24,8 @@ services:
         # Profile baked into the image: fast | balanced | quality | custom
         DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
         HF_HUB_OFFLINE: "1"
-    # Tag carries the profile so it matches the docker-build script's output
-    # (e.g. floortiling:fast) — `docker compose up` then reuses that exact image.
-    image: "floortiling:${DETECTION_PROFILE:-fast}"
+    # Tag matches the CI "-latest" DockerHub tag: berghout/floor-tiling:<profile>-latest
+    image: "docker.io/berghout/floor-tiling:${DETECTION_PROFILE:-fast}-latest${PLATFORM_SUFFIX:-linux-amd64}"
     ports:
       - "8000:8000"
     # The license file is read from a mounted path at runtime (currently the
