@@ -209,7 +209,10 @@
       "Bash(git branch *)",
       "Bash(git fetch *)",
       "Bash(PUSH_GHCR=true PUSH_DH=true DH_USER=myuser PROFILE=fast SUFFIX=-nomodels SHA=abc GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'ghcr=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; g=false;d=false; [ \"$PUSH_GHCR\" = true ] && { echo \"$ghcr:$PROFILE$SUFFIX\"; g=true; }; { [ \"$PUSH_DH\" = true ] && [ -n \"$DH_USER\" ]; } && { echo \"docker.io/$DH_USER/floor-tiling:$PROFILE$SUFFIX\"; d=true; }; echo \"do_push=$\\([ $g = true ] || [ $d = true ] && echo true || echo false\\)\"')",
-      "Bash(PUSH_GHCR=false PUSH_DH=true DH_USER='' PROFILE=fast SUFFIX='' SHA=abc GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'g=false;d=false; [ \"$PUSH_GHCR\" = true ] && g=true; { [ \"$PUSH_DH\" = true ] && [ -n \"$DH_USER\" ]; } && d=true; echo \"ghcr=$g dh=$d do_push=$\\([ $g = true ] || [ $d = true ] && echo true || echo false\\)\"')"
+      "Bash(PUSH_GHCR=false PUSH_DH=true DH_USER='' PROFILE=fast SUFFIX='' SHA=abc GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'g=false;d=false; [ \"$PUSH_GHCR\" = true ] && g=true; { [ \"$PUSH_DH\" = true ] && [ -n \"$DH_USER\" ]; } && d=true; echo \"ghcr=$g dh=$d do_push=$\\([ $g = true ] || [ $d = true ] && echo true || echo false\\)\"')",
+      "Bash(PUSH_GHCR=true PUSH_DH=true DH_USER=myuser PROFILE=fast SUFFIX=-nomodels VERSION='' GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'g=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; echo \"$g:${PROFILE}${SUFFIX}${VERSION}\"; echo \"$g:${PROFILE}${SUFFIX}-latest\"; echo \"docker.io/$DH_USER/floor-tiling:${PROFILE}${SUFFIX}${VERSION}\"; echo \"docker.io/$DH_USER/floor-tiling:${PROFILE}${SUFFIX}-latest\"')",
+      "Bash(PROFILE=fast SUFFIX=-nomodels VERSION=-v1.2.0 GITHUB_REPOSITORY=DEVLOKER/Floor-Tiling bash -c 'g=\"ghcr.io/${GITHUB_REPOSITORY,,}\"; echo \"$g:${PROFILE}${SUFFIX}${VERSION}\"; echo \"$g:${PROFILE}${SUFFIX}-latest\"')",
+      "Bash(git -C \"d:/Projects/Python Projects/Floor Tiling\" remote -v)"
     ],
     "additionalDirectories": [
       "D:\\Projects\\Python Projects\\Floor Tiling\\client"

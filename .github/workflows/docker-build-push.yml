@@ -129,6 +129,12 @@ jobs:
         run: |
           ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"
           ghcr_on=false; dh_on=false
+          # baked includes profile in tag (e.g. fast-latest); nomodels does not (nomodels-latest)
+          if [ "$VARIANT" = "nomodels" ]; then
+            tag_prefix="${SUFFIX#-}"   # strip leading dash → "nomodels"
+          else
+            tag_prefix="${PROFILE}${SUFFIX}"
+          fi
           {
             echo "tags<<EOF"
             if [ "$PUSH_GHCR" = "true" ]; then

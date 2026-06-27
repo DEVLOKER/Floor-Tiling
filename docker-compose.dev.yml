@@ -1,11 +1,11 @@
-# ── Floor Tiling Visualizer — DEV / lean override (download-once volume) ─────
+# ── Floor Tiling Visualizer — DEV / lean override (local models folder) ──────
 # Builds a lean image with NO weights baked in (WITH_MODELS=false). On first
-# start the app downloads the models — for the chosen DETECTION_PROFILE — into a
-# writable named volume (`model-cache`, mounted at MODELS_DIR=/app/models) and
-# reuses them on later runs.
+# start the app downloads the models — for the chosen DETECTION_PROFILE — into
+# ./client/models (bind-mounted at MODELS_DIR=/app/models) and reuses them on
+# later runs. Models stay visible on the host alongside the source code.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-#       first run needs internet; later runs reuse the volume.
+#       first run needs internet; later runs reuse the local folder.
 #
 # Switch profile/sizes at RUNTIME with env (no rebuild) — e.g. set
 # DETECTION_PROFILE=balanced below, or any *_VARIANT.
@@ -13,9 +13,9 @@
 services:
   floortiling:
     # Distinct image name (-nomodels suffix) so the volume build never overwrites
-    # the baked image (floortiling:<profile> from docker-compose.yml). Matches the
-    # docker-build script's tagging scheme: floortiling:<profile>-nomodels.
-    image: "floortiling:${DETECTION_PROFILE:-fast}-nomodels"
+    # the baked image from docker-compose.yml. Matches the CI tagging scheme:
+    # berghout/floor-tiling:nomodels-latest-<platform>.
+    image: "docker.io/berghout/floor-tiling:nomodels-latest-${PLATFORM_SUFFIX:-linux-amd64}"
     build:
       args:
         WITH_MODELS: "false"
@@ -39,7 +39,4 @@ services:
       HF_HUB_OFFLINE: "0"
       MODELS_DIR: /app/models
     volumes:
-      - model-cache:/app/models
-
-volumes:
-  model-cache:
+      - ./client/models:/app/models
