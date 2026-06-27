@@ -74,7 +74,7 @@ jobs:
               plat_clean=$(echo "$plat" | xargs)   # trim whitespace
               # platform tag suffix: only add if >1 platform
               if [ "$PLATFORM_COUNT" -gt 1 ]; then
-                plat_suffix="-${plat_clean//\//-}"   # e.g. linux/amd64 -> -amd64
+                plat_suffix="-${plat_clean##*/}"    # e.g. linux/amd64 → -amd64
               else
                 plat_suffix=""
               fi
