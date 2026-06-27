@@ -1,21 +1,42 @@
-# ── Floor Tiling Visualizer — DEV / lean override (local models folder) ──────
-# Builds a lean image with NO weights baked in (WITH_MODELS=false). On first
-# start the app downloads the models — for the chosen DETECTION_PROFILE — into
-# ./client/models (bind-mounted at MODELS_DIR=/app/models) and reuses them on
-# later runs. Models stay visible on the host alongside the source code.
+# ── Floor Tiling Visualizer — DEV override (no baked models, local folder) ───
+# Overrides docker-compose.yml: pulls/builds a lean image (WITH_MODELS=false).
+# On first start the app downloads the chosen profile's weights into
+# ./client/models (bind-mounted at /app/models) and reuses them on later runs.
+# Models stay visible on the host alongside the source code.
 #
+# ── Variables ────────────────────────────────────────────────────────────────
+#   DETECTION_PROFILE   Model profile resolved at RUNTIME — change and restart,
+#                       no rebuild needed (default: fast)
+#                         fast      — tiny/slim models, quickest startup
+#                         balanced  — mid sizes, good speed/quality trade-off
+#                         quality   — largest models, best masks (slowest)
+#                         custom    — use per-model *_VARIANT env vars below
+#
+#   PLATFORM     Platform slug for the pulled image (default: linux-amd64)
+#                         linux-amd64   — x86_64 hosts
+#                         linux-arm64   — ARM64 hosts
+#
+# ── Pull pre-built nomodels image and run (downloads weights on first start) ──
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+#   # arm64 host, balanced profile:
+#   PLATFORM=linux-arm64 DETECTION_PROFILE=balanced \
+#     docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# ── Build lean image locally and run ─────────────────────────────────────────
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-#       first run needs internet; later runs reuse the local folder.
 #
-# Switch profile/sizes at RUNTIME with env (no rebuild) — e.g. set
-# DETECTION_PROFILE=balanced below, or any *_VARIANT.
+#   # Switch profile without rebuilding (weights re-downloaded if not cached):
+#   DETECTION_PROFILE=quality \
+#     docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
 
 services:
   floortiling:
-    # Distinct image name (-nomodels suffix) so the volume build never overwrites
-    # the baked image from docker-compose.yml. Matches the CI tagging scheme:
-    # berghout/floor-tiling:nomodels-latest-<platform>.
-    image: "docker.io/berghout/floor-tiling:nomodels-latest-${PLATFORM_SUFFIX:-linux-amd64}"
+    # Distinct image so this never overwrites the baked image from docker-compose.yml.
+    # Matches the CI DockerHub tag: berghout/floor-tiling:nomodels-<platform>-<version>.
+    image: "docker.io/berghout/floor-tiling:nomodels-${PLATFORM:-linux-amd64}-${VERSION:-latest}"
     build:
       args:
         WITH_MODELS: "false"

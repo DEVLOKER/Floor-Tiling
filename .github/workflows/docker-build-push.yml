@@ -16,7 +16,7 @@ on:
         type: choice
         options: ["nomodels", "baked", "both"]
       version:
-        description: "Optional version appended to the tag, e.g. -v1.2.0 (include your own separator). Empty = profile tag only."
+        description: "Optional version string, e.g. 1.0.0 or v1.2.0 (dash added automatically). Empty = latest tag only."
         required: false
         default: ""
         type: string
@@ -131,20 +131,22 @@ jobs:
           ghcr_on=false; dh_on=false
           # baked includes profile in tag (e.g. fast-latest); nomodels does not (nomodels-latest)
           if [ "$VARIANT" = "nomodels" ]; then
-            tag_prefix="${SUFFIX#-}"   # strip leading dash → "nomodels"
+            tag_prefix="${SUFFIX#-}"        # strip leading dash → "nomodels"
           else
             tag_prefix="${PROFILE}${SUFFIX}"
           fi
+          # auto-prepend dash to version when provided (e.g. 1.0.0 → -1.0.0)
+          [ -n "$VERSION" ] && VERSION="-${VERSION}"
           {
             echo "tags<<EOF"
             if [ "$PUSH_GHCR" = "true" ]; then
-              echo "${ghcr}:${PROFILE}${SUFFIX}${VERSION}${PLATFORM_SUFFIX}"
-              echo "${ghcr}:${PROFILE}${SUFFIX}-latest${PLATFORM_SUFFIX}"
+              echo "${ghcr}:${tag_prefix}${PLATFORM_SUFFIX}-latest"
+              [ -n "$VERSION" ] && echo "${ghcr}:${tag_prefix}${PLATFORM_SUFFIX}${VERSION}"
               ghcr_on=true
             fi
             if [ "$PUSH_DH" = "true" ] && [ -n "$DH_USER" ]; then
-              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}${VERSION}${PLATFORM_SUFFIX}"
-              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-latest${PLATFORM_SUFFIX}"
+              echo "docker.io/${DH_USER}/floor-tiling:${tag_prefix}${PLATFORM_SUFFIX}-latest"
+              [ -n "$VERSION" ] && echo "docker.io/${DH_USER}/floor-tiling:${tag_prefix}${PLATFORM_SUFFIX}${VERSION}"
               dh_on=true
             fi
             echo "EOF"

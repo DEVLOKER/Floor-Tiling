@@ -1,17 +1,38 @@
-# ── Floor Tiling Visualizer — CUSTOMER deployment (offline, weights baked) ──
-# The image is built with WITH_MODELS=true, so the DETECTION_PROFILE's models are
-# baked in and the container runs FULLY OFFLINE (HF_HUB_OFFLINE=1) — no volume,
-# no network, ever.
+# ── Floor Tiling Visualizer — CUSTOMER / PRODUCTION deployment ───────────────
+# Pulls (or builds) an image with all model weights baked in (WITH_MODELS=true).
+# The container runs FULLY OFFLINE (HF_HUB_OFFLINE=1) — no internet required.
 #
-#   docker compose build      # downloads/bakes the profile's models at build time
-#   docker compose up         # runs offline
+# ── Variables ────────────────────────────────────────────────────────────────
+#   DETECTION_PROFILE   Which model profile to bake in (default: fast)
+#                         fast      — smallest models, quickest startup
+#                         balanced  — mid sizes, good speed/quality trade-off
+#                         quality   — largest models, best masks (slowest)
+#                         custom    — ignored at build time; use baked variant only
 #
-# Pick the profile (default "fast") at build time:
-#   DETECTION_PROFILE=quality docker compose build
-# Deliver with `docker save floortiling:latest | gzip > app.tar.gz`.
+#   PLATFORM     Target platform slug (default: linux-amd64)
+#                         linux-amd64   — x86_64 hosts (default)
+#                         linux-arm64   — Raspberry Pi / Apple Silicon / ARM servers
 #
-# For development that downloads weights once into a cache volume instead of
-# baking them, use the dev override:
+# ── Pull pre-built image from DockerHub and run ───────────────────────────────
+#   docker compose pull
+#   docker compose up
+#
+#   # arm64 host:
+#   PLATFORM=linux-arm64 docker compose pull
+#   PLATFORM=linux-arm64 docker compose up
+#
+# ── Build locally and run (bakes models into the image) ──────────────────────
+#   docker compose build
+#   docker compose up
+#
+#   # quality profile on arm64:
+#   DETECTION_PROFILE=quality PLATFORM=linux-arm64 docker compose build
+#   DETECTION_PROFILE=quality PLATFORM=linux-arm64 docker compose up
+#
+# ── Export image for offline delivery ────────────────────────────────────────
+#   docker save berghout/floor-tiling:fast-linux-amd64-latest | gzip > app.tar.gz
+#
+# ── Dev mode (no baked models, weights downloaded into ./client/models) ───────
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 services:
@@ -24,8 +45,8 @@ services:
         # Profile baked into the image: fast | balanced | quality | custom
         DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
         HF_HUB_OFFLINE: "1"
-    # Tag matches the CI "-latest" DockerHub tag: berghout/floor-tiling:<profile>-latest
-    image: "docker.io/berghout/floor-tiling:${DETECTION_PROFILE:-fast}-latest${PLATFORM_SUFFIX:-linux-amd64}"
+    # Tag matches the CI DockerHub tag: berghout/floor-tiling:<profile>-<platform>-<version>
+    image: "docker.io/berghout/floor-tiling:${DETECTION_PROFILE:-fast}-${PLATFORM:-linux-amd64}-${VERSION:-latest}"
     ports:
       - "8000:8000"
     # The license file is read from a mounted path at runtime (currently the
