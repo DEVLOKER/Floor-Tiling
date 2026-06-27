@@ -9,28 +9,28 @@
 #                         quality   — largest models, best masks (slowest)
 #                         custom    — ignored at build time; use baked variant only
 #
-#   PLATFORM     Target platform slug (default: linux-amd64)
-#                         linux-amd64   — x86_64 hosts (default)
-#                         linux-arm64   — Raspberry Pi / Apple Silicon / ARM servers
+#   PLATFORM     Target platform slug (default: amd64)
+#                         amd64   — x86_64 hosts (default)
+#                         arm64   — Raspberry Pi / Apple Silicon / ARM servers
 #
 # ── Pull pre-built image from DockerHub and run ───────────────────────────────
 #   docker compose pull
 #   docker compose up
 #
 #   # arm64 host:
-#   PLATFORM=linux-arm64 docker compose pull
-#   PLATFORM=linux-arm64 docker compose up
+#   PLATFORM=arm64 docker compose pull
+#   PLATFORM=arm64 docker compose up
 #
 # ── Build locally and run (bakes models into the image) ──────────────────────
 #   docker compose build
 #   docker compose up
 #
 #   # quality profile on arm64:
-#   DETECTION_PROFILE=quality PLATFORM=linux-arm64 docker compose build
-#   DETECTION_PROFILE=quality PLATFORM=linux-arm64 docker compose up
+#   DETECTION_PROFILE=quality PLATFORM=arm64 docker compose build
+#   DETECTION_PROFILE=quality PLATFORM=arm64 docker compose up
 #
 # ── Export image for offline delivery ────────────────────────────────────────
-#   docker save berghout/floor-tiling:fast-linux-amd64-latest | gzip > app.tar.gz
+#   docker save berghout/floor-tiling:fast-amd64-latest | gzip > app.tar.gz
 #
 # ── Dev mode (no baked models, weights downloaded into ./client/models) ───────
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -46,7 +46,7 @@ services:
         DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
         HF_HUB_OFFLINE: "1"
     # Tag matches the CI DockerHub tag: berghout/floor-tiling:<profile>-<platform>-<version>
-    image: "docker.io/berghout/floor-tiling:${DETECTION_PROFILE:-fast}-${PLATFORM:-linux-amd64}-${VERSION:-latest}"
+    image: "docker.io/berghout/floor-tiling:${DETECTION_PROFILE:-fast}-${PLATFORM:-amd64}-${VERSION:-latest}"
     ports:
       - "8000:8000"
     # The license file is read from a mounted path at runtime (currently the

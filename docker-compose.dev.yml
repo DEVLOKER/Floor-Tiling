@@ -12,16 +12,16 @@
 #                         quality   — largest models, best masks (slowest)
 #                         custom    — use per-model *_VARIANT env vars below
 #
-#   PLATFORM     Platform slug for the pulled image (default: linux-amd64)
-#                         linux-amd64   — x86_64 hosts
-#                         linux-arm64   — ARM64 hosts
+#   PLATFORM     Platform slug for the pulled image (default: amd64)
+#                         amd64   — x86_64 hosts
+#                         arm64   — ARM64 hosts
 #
 # ── Pull pre-built nomodels image and run (downloads weights on first start) ──
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml pull
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 #
 #   # arm64 host, balanced profile:
-#   PLATFORM=linux-arm64 DETECTION_PROFILE=balanced \
+#   PLATFORM=arm64 DETECTION_PROFILE=balanced \
 #     docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 #
 # ── Build lean image locally and run ─────────────────────────────────────────
@@ -36,7 +36,7 @@ services:
   floortiling:
     # Distinct image so this never overwrites the baked image from docker-compose.yml.
     # Matches the CI DockerHub tag: berghout/floor-tiling:nomodels-<platform>-<version>.
-    image: "docker.io/berghout/floor-tiling:nomodels-${PLATFORM:-linux-amd64}-${VERSION:-latest}"
+    image: "docker.io/berghout/floor-tiling:nomodels-${PLATFORM:-amd64}-${VERSION:-latest}"
     build:
       args:
         WITH_MODELS: "false"
