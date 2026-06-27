@@ -22,20 +22,30 @@ services:
         DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
         # Online at runtime so the app can download into the volume.
         HF_HUB_OFFLINE: "0"
+    ports:
+      - "8000:8000"
     environment:
-      # ── Dynamic model selection (no rebuild) ──────────────────────────────
-      # Because no weights are baked, these env vars decide which models the app
-      # downloads + loads on startup. Change the profile (or any single *_VARIANT)
-      # and restart: the new set is fetched into the volume and reused after.
+      # ── Profile — sets all model sizes at once (no rebuild needed) ────────
+      #   "fast"     — tiny/slim models, quickest startup
+      #                (mask2former=tiny, oneformer=tiny, depth=small,
+      #                 yolo=s, dino=tiny, sam=slim50, vitmatte=small)
+      #   "balanced" — mid sizes, good speed/quality trade-off
+      #                (mask2former=base, oneformer=tiny, depth=base,
+      #                 yolo=m, dino=tiny, sam=slim77, vitmatte=small)
+      #   "quality"  — largest models, best masks (slowest)
+      #                (mask2former=large, oneformer=large, depth=large,
+      #                 yolo=x, dino=base, sam=base, vitmatte=base)
+      #   "custom"   — ignore profile, use the per-model *_VARIANT vars below
       DETECTION_PROFILE: "${DETECTION_PROFILE:-fast}"
-      # Per-model overrides win over the profile. Uncomment / set as needed:
-      # MASK2FORMER_VARIANT: "base"
-      # ONEFORMER_VARIANT: "tiny"
-      # DEPTH_VARIANT: "large"
-      # YOLO_WORLD_VARIANT: "m"
-      # SAM_VARIANT: "base"
-      # VITMATTE_VARIANT: "base"
-      # Must stay 0 so runtime downloads are allowed.
+      # ── Per-model overrides — win over the profile; mix-and-match freely ──
+      # MASK2FORMER_VARIANT: "tiny"      # "tiny" | "small" | "base" | "large"
+      # ONEFORMER_VARIANT: "tiny"        # "tiny" | "large" | "dinat_large"  (dinat needs `natten`)
+      # DEPTH_VARIANT: "small"           # "small" | "base" | "large"
+      # YOLO_WORLD_VARIANT: "s"          # "s" | "m" | "l" | "x"  (x≈140 MB best recall, s≈25 MB fastest)
+      # GROUNDING_DINO_VARIANT: "tiny"   # "tiny" | "base"
+      # SAM_VARIANT: "slim50"            # "slim50" | "slim77" | "base" | "large" | "huge"
+      # VITMATTE_VARIANT: "small"        # "small" | "base"
+      # Must stay 0 so runtime downloads into ./client/models are allowed.
       HF_HUB_OFFLINE: "0"
       MODELS_DIR: /app/models
     volumes:
