@@ -124,7 +124,6 @@ jobs:
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           PROFILE: ${{ env.PROFILE }}
           SUFFIX: ${{ matrix.suffix }}
-          VARIANT: ${{ matrix.variant }}
           VERSION: ${{ github.event.inputs.version }}
           PLATFORM_SUFFIX: ${{ matrix.platform_suffix }}
         run: |
@@ -139,13 +138,13 @@ jobs:
           {
             echo "tags<<EOF"
             if [ "$PUSH_GHCR" = "true" ]; then
-              echo "${ghcr}:${tag_prefix}${VERSION}${PLATFORM_SUFFIX}"
-              echo "${ghcr}:${tag_prefix}-latest${PLATFORM_SUFFIX}"
+              echo "${ghcr}:${PROFILE}${SUFFIX}${VERSION}${PLATFORM_SUFFIX}"
+              echo "${ghcr}:${PROFILE}${SUFFIX}-latest${PLATFORM_SUFFIX}"
               ghcr_on=true
             fi
             if [ "$PUSH_DH" = "true" ] && [ -n "$DH_USER" ]; then
-              echo "docker.io/${DH_USER}/floor-tiling:${tag_prefix}${VERSION}${PLATFORM_SUFFIX}"
-              echo "docker.io/${DH_USER}/floor-tiling:${tag_prefix}-latest${PLATFORM_SUFFIX}"
+              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}${VERSION}${PLATFORM_SUFFIX}"
+              echo "docker.io/${DH_USER}/floor-tiling:${PROFILE}${SUFFIX}-latest${PLATFORM_SUFFIX}"
               dh_on=true
             fi
             echo "EOF"
