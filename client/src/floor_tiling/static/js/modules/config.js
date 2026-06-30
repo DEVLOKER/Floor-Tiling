@@ -6,6 +6,9 @@ export const APP_NAME = "Ceramission";
 export const APP_LOGO_SRC = "/static/logo.svg";
 
 export const CONFIG = {
+  // Set to true to re-enable wall & ceiling painting once quality is good enough.
+  wallPaintEnabled: false,
+
   apiUrl: "/api",
   imageMaxWidth: 1000,
   imageJpegQuality: 0.95,

@@ -23,6 +23,7 @@ from floor_tiling.api.routes.tiles import router as tiles_router
 from floor_tiling.config.settings import (
     CORS_ORIGINS,
     MAX_UPLOAD_SIZE_BYTES,
+    WALL_PAINT_ENABLED,
     SEG_USE_MASK2FORMER,
     SEG_USE_ONEFORMER,
     USE_OPEN_VOCAB_OBJECTS,
@@ -93,30 +94,32 @@ async def lifespan(app: FastAPI):
 
     # ── Load depth model (for per-wall plane separation) ──────────────────
     # Best-effort: if it fails, detection falls back to connected components.
-    try:
-        app.state.depth_predictor = await asyncio.to_thread(get_depth_predictor)
-        logger.info("Depth model ready.")
-    except Exception as exc:
-        logger.error("Failed to load depth model: %s", exc, exc_info=True)
-        app.state.depth_predictor = None
+    app.state.depth_predictor = None
+    if WALL_PAINT_ENABLED:
+        try:
+            app.state.depth_predictor = await asyncio.to_thread(get_depth_predictor)
+            logger.info("Depth model ready.")
+        except Exception as exc:
+            logger.error("Failed to load depth model: %s", exc, exc_info=True)
+    else:
+        logger.info("Depth model skipped (WALL_PAINT_ENABLED=False).")
 
-    # ── Load M-LSD (line detector for depth-tiling grid orientation) ──────
+    # ── Load M-LSD (line detector for wall edge snapping) ────────────────
     # Best-effort: if it fails, the depth tiler falls back to the floor-quad.
-    try:
-        app.state.mlsd_predictor = await asyncio.to_thread(get_mlsd_predictor)
-        logger.info("M-LSD model ready.")
-    except Exception as exc:
-        logger.error("Failed to load M-LSD: %s", exc, exc_info=True)
-        app.state.mlsd_predictor = None
+    app.state.mlsd_predictor = None
+    if WALL_PAINT_ENABLED:
+        try:
+            app.state.mlsd_predictor = await asyncio.to_thread(get_mlsd_predictor)
+            logger.info("M-LSD model ready.")
+        except Exception as exc:
+            logger.error("Failed to load M-LSD: %s", exc, exc_info=True)
+    else:
+        logger.info("M-LSD skipped (WALL_PAINT_ENABLED=False).")
 
     # ── Load open-vocab object detector + SAM (wall objects to exclude) ────
-    # Catch wall objects the semantic model lacks (AC, sockets, pipes…) and cut
-    # them precisely. The detector backend is chosen by OPEN_VOCAB_DETECTOR
-    # (YOLO-World is fast; Grounding DINO is the slower, higher-recall option).
-    # Best-effort: detection still works without them.
     app.state.object_detector = None
     app.state.sam_predictor = None
-    if USE_OPEN_VOCAB_OBJECTS:
+    if WALL_PAINT_ENABLED and USE_OPEN_VOCAB_OBJECTS:
         try:
             if OPEN_VOCAB_DETECTOR == "grounding_dino":
                 app.state.object_detector = await asyncio.to_thread(get_grounding_dino_predictor)
@@ -129,20 +132,18 @@ async def lifespan(app: FastAPI):
             app.state.object_detector = None
             app.state.sam_predictor = None
     else:
-        logger.info("Open-vocab object exclusion disabled (USE_OPEN_VOCAB_OBJECTS=False).")
+        logger.info("Open-vocab object exclusion skipped (WALL_PAINT_ENABLED=False or USE_OPEN_VOCAB_OBJECTS=False).")
 
     # ── Load ViTMatte (refines paint edges around fine foliage) ───────────
-    # Best-effort: painting falls back to the hard mask if it fails to load.
     app.state.matting_predictor = None
-    if PAINT_REFINE_MATTING:
+    if WALL_PAINT_ENABLED and PAINT_REFINE_MATTING:
         try:
             app.state.matting_predictor = await asyncio.to_thread(get_matting_predictor)
             logger.info("ViTMatte model ready.")
         except Exception as exc:
             logger.error("Failed to load ViTMatte: %s", exc, exc_info=True)
-            app.state.matting_predictor = None
     else:
-        logger.info("Paint matting disabled (PAINT_REFINE_MATTING=False).")
+        logger.info("Paint matting skipped (WALL_PAINT_ENABLED=False or PAINT_REFINE_MATTING=False).")
 
     # ── Warm up models (one dummy inference) ──────────────────────────────
     # The FIRST real inference of each model is 2-4× slower due to lazy graph
@@ -236,7 +237,10 @@ def create_app() -> FastAPI:
     # ── API routers ───────────────────────────────────────────────────────
     _app.include_router(detection_router)
     _app.include_router(tiles_router)
-    _app.include_router(paint_router)
+    if WALL_PAINT_ENABLED:
+        _app.include_router(paint_router)
+    else:
+        logger.info("Paint router disabled (WALL_PAINT_ENABLED=False).")
 
     # ── Utility routes ────────────────────────────────────────────────────
 

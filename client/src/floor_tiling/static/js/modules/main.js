@@ -282,6 +282,19 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("resize", updateTogglePreviewVisibility);
   }
 
+  // ── Wall/ceiling paint feature gate ─────────────────────────────────────
+  // When disabled, hide the paint tab, its panel, and the quick-select buttons
+  // that target walls/ceiling. Floor tiling still works normally.
+  // Flip CONFIG.wallPaintEnabled = true to restore once quality is ready.
+  if (!CONFIG.wallPaintEnabled) {
+    const hide = (...ids) =>
+      ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+      });
+    hide("tabPaintBtn", "tabPaintPanel", "qsWalls", "qsWallsCeiling");
+  }
+
   // Initialize onboarding module (keeps feature wiring in events.js)
   initOnboarding({
     welcomeSelector: "#welcomeOverlay",
