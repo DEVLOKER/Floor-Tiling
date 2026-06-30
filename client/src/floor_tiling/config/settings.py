@@ -73,7 +73,7 @@ JPEG_SCALE_MAX_WIDTH = 1000
 #   "quality"  — largest models, best masks (slowest)
 #   "custom"   — ignore the profile and use the per-model *_VARIANT values below
 # (env override: DETECTION_PROFILE)
-DETECTION_PROFILE = _env("DETECTION_PROFILE", "custom")
+DETECTION_PROFILE = _env("DETECTION_PROFILE", "quality")
 
 # Per-model size variants. Used as-is when DETECTION_PROFILE = "custom";
 # OVERWRITTEN by the chosen profile otherwise (see the override block below).
@@ -118,6 +118,14 @@ if DETECTION_PROFILE in _DETECTION_PROFILES:
 # ═════════════════════════════════════════════════════════════════════════════
 # 3. SURFACE SEGMENTATION  (which model(s) detect floor / wall / ceiling)
 # ═════════════════════════════════════════════════════════════════════════════
+
+# ── Master switch ─────────────────────────────────────────────────────────────
+# Set False to disable ALL wall and ceiling painting (detection, plane splitting,
+# object exclusion, paint router). Only floor tiling remains active.
+# Wall/ceiling detection is still imperfect — flip this back to True once the
+# quality is good enough to ship.
+WALL_PAINT_ENABLED = _env_bool("WALL_PAINT_ENABLED", False)
+
 # Restart the server after changing. (Sizes are in section 2.)
 #   both True → ensemble (union of the two) — best wall coverage, slower
 #   one True  → that model alone

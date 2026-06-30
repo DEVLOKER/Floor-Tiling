@@ -33,7 +33,9 @@ export function drawAutoLabels(labels, onToggle) {
   if (labels) state.currentLabels = labels;
   if (onToggle) state.onLabelToggle = onToggle;
 
-  const activeLabels = state.currentLabels;
+  const activeLabels = CONFIG.wallPaintEnabled
+    ? state.currentLabels
+    : (state.currentLabels || []).filter((l) => l.type === "floor");
   const activeOnToggle = state.onLabelToggle;
 
   const overlay = document.getElementById("markersOverlay");

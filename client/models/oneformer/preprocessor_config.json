@@ -429,7 +429,7 @@
   "resample": 2,
   "rescale_factor": 0.00392156862745098,
   "size": {
-    "longest_edge": 2048,
-    "shortest_edge": 512
+    "longest_edge": 2560,
+    "shortest_edge": 640
   }
 }

@@ -510,8 +510,8 @@ export async function applyTilesToFloor() {
     fd.append("tile_color2", tileColor2);
     fd.append("grout_color", groutColor);
     fd.append("grout_thickness", val("groutThickness"));
-    fd.append("translate_x", val("translateX") || 0);
-    fd.append("translate_y", val("translateY") || 0);
+    fd.append("translate_x", (val("translateX") || 0) / 200);
+    fd.append("translate_y", (val("translateY") || 0) / 200);
     fd.append("rotation", val("gridRotation") || 0);
     fd.append(
       "perspective_compression",
