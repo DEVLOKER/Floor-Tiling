@@ -13,27 +13,27 @@
     "dtype": "float32",
     "hidden_act": "gelu",
     "hidden_dropout_prob": 0.0,
-    "hidden_size": 768,
+    "hidden_size": 1024,
     "image_size": 518,
     "initializer_range": 0.02,
     "layer_norm_eps": 1e-06,
     "layerscale_value": 1.0,
     "mlp_ratio": 4,
     "model_type": "dinov2",
-    "num_attention_heads": 12,
+    "num_attention_heads": 16,
     "num_channels": 3,
-    "num_hidden_layers": 12,
+    "num_hidden_layers": 24,
     "out_features": [
-      "stage3",
-      "stage6",
-      "stage9",
-      "stage12"
+      "stage5",
+      "stage12",
+      "stage18",
+      "stage24"
     ],
     "out_indices": [
-      3,
-      6,
-      9,
-      12
+      5,
+      12,
+      18,
+      24
     ],
     "patch_size": 14,
     "qkv_bias": true,
@@ -51,7 +51,19 @@
       "stage9",
       "stage10",
       "stage11",
-      "stage12"
+      "stage12",
+      "stage13",
+      "stage14",
+      "stage15",
+      "stage16",
+      "stage17",
+      "stage18",
+      "stage19",
+      "stage20",
+      "stage21",
+      "stage22",
+      "stage23",
+      "stage24"
     ],
     "use_mask_token": true,
     "use_swiglu_ffn": false
@@ -59,17 +71,17 @@
   "backbone_kwargs": null,
   "depth_estimation_type": "metric",
   "dtype": "float32",
-  "fusion_hidden_size": 128,
+  "fusion_hidden_size": 256,
   "head_hidden_size": 32,
   "head_in_index": -1,
   "initializer_range": 0.02,
   "max_depth": 20,
   "model_type": "depth_anything",
   "neck_hidden_sizes": [
-    96,
-    192,
-    384,
-    768
+    256,
+    512,
+    1024,
+    1024
   ],
   "output_attentions": false,
   "patch_size": 14,
@@ -79,7 +91,7 @@
     1,
     0.5
   ],
-  "reassemble_hidden_size": 768,
+  "reassemble_hidden_size": 1024,
   "transformers_version": null,
   "use_pretrained_backbone": false,
   "use_timm_backbone": false
