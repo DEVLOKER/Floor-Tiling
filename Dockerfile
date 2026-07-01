@@ -138,16 +138,19 @@ COPY --from=prefetch --chown=appuser:appuser /app/models /app/models
 
 USER appuser
 
-EXPOSE 8000
+# Default port — overridden at runtime by HF Spaces (PORT=7860) or docker -e PORT=…
+ENV PORT=8000
+EXPOSE ${PORT}
 
 # Models load (and warm up) at startup on CPU — allow a generous start period.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=420s --retries=3 \
-    CMD curl -fs http://localhost:8000/health || exit 1
+    CMD curl -fs http://localhost:${PORT}/health || exit 1
 
 # Production entrypoint — uvicorn, no reload.
-CMD ["uvicorn", "floor_tiling.app:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--workers", "1", \
-     "--log-level", "info", \
-     "--h11-max-incomplete-event-size", "104857600"]
+# Shell form so ${PORT} is expanded from the environment at container start.
+CMD uvicorn floor_tiling.app:app \
+        --host 0.0.0.0 \
+        --port ${PORT} \
+        --workers 1 \
+        --log-level info \
+        --h11-max-incomplete-event-size 104857600

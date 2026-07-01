@@ -1,3 +1,13 @@
+---
+title: Floor Tiling Visualizer
+emoji: 🏠
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Floor Tiling Visualizer
 
 An AI-powered room re-finishing visualiser.  
@@ -156,12 +166,12 @@ Then open your browser at **http://localhost:8000**.
 
 ## Docker
 
-The pre-built image is available on DockerHub at [`berghout/ceramic`](https://hub.docker.com/r/berghout/ceramic).
+The pre-built image is available on DockerHub at `berghout/floor-tiling`.
 
 ### Pull the image
 
 ```bash
-docker pull berghout/ceramic:latest
+docker pull berghout/floor-tiling:fast-amd64-latest
 ```
 
 ### Run the container
@@ -170,7 +180,7 @@ docker pull berghout/ceramic:latest
 docker run -d \
   -p 8000:8000 \
   --name floor-tile-visualizer \
-  berghout/ceramic:latest
+  berghout/floor-tiling:fast-amd64-latest
 ```
 
 ### Or with Docker Compose (recommended)

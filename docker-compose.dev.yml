@@ -66,8 +66,9 @@ services:
       # GROUNDING_DINO_VARIANT: "tiny"   # "tiny" | "base"
       # SAM_VARIANT: "slim50"            # "slim50" | "slim77" | "base" | "large" | "huge"
       # VITMATTE_VARIANT: "small"        # "small" | "base"
-      # Must stay 0 so runtime downloads into ./client/models are allowed.
+      # Must stay 0 so runtime downloads into the volume are allowed.
       HF_HUB_OFFLINE: "0"
       MODELS_DIR: /app/models
     volumes:
-      - ./client/models:/app/models
+      # - ./client/models:/app/models
+      - /data:/app/models
