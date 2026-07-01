@@ -1,0 +1,27 @@
+# ── Hugging Face Spaces deployment ────────────────────────────────────────────
+# Uses the pre-built nomodels image from DockerHub — no source build on HF.
+# Models are downloaded on first start into the /data persistent storage bucket.
+#
+# In your HF Space:
+#   1. Copy the contents of this file into the Space's Dockerfile (Files tab).
+#   2. Set these environment variables in Space Settings:
+#        PORT=7860
+#        DETECTION_PROFILE=fast
+#        WALL_PAINT_ENABLED=false
+#        HF_HUB_OFFLINE=0
+#        MODELS_DIR=/data
+#   3. Mount a Storage Bucket at /data (persistent model cache).
+#
+# To update: push a new image to DockerHub via CI, then click
+# "Factory rebuild" in the HF Space settings to pull the latest tag.
+
+FROM berghout/floor-tiling:nomodels-amd64-latest
+
+# Override the hardcoded port 8000 from the base image.
+# HF Spaces injects PORT=7860; locally defaults to 8000.
+CMD uvicorn floor_tiling.app:app \
+        --host 0.0.0.0 \
+        --port ${PORT:-8000} \
+        --workers 1 \
+        --log-level info \
+        --h11-max-incomplete-event-size 104857600
