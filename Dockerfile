@@ -136,6 +136,9 @@ ENV DETECTION_PROFILE=${DETECTION_PROFILE} \
 # volume mounted here inherits appuser ownership and the app can write downloads.
 COPY --from=prefetch --chown=appuser:appuser /app/models /app/models
 
+# Allow appuser to write the generated config.js into the static directory at startup.
+RUN chown appuser:appuser /app/src/floor_tiling/static
+
 USER appuser
 
 # Default port — overridden at runtime by HF Spaces (PORT=7860) or docker -e PORT=…
