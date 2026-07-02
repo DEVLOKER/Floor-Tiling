@@ -124,7 +124,8 @@ if DETECTION_PROFILE in _DETECTION_PROFILES:
 # object exclusion, paint router). Only floor tiling remains active.
 # Wall/ceiling detection is still imperfect — flip this back to True once the
 # quality is good enough to ship.
-WALL_PAINT_ENABLED = _env_bool("WALL_PAINT_ENABLED", False)
+# WALL_PAINT_ENABLED = _env_bool("WALL_PAINT_ENABLED", True)
+WALL_PAINT_ENABLED = False
 
 # Restart the server after changing. (Sizes are in section 2.)
 #   both True → ensemble (union of the two) — best wall coverage, slower
@@ -253,7 +254,7 @@ DEFAULT_TRANSLATE_Y = 0.0
 # Default 0.0 keeps real-world foreshortening — tiles shrink naturally into
 # depth. Higher values enlarge tiles & reduce row count, which reads as fake
 # (giant tiles, flat-looking floor), so it's opt-in via the UI slider.
-DEFAULT_PERSPECTIVE_COMPRESSION = 0.0
+DEFAULT_PERSPECTIVE_COMPRESSION = 50.0
 
 # UI constraints (slider ranges)
 TILE_WIDTH_MIN = 5.0
