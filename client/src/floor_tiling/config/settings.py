@@ -124,8 +124,7 @@ if DETECTION_PROFILE in _DETECTION_PROFILES:
 # object exclusion, paint router). Only floor tiling remains active.
 # Wall/ceiling detection is still imperfect — flip this back to True once the
 # quality is good enough to ship.
-# WALL_PAINT_ENABLED = _env_bool("WALL_PAINT_ENABLED", True)
-WALL_PAINT_ENABLED = False
+WALL_PAINT_ENABLED = _env_bool("WALL_PAINT_ENABLED", False)
 
 # Restart the server after changing. (Sizes are in section 2.)
 #   both True → ensemble (union of the two) — best wall coverage, slower
