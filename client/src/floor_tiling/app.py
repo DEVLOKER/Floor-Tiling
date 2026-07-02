@@ -73,9 +73,12 @@ async def lifespan(app: FastAPI):
 
     # ── Write server-side config for the frontend ─────────────────────────
     config_js_path = os.path.join(_BASE_DIR, "static", "config.js")
-    with open(config_js_path, "w", encoding="utf-8") as _f:
-        _f.write(f"window.__APP_CONFIG__ = {json.dumps(_build_frontend_config())};")
-    logger.info("Frontend config written to %s", config_js_path)
+    try:
+        with open(config_js_path, "w", encoding="utf-8") as _f:
+            _f.write(f"window.__APP_CONFIG__ = {json.dumps(_build_frontend_config())};")
+        logger.info("Frontend config written to %s", config_js_path)
+    except PermissionError:
+        logger.warning("Cannot write %s (permission denied) — frontend will use fallback defaults.", config_js_path)
 
     # ── License check ─────────────────────────────────────────────────────
     # NOTE: temporarily disabled (re-enable for licensed/production builds).
