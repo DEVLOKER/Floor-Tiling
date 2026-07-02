@@ -147,10 +147,12 @@ export function initEventListeners() {
     badge("translateYValue", e.target.value);
     syncSliderTrack(e.target);
   });
-  document.getElementById("paintTextureScale")?.addEventListener("input", (e) => {
-    badge("paintTextureScaleValue", e.target.value + " cm");
-    syncSliderTrack(e.target);
-  });
+  document
+    .getElementById("paintTextureScale")
+    ?.addEventListener("input", (e) => {
+      badge("paintTextureScaleValue", e.target.value + " cm");
+      syncSliderTrack(e.target);
+    });
   [
     ["wallPaintOpacity", "wallPaintOpacityValue"],
     ["wallPaintLight", "wallPaintLightValue"],
@@ -176,7 +178,8 @@ export function initEventListeners() {
   // ── Quick presets (primary controls; exact sliders live in Advanced) ──────
   // Highlight the preset chip that matches the current exact value (or none).
   function refreshTileSizeChips() {
-    const w = val("tileWidth"), h = val("tileHeight");
+    const w = val("tileWidth"),
+      h = val("tileHeight");
     document.querySelectorAll("#tileSizePresets .preset-chip").forEach((c) => {
       c.classList.toggle("active", +c.dataset.w === +w && +c.dataset.h === +h);
     });
@@ -194,10 +197,10 @@ export function initEventListeners() {
       const hs = document.getElementById("tileHeight");
       ws.value = chip.dataset.w;
       hs.value = chip.dataset.h;
-      ws.dispatchEvent(new Event("input", { bubbles: true }));  // badge/track/preview
+      ws.dispatchEvent(new Event("input", { bubbles: true })); // badge/track/preview
       hs.dispatchEvent(new Event("input", { bubbles: true }));
       refreshTileSizeChips();
-      ws.dispatchEvent(new Event("change", { bubbles: true }));  // save + liveApply (once)
+      ws.dispatchEvent(new Event("change", { bubbles: true })); // save + liveApply (once)
     });
   });
   document.querySelectorAll("#groutPresets .preset-chip").forEach((chip) => {
@@ -210,9 +213,15 @@ export function initEventListeners() {
     });
   });
   // Keep chip highlight in sync when the exact (advanced) sliders are used.
-  document.getElementById("tileWidth").addEventListener("input", refreshTileSizeChips);
-  document.getElementById("tileHeight").addEventListener("input", refreshTileSizeChips);
-  document.getElementById("groutThickness").addEventListener("input", refreshGroutChips);
+  document
+    .getElementById("tileWidth")
+    .addEventListener("input", refreshTileSizeChips);
+  document
+    .getElementById("tileHeight")
+    .addEventListener("input", refreshTileSizeChips);
+  document
+    .getElementById("groutThickness")
+    .addEventListener("input", refreshGroutChips);
   refreshTileSizeChips();
   refreshGroutChips();
 
@@ -222,16 +231,21 @@ export function initEventListeners() {
     if (!inp) return;
     const syncActive = () => {
       const cur = (inp.value || "").toLowerCase();
-      row.querySelectorAll(".color-preset").forEach((s) =>
-        s.classList.toggle("active", (s.dataset.color || "").toLowerCase() === cur),
-      );
+      row
+        .querySelectorAll(".color-preset")
+        .forEach((s) =>
+          s.classList.toggle(
+            "active",
+            (s.dataset.color || "").toLowerCase() === cur,
+          ),
+        );
     };
     row.querySelectorAll(".color-preset").forEach((sw) => {
       sw.addEventListener("click", () => {
         inp.value = sw.dataset.color;
-        inp.dispatchEvent(new Event("input", { bubbles: true }));  // preview + save
+        inp.dispatchEvent(new Event("input", { bubbles: true })); // preview + save
         syncActive();
-        inp.dispatchEvent(new Event("change", { bubbles: true }));  // liveApply
+        inp.dispatchEvent(new Event("change", { bubbles: true })); // liveApply
       });
     });
     inp.addEventListener("input", syncActive); // reflect manual picker choice
@@ -323,7 +337,10 @@ export function liveApply() {
   } else {
     if (state.tileMode === "texture") {
       if (!state.tileTextureDataUrl) return;
-      if (isDualColorPattern(val("tilePattern")) && !state.tileTextureDarkDataUrl)
+      if (
+        isDualColorPattern(val("tilePattern")) &&
+        !state.tileTextureDarkDataUrl
+      )
         return;
     }
     applyTilesToFloor();
@@ -358,8 +375,10 @@ export async function applyPaintToWalls() {
   // instead of leaving it unpainted. Both categories are tagged with their
   // surface id (255 = ceiling): fixtures/decor in autoMasks.objects, doors &
   // windows in autoMasks.openings.
-  const paintObjects = !!document.getElementById("paintWallObjectsToggle")?.checked;
-  const paintOpenings = !!document.getElementById("paintWallOpeningsToggle")?.checked;
+  const paintObjects = !!document.getElementById("paintWallObjectsToggle")
+    ?.checked;
+  const paintOpenings = !!document.getElementById("paintWallOpeningsToggle")
+    ?.checked;
   const om = paintObjects ? state.autoMasks.objects : null;
   const opm = paintOpenings ? state.autoMasks.openings : null;
   // A pixel belongs to surface `sid` if it's the surface itself or an enabled
@@ -518,7 +537,7 @@ export async function applyTilesToFloor() {
       (val("perspectiveCompression") || 0) / 100.0,
     );
     fd.append("pattern", val("tilePattern"));
-    fd.append("algorithm", val("tileAlgorithm") || "vanishing");
+    fd.append("algorithm", val("tileAlgorithm") || "depth");
     // Auto-align grid to walls (depth algorithm) — off by default, user opt-in.
     fd.append(
       "auto_align",

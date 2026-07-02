@@ -10,9 +10,11 @@ import os
 import sys
 from contextlib import asynccontextmanager
 
+import json
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 import torch
 
@@ -32,6 +34,14 @@ from floor_tiling.config.settings import (
     OPEN_VOCAB_BOX_THRESHOLD,
     OPEN_VOCAB_TEXT_THRESHOLD,
     YOLO_WORLD_CONF,
+    DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT,
+    DEFAULT_GROUT_THICKNESS, DEFAULT_PATTERN,
+    DEFAULT_TRANSLATE_X, DEFAULT_TRANSLATE_Y,
+    DEFAULT_PERSPECTIVE_COMPRESSION,
+    DEFAULT_PAINT_COLOR, DEFAULT_PAINT_FINISH, PAINT_FINISHES,
+    TILE_WIDTH_MIN, TILE_WIDTH_MAX,
+    TILE_HEIGHT_MIN, TILE_HEIGHT_MAX,
+    GROUT_THICKNESS_MIN, GROUT_THICKNESS_MAX,
     PAINT_REFINE_MATTING,
 )
 from floor_tiling.ml import (
@@ -60,6 +70,12 @@ _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: verify license and load ML models.  Shutdown: nothing extra."""
+
+    # ── Write server-side config for the frontend ─────────────────────────
+    config_js_path = os.path.join(_BASE_DIR, "static", "config.js")
+    with open(config_js_path, "w", encoding="utf-8") as _f:
+        _f.write(f"window.__APP_CONFIG__ = {json.dumps(_build_frontend_config())};")
+    logger.info("Frontend config written to %s", config_js_path)
 
     # ── License check ─────────────────────────────────────────────────────
     # NOTE: temporarily disabled (re-enable for licensed/production builds).
@@ -202,6 +218,29 @@ async def lifespan(app: FastAPI):
 # ─────────────────────────────────────────────────────────────────────────────
 # Application factory
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _build_frontend_config() -> dict:
+    """Collect all settings that the frontend needs."""
+    return {
+        "wallPaintEnabled": WALL_PAINT_ENABLED,
+        "defaultTileWidth": DEFAULT_TILE_WIDTH,
+        "defaultTileHeight": DEFAULT_TILE_HEIGHT,
+        "defaultGrout": DEFAULT_GROUT_THICKNESS,
+        "defaultPattern": DEFAULT_PATTERN,
+        "defaultTranslateX": DEFAULT_TRANSLATE_X,
+        "defaultTranslateY": DEFAULT_TRANSLATE_Y,
+        "defaultPerspectiveCompression": DEFAULT_PERSPECTIVE_COMPRESSION,
+        "tileWidthMin": TILE_WIDTH_MIN,
+        "tileWidthMax": TILE_WIDTH_MAX,
+        "tileHeightMin": TILE_HEIGHT_MIN,
+        "tileHeightMax": TILE_HEIGHT_MAX,
+        "groutThicknessMin": GROUT_THICKNESS_MIN,
+        "groutThicknessMax": GROUT_THICKNESS_MAX,
+        "defaultPaintColor": DEFAULT_PAINT_COLOR,
+        "defaultPaintFinish": DEFAULT_PAINT_FINISH,
+        "paintFinishes": list(PAINT_FINISHES),
+    }
+
 
 def create_app() -> FastAPI:
     """Construct and configure the FastAPI application."""

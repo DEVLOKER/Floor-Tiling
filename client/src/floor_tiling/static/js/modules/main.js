@@ -92,13 +92,29 @@ document.addEventListener("DOMContentLoaded", () => {
   // updates the result without firing continuously during a drag.
   [
     // tiling
-    "tileColor", "groutColor", "tileColorLight", "tileColorDark",
-    "groutColorChecker", "groutColorTexture", "tilePattern", "gridRotation",
-    "perspectiveCompression", "tileWidth", "tileHeight", "groutThickness",
-    "translateX", "translateY", "autoAlignToggle",
+    "tileColor",
+    "groutColor",
+    "tileColorLight",
+    "tileColorDark",
+    "groutColorChecker",
+    "groutColorTexture",
+    "tilePattern",
+    "gridRotation",
+    "perspectiveCompression",
+    "tileWidth",
+    "tileHeight",
+    "groutThickness",
+    "translateX",
+    "translateY",
+    "autoAlignToggle",
     // painting
-    "wallPaintColor", "wallPaintFinish", "wallPaintOpacity", "wallPaintLight",
-    "wallPaintSat", "paintTextureScale", "paintWallObjectsToggle",
+    "wallPaintColor",
+    "wallPaintFinish",
+    "wallPaintOpacity",
+    "wallPaintLight",
+    "wallPaintSat",
+    "paintTextureScale",
+    "paintWallObjectsToggle",
     "paintWallOpeningsToggle",
   ].forEach((id) => {
     document.getElementById(id)?.addEventListener("change", liveApply);
@@ -138,11 +154,13 @@ document.addEventListener("DOMContentLoaded", () => {
     liveApply();
   });
   // Paint fill-style tabs (colour / texture)
-  document.getElementById("btnPaintModeColor")?.addEventListener("click", () => {
-    setPaintMode("color");
-    saveTilePreferences();
-    liveApply();
-  });
+  document
+    .getElementById("btnPaintModeColor")
+    ?.addEventListener("click", () => {
+      setPaintMode("color");
+      saveTilePreferences();
+      liveApply();
+    });
   document
     .getElementById("btnPaintModeTexture")
     ?.addEventListener("click", () => {
@@ -163,16 +181,14 @@ document.addEventListener("DOMContentLoaded", () => {
   setPaintFinish(document.getElementById("wallPaintFinish")?.value || "matte");
 
   // Tiling perspective algorithm segmented badges (Lignes de fuite / Profondeur)
-  document
-    .querySelectorAll("#tileAlgoToggle .tile-source-btn")
-    .forEach((btn) =>
-      btn.addEventListener("click", () => {
-        setTileAlgorithm(btn.dataset.algo);
-        saveTilePreferences();
-        liveApply();
-      }),
-    );
-  setTileAlgorithm(document.getElementById("tileAlgorithm")?.value || "vanishing");
+  document.querySelectorAll("#tileAlgoToggle .tile-source-btn").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      setTileAlgorithm(btn.dataset.algo);
+      saveTilePreferences();
+      liveApply();
+    }),
+  );
+  setTileAlgorithm(document.getElementById("tileAlgorithm")?.value || "depth");
 
   // Manual 2-click tile alignment
   const alignHint = document.getElementById("tileAlignHint");
@@ -198,14 +214,12 @@ document.addEventListener("DOMContentLoaded", () => {
       liveApply();
     });
   });
-  document
-    .getElementById("tileAlignReset")
-    ?.addEventListener("click", () =>
-      resetAlign(() => {
-        updateAlignUI();
-        liveApply();
-      }),
-    );
+  document.getElementById("tileAlignReset")?.addEventListener("click", () =>
+    resetAlign(() => {
+      updateAlignUI();
+      liveApply();
+    }),
+  );
   updateAlignUI();
   // Canvas click for floor selection
   // Clear/apply floor selection
@@ -265,7 +279,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Redraw highlight if needed (optional)
   // redrawWithFloorHighlight();
-  console.log("App modules loaded:", { CONFIG, state });
+  // console.log("App modules loaded:", { CONFIG, state });
+  console.log("App modules loaded:", CONFIG);
 
   // Sync UI on resize or layout changes
   const canvasEl = document.getElementById("mainCanvas");

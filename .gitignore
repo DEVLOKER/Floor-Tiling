@@ -1,5 +1,8 @@
 # ── Shared — applies to the entire monorepo ──────────────────────────────────
 
+# Generated at server startup — not a source file
+client/src/floor_tiling/static/config.js
+
 # OS
 .DS_Store
 Thumbs.db
