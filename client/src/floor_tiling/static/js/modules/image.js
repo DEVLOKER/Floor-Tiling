@@ -51,8 +51,16 @@ export async function handleImageUpload(file) {
       if (coordsInfo)
         coordsInfo.textContent = "Cliquez sur le sol pour le sélectionner";
 
-      // Automatically trigger AI detection
-      runAutoDetection();
+      // Reset wall detection state for new image
+      state.wallDetectionDone = false;
+      state.wallDetectionPending = false;
+      state.autoMasks.wall = null;
+      state.autoMasks.ceiling = null;
+      state.autoMasks.objects = null;
+      state.autoMasks.openings = null;
+
+      // Phase 1: fast floor-only detection
+      runFloorDetection();
     };
     img.src = e.target.result;
   };
@@ -92,7 +100,175 @@ export async function baseImageToBlob(state) {
   return originalImageToBlob(state);
 }
 
-// ── Canvas click → floor segmentation ──
+// ── Detection helpers ─────────────────────────────────────────────────────
+
+/** Read an SSE stream to completion, returning the final base64 payload + mode. */
+async function _readSseStream(response) {
+  const reader  = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let binaryB64 = null;
+  let mode = "all";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = JSON.parse(line.slice(6));
+      if (payload.step === "error") throw new Error(payload.message);
+      if (payload.step === "done") {
+        binaryB64 = payload.binary;
+        mode = payload.mode || "all";
+      } else {
+        showStatus(`🤖 [${payload.step}/${payload.total}] ${payload.message}`, "info");
+      }
+    }
+  }
+  if (!binaryB64) throw new Error("Aucune donnée reçue du serveur");
+  return { binaryB64, mode };
+}
+
+/** Decompress a gzipped base64 payload into parsed masks + labels. */
+async function _decodeBinaryPayload(binaryB64) {
+  const compressed = Uint8Array.from(atob(binaryB64), (c) => c.charCodeAt(0));
+  const decompressed = new Uint8Array(
+    await new Response(
+      new Blob([compressed]).stream().pipeThrough(new DecompressionStream("gzip")),
+    ).arrayBuffer(),
+  );
+
+  const view       = new DataView(decompressed.buffer);
+  const labelsLen  = view.getUint32(0, true);
+  const h          = view.getUint32(4, true);
+  const w          = view.getUint32(8, true);
+  const headerSize = 12;
+  const base       = headerSize + labelsLen;
+
+  const labels = JSON.parse(
+    new TextDecoder().decode(decompressed.slice(headerSize, headerSize + labelsLen))
+  );
+
+  const flat2d = (flat) => {
+    const out = [];
+    for (let y = 0; y < h; y++) {
+      const off = y * w;
+      out.push(Array.from(flat.subarray(off, off + w)));
+    }
+    return out;
+  };
+
+  const hasObjects  = decompressed.length >= base + 4 * h * w;
+  const hasOpenings = decompressed.length >= base + 5 * h * w;
+
+  return {
+    labels,
+    floor_mask:   flat2d(decompressed.slice(base,         base + h * w)),
+    wall_mask:    flat2d(decompressed.slice(base + h*w,   base + 2*h*w)),
+    ceiling_mask: flat2d(decompressed.slice(base + 2*h*w, base + 3*h*w)),
+    object_mask:  hasObjects  ? flat2d(decompressed.slice(base + 3*h*w, base + 4*h*w)) : null,
+    opening_mask: hasOpenings ? flat2d(decompressed.slice(base + 4*h*w, base + 5*h*w)) : null,
+  };
+}
+
+// ── Phase 1: floor-only detection (fast, called on image upload) ─────────────
+
+export async function runFloorDetection() {
+  if (!state.originalImage) {
+    showStatus("Veuillez d'abord importer une image", "error");
+    return;
+  }
+  showStatus("🤖 Détection du sol en cours…", "info");
+  state.isLoading = true;
+  try {
+    const blob = await originalImageToBlob(state);
+    const fd   = new FormData();
+    fd.append("image", blob, "room.jpg");
+
+    const res = await fetch(`${CONFIG.apiUrl}/detect-floor`, { method: "POST", body: fd });
+    if (!res.ok) throw new Error(`Erreur API : ${res.status}`);
+
+    const { binaryB64 } = await _readSseStream(res);
+    const result        = await _decodeBinaryPayload(binaryB64);
+
+    if (!result.labels?.length || !result.labels.some((l) => l.type === "floor")) {
+      showStatus("Aucun sol détecté. Veuillez utiliser une photo contenant un sol.", "error");
+      state.autoMasks.floor = null;
+      state.selectedSurfaces.clear();
+      state.floorMask = null;
+      return;
+    }
+
+    state.autoMasks.floor = result.floor_mask;
+
+    state.selectedSurfaces.clear();
+    state.surfaceSelections = { tile: null, paint: null };
+    state.activeMode = null;
+
+    drawAutoLabels(result.labels, toggleSurface);
+    setActiveMode("tile");
+    updateFloorList();
+    showStatus("Sol détecté — prêt à carreler !", "success");
+  } catch (err) {
+    console.error(err);
+    showStatus(`Erreur IA : ${err.message}`, "error");
+  } finally {
+    state.isLoading = false;
+  }
+}
+
+// ── Phase 2: wall detection (lazy, called on first paint-tab switch) ──────────
+
+export async function runWallDetection() {
+  if (!state.originalImage) return;
+  if (state.wallDetectionDone || state.wallDetectionPending) return;
+
+  state.wallDetectionPending = true;
+  showStatus("🤖 Analyse des murs en cours…", "info");
+  try {
+    const blob = await originalImageToBlob(state);
+    const fd   = new FormData();
+    fd.append("image", blob, "room.jpg");
+
+    const res = await fetch(`${CONFIG.apiUrl}/detect-walls`, { method: "POST", body: fd });
+    if (!res.ok) throw new Error(`Erreur API : ${res.status}`);
+
+    const { binaryB64 } = await _readSseStream(res);
+    const result        = await _decodeBinaryPayload(binaryB64);
+
+    state.autoMasks.wall     = result.wall_mask;
+    state.autoMasks.ceiling  = result.ceiling_mask;
+    state.autoMasks.objects  = result.object_mask;
+    state.autoMasks.openings = result.opening_mask;
+    state.wallDetectionDone  = true;
+
+    // Merge wall/ceiling labels with existing floor labels
+    const wallLabels  = (result.labels || []).filter((l) => l.type === "wall" || l.type === "ceiling");
+    const floorLabels = (state.currentLabels || []).filter((l) => l.type === "floor");
+    drawAutoLabels([...floorLabels, ...wallLabels], toggleSurface);
+
+    redrawWithFloorHighlight();
+    updateFooterHint();
+
+    const nWalls = wallLabels.filter((l) => l.type === "wall").length;
+    const hasCeil = wallLabels.some((l) => l.type === "ceiling");
+    showStatus(
+      `Murs détectés : ${nWalls} plan(s)${hasCeil ? " + plafond" : ""} — cliquez pour sélectionner.`,
+      "success",
+    );
+  } catch (err) {
+    console.error(err);
+    showStatus(`Erreur détection murs : ${err.message}`, "error");
+    state.wallDetectionDone = false;
+  } finally {
+    state.wallDetectionPending = false;
+  }
+}
+
+// ── Legacy: combined floor + wall detection (backward-compat) ────────────────
 
 export async function runAutoDetection() {
   if (!state.originalImage) {
@@ -384,6 +560,13 @@ export function quickSelectPaint(target) {
 // ── Activity switch (tabs ↔ selection ↔ footer CTA) ─────────────────────
 export function setActiveMode(mode) {
   if (mode !== "tile" && mode !== "paint") mode = "tile";
+
+  // Lazy wall detection: trigger on first paint-tab visit if walls not loaded yet.
+  if (mode === "paint" && CONFIG.wallPaintEnabled
+      && !state.wallDetectionDone && !state.wallDetectionPending
+      && state.originalImage) {
+    runWallDetection(); // runs async in background, updates markers when done
+  }
 
   // Remember the selection of the tab we're leaving so it's restored when the
   // user comes back (otherwise switching to paint and back loses the walls).

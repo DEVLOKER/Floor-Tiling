@@ -23,6 +23,9 @@ export let state = {
   hasPaint: false, // whether wall paint is currently applied (for re-chaining)
   autoMasks: { floor: null, wall: null, ceiling: null, objects: null, openings: null },
   showDetectedObjects: true, // overlay detected wall objects/openings after detection
+  // Two-phase lazy detection state
+  wallDetectionDone: false,    // wall masks have been loaded at least once for this image
+  wallDetectionPending: false, // wall detection request is currently in-flight
   activeMode: "tile", // "tile" (floor) | "paint" (walls) — drives selection rules
   liveApply: true, // auto re-render on control change; off = apply only via button
   selectedSurfaces: new Set(), // Set of "floor" | "wall"

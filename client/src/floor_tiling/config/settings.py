@@ -73,7 +73,7 @@ JPEG_SCALE_MAX_WIDTH = 1000
 #   "quality"  — largest models, best masks (slowest)
 #   "custom"   — ignore the profile and use the per-model *_VARIANT values below
 # (env override: DETECTION_PROFILE)
-DETECTION_PROFILE = _env("DETECTION_PROFILE", "quality")
+DETECTION_PROFILE = _env("DETECTION_PROFILE", "fast")  # "fast" | "balanced" | "quality" | "custom"
 
 # Per-model size variants. Used as-is when DETECTION_PROFILE = "custom";
 # OVERWRITTEN by the chosen profile otherwise (see the override block below).
@@ -124,7 +124,7 @@ if DETECTION_PROFILE in _DETECTION_PROFILES:
 # object exclusion, paint router). Only floor tiling remains active.
 # Wall/ceiling detection is still imperfect — flip this back to True once the
 # quality is good enough to ship.
-WALL_PAINT_ENABLED = _env_bool("WALL_PAINT_ENABLED", False)
+WALL_PAINT_ENABLED = _env_bool("WALL_PAINT_ENABLED", True)
 
 # Restart the server after changing. (Sizes are in section 2.)
 #   both True → ensemble (union of the two) — best wall coverage, slower
