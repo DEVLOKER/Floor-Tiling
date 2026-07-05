@@ -37,6 +37,56 @@ def depth_to_normals(depth: np.ndarray, focal: float | None = None) -> np.ndarra
     return n / (np.linalg.norm(n, axis=-1, keepdims=True) + 1e-8)
 
 
+def horizontal_surfaces_from_depth(
+    depth: np.ndarray,
+    up_cos: float = 0.80,
+    min_area_frac: float = 0.01,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Depth-derived floor / ceiling hints from surface-normal orientation.
+
+    Used to STRENGTHEN (union with) the segmentation floor/ceiling in the
+    complement wall model: if the segmenter under-detects the floor or ceiling,
+    those pixels would otherwise fall through to "wall" and be painted.  A
+    horizontal surface (normal ≈ vertical in world space) that the segmenter
+    missed is recovered here.
+
+    Camera space has +Y pointing DOWN, so:
+      • a FLOOR normal points up   → n·(0,-1,0) high → n_y < -up_cos
+      • a CEILING normal points down → n·(0,-1,0) low → n_y > +up_cos
+
+    Conservative: position-gated (floor only in the lower 60 %, ceiling only in
+    the upper 60 %) and area-filtered, so noisy monocular normals don't leak.
+
+    Returns (floor_hint, ceiling_hint) binary uint8 masks.
+    """
+    h, w = depth.shape
+    normals = depth_to_normals(depth)
+    ny = normals[:, :, 1]
+
+    floor_hint   = (ny < -up_cos).astype(np.uint8)
+    ceiling_hint = (ny > up_cos).astype(np.uint8)
+
+    # Position gating: floors sit low, ceilings sit high in the frame.
+    gate_floor = np.zeros((h, w), np.uint8);  gate_floor[int(h * 0.40):, :] = 1
+    gate_ceil  = np.zeros((h, w), np.uint8);  gate_ceil[:int(h * 0.60), :]  = 1
+    floor_hint   &= gate_floor
+    ceiling_hint &= gate_ceil
+
+    # Clean + area filter
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    out = []
+    for hint in (floor_hint, ceiling_hint):
+        hint = cv2.morphologyEx(hint, cv2.MORPH_OPEN, ker)
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(hint, connectivity=8)
+        keep = np.zeros_like(hint)
+        thr = min_area_frac * h * w
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] >= thr:
+                keep[lab == i] = 1
+        out.append(keep)
+    return out[0], out[1]
+
+
 def _backproject(xs, ys, depth, focal, cx, cy):
     """Pixel coords + depth → 3D camera-space points (N, 3)."""
     z = depth[ys, xs].astype(np.float64)
@@ -523,6 +573,7 @@ def floor_orientation_angle(mask, depth, segments=None, quad=None,
 
 __all__ = [
     "depth_to_normals",
+    "horizontal_surfaces_from_depth",
     "split_wall_planes",
     "split_wall_planes_with_lines",
     "floor_plane_uv",

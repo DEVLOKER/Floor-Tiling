@@ -379,6 +379,63 @@ def infer_wall_behind_furniture(
     return result.astype(np.uint8)
 
 
+def derive_wall_by_complement(
+    floor: np.ndarray,
+    ceiling: np.ndarray,
+    exclude: np.ndarray,
+    shape_hw: tuple,
+    min_area_frac: float = 0.004,
+    open_frac: float = 1 / 300,
+) -> np.ndarray:
+    """Define walls as the COMPLEMENT of everything else.
+
+        wall = image − floor − ceiling − objects − openings
+
+    This is fundamentally more robust than detecting walls directly: whatever
+    the segmenter can't confidently name (tiled walls, textured walls, unusual
+    colours) simply falls through to "wall" instead of being dropped.  Coverage
+    is complete BY CONSTRUCTION — the wall reaches exactly to the floor / ceiling
+    / object boundaries, so there are no gaps or colour halos to patch.
+
+    The trade-off shifts entirely to floor / ceiling / object recall: a MISSED
+    floor/ceiling/object becomes wall (and would be painted), so those masks
+    should be biased toward over-detection upstream.
+
+    Args:
+        floor:         Binary floor mask.
+        ceiling:       Binary ceiling mask.
+        exclude:       Union of everything else not to paint (objects+openings).
+        shape_hw:      (H, W) of the image.
+        min_area_frac: Drop wall components smaller than this fraction of the image
+                       (removes isolated speckle left between excluded regions).
+        open_frac:     Morphological-open radius as a fraction of the short side
+                       (cleans thin slivers along object edges).
+
+    Returns:
+        Binary uint8 wall mask [H, W].
+    """
+    h, w = shape_hw
+    not_wall = (floor > 0) | (ceiling > 0) | (exclude > 0)
+    wall = (~not_wall).astype(np.uint8)
+
+    # Clean thin slivers (e.g. 1-px gaps between two excluded regions)
+    k = max(3, int(min(h, w) * open_frac)) | 1
+    wall = cv2.morphologyEx(
+        wall, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    )
+    if not wall.any():
+        return wall
+
+    # Keep only significant components (drop noise pockets)
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(wall, connectivity=8)
+    thr = min_area_frac * h * w
+    keep = np.zeros_like(wall)
+    for i in range(1, n):
+        if stats[i, cv2.CC_STAT_AREA] >= thr:
+            keep[lab == i] = 1
+    return keep.astype(np.uint8)
+
+
 def wall_is_chromatic(wall_mask: np.ndarray, image: np.ndarray, sat_thresh: float = 0.25) -> bool:
     """True if the detected wall is a saturated color (tiled/painted), not neutral.
 
@@ -660,4 +717,5 @@ __all__ = [
     "wall_is_chromatic",
     "close_wall_halos",
     "strip_wall_color_from_objects",
+    "derive_wall_by_complement",
 ]

@@ -42,7 +42,7 @@ class GroundingDINOManager:
         return cls._instance
 
     def __init__(self):
-        self.local_path = model_dir("grounding_dino", "GROUNDING_DINO_DIR")
+        self.local_path = model_dir("grounding_dino", "GROUNDING_DINO_DIR", GROUNDING_DINO_VARIANT, self._model_id)
         if self._model is None:
             self._load_model()
 

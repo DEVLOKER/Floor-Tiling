@@ -543,18 +543,59 @@ export function toggleSurface(id) {
 export function quickSelectPaint(target) {
   // target: "walls" | "walls_ceiling" | "clear"
   if (state.activeMode !== "paint") setActiveMode("paint");
-  state.selectedSurfaces.clear();
-  if (target !== "clear") {
-    (state.currentLabels || []).forEach((l) => {
-      if (l.type === "wall") state.selectedSurfaces.add(l.id);
-      if (target === "walls_ceiling" && l.type === "ceiling")
-        state.selectedSurfaces.add(l.id);
-    });
+  if (target === "clear") {
+    clearWallPaint();
+    return;
   }
+  state.selectedSurfaces.clear();
+  (state.currentLabels || []).forEach((l) => {
+    if (l.type === "wall") state.selectedSurfaces.add(l.id);
+    if (target === "walls_ceiling" && l.type === "ceiling")
+      state.selectedSurfaces.add(l.id);
+  });
   updateCombinedMask();
   redrawWithFloorHighlight();
   drawAutoLabels();
   updateFooterHint();
+}
+
+// ── Clear wall paint: deselect walls AND remove applied paint ──────────────
+// "Effacer" reverts the wall paint, restoring the paint-free base (the tiled
+// floor if the floor was tiled, otherwise the original photo). Selection is
+// cleared too, so the user starts fresh.
+export function clearWallPaint() {
+  state.selectedSurfaces.clear();
+  if (state.surfaceSelections) state.surfaceSelections.paint = new Set();
+  state.hasPaint = false;
+
+  const finish = () => {
+    updateCombinedMask();
+    redrawWithFloorHighlight();
+    drawAutoLabels();
+    updateFooterHint();
+    updateTogglePreviewVisibility();
+  };
+
+  if (state.paintBaseBlob) {
+    // Floor was tiled → restore that tiled (paint-free) result.
+    if (state.resultUrl) URL.revokeObjectURL(state.resultUrl);
+    state.resultUrl = URL.createObjectURL(state.paintBaseBlob);
+    const img = new Image();
+    img.onload = () => {
+      state.editedImage = img;
+      finish();
+    };
+    img.src = state.resultUrl;
+  } else {
+    // Nothing tiled → back to the pristine original.
+    if (state.resultUrl) {
+      URL.revokeObjectURL(state.resultUrl);
+      state.resultUrl = null;
+    }
+    state.editedImage = null;
+    finish();
+  }
+  showStatus("Peinture effacée.", "success");
 }
 
 // ── Activity switch (tabs ↔ selection ↔ footer CTA) ─────────────────────

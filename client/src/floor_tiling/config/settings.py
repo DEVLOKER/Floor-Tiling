@@ -73,7 +73,7 @@ JPEG_SCALE_MAX_WIDTH = 1000
 #   "quality"  — largest models, best masks (slowest)
 #   "custom"   — ignore the profile and use the per-model *_VARIANT values below
 # (env override: DETECTION_PROFILE)
-DETECTION_PROFILE = _env("DETECTION_PROFILE", "fast")  # "fast" | "balanced" | "quality" | "custom"
+DETECTION_PROFILE = _env("DETECTION_PROFILE", "quality")  # "fast" | "balanced" | "quality" | "custom"
 
 # Per-model size variants. Used as-is when DETECTION_PROFILE = "custom";
 # OVERWRITTEN by the chosen profile otherwise (see the override block below).

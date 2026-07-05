@@ -44,7 +44,7 @@ class VitMatteManager:
         return cls._instance
 
     def __init__(self):
-        self.local_path = model_dir("vitmatte", "VITMATTE_DIR")
+        self.local_path = model_dir("vitmatte", "VITMATTE_DIR", VITMATTE_VARIANT, self._model_id)
         if self._model is None:
             self._load_model()
 

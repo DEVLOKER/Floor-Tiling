@@ -44,7 +44,7 @@ class DepthManager:
     def __init__(self):
         # Weight cache: DEPTH_DIR env override (e.g. a mounted volume) falling
         # back to the shared models dir (see floor_tiling.paths).
-        self.local_path = model_dir("depth", "DEPTH_DIR")
+        self.local_path = model_dir("depth", "DEPTH_DIR", DEPTH_VARIANT, self._model_id)
         if self._model is None:
             self._load_model()
 

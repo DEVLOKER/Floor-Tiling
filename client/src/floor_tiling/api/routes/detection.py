@@ -48,7 +48,11 @@ from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from PIL import Image
 
-from floor_tiling.core.planes import split_wall_planes, split_wall_planes_with_lines
+from floor_tiling.core.planes import (
+    split_wall_planes,
+    split_wall_planes_with_lines,
+    horizontal_surfaces_from_depth,
+)
 from floor_tiling.core.masks import (
     refine_mask,
     fill_surface_gaps,
@@ -60,6 +64,7 @@ from floor_tiling.core.masks import (
     wall_is_chromatic,
     close_wall_halos,
     strip_wall_color_from_objects,
+    derive_wall_by_complement,
 )
 from floor_tiling.config.settings import (
     WALL_PAINT_ENABLED,
@@ -401,11 +406,13 @@ async def detect_walls(
             ceiling_mask = (ceiling_mask & ~(floor_mask > 0)).astype(np.uint8)
             wall_mask    = (wall_mask    & ~(floor_mask > 0) & ~(ceiling_mask > 0)).astype(np.uint8)
 
-            # ── Step 3: Object exclusion + open-vocab ─────────────────────
+            # ── Step 3: Objects + openings (things NOT to paint) ──────────
             yield _sse({"step": 3, "total": 5,
-                        "message": "Détection des objets muraux…"})
+                        "message": "Détection des objets et ouvertures…"})
 
-            # Open-vocabulary objects (AC, sockets, vents… not in ADE20K)
+            # Open-vocabulary objects (AC, sockets, vents, pipes… not in ADE20K).
+            # High recall matters here: in the complement model a MISSED object
+            # would fall through to "wall" and be painted over.
             detector = getattr(request.app.state, "object_detector", None)
             sam      = getattr(request.app.state, "sam_predictor", None)
             if USE_OPEN_VOCAB_OBJECTS and detector is not None and sam is not None:
@@ -433,7 +440,6 @@ async def detect_walls(
                 except Exception as exc:
                     logger.warning("Open-vocab detection skipped: %s", exc)
 
-            # Normalise and compute exclusion masks
             if object_mask is None:
                 object_mask  = np.zeros((h, w), np.uint8)
             if opening_mask is None:
@@ -441,116 +447,98 @@ async def detect_walls(
             object_mask  = (object_mask.astype(np.uint8)  & ~(floor_mask > 0)).astype(np.uint8)
             opening_mask = (opening_mask.astype(np.uint8) & ~(floor_mask > 0)).astype(np.uint8)
             obj_tight = ((object_mask > 0) | (opening_mask > 0)).astype(np.uint8)
+            # Small fixed safety dilation to catch object frames (e.g. window
+            # casing) WITHOUT the large adaptive halo the old path produced.
+            obj_carve = cv2.dilate(
+                obj_tight, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            ) if obj_tight.any() else obj_tight
+            obj_carve = (obj_carve & ~(floor_mask > 0)).astype(np.uint8)
 
-            obj_excl = None
-            if PAINT_IGNORE_WALL_OBJECTS and obj_tight.any():
-                obj_excl = _adaptive_dilate_objects(obj_tight, h, w)
-                obj_excl = (obj_excl & ~(floor_mask > 0)).astype(np.uint8)
-
-            # ── Step 4: Mask refinement + edge snapping ────────────────────
+            # ── Step 4: Wall from semantic class + comprehensive exclusion ─
             yield _sse({"step": 4, "total": 5,
-                        "message": "Affinage des contours des murs…"})
+                        "message": "Déduction des murs…"})
 
-            def _refine_walls(img, wl, c):
-                # Guided filter + Laplacian sharpening for walls
-                wl_ref = refine_mask(wl, img)
-                wl_ref = sharpen_wall_boundary(wl_ref, img)
-                c_ref  = refine_mask(c, img, single_region=True)
-                return wl_ref, c_ref
+            # Depth (computed once, reused for floor/ceiling strengthening AND
+            # plane splitting).
+            depth_predictor = getattr(request.app.state, "depth_predictor", None)
+            depth = None
+            if depth_predictor is not None:
+                try:
+                    depth = await asyncio.to_thread(depth_predictor.predict, image_np)
+                except Exception as exc:
+                    logger.warning("Depth prediction failed: %s", exc)
 
-            wall_mask, ceiling_mask = await asyncio.to_thread(
-                _refine_walls, image_np, wall_mask, ceiling_mask
+            # Strengthen floor / ceiling recall with depth-horizontal surfaces.
+            floor_strong   = (floor_mask   > 0).astype(np.uint8)
+            ceiling_strong = (ceiling_mask > 0).astype(np.uint8)
+            if depth is not None:
+                try:
+                    df, dc = horizontal_surfaces_from_depth(depth)
+                    floor_strong   = ((floor_strong   > 0) | (df > 0)).astype(np.uint8)
+                    ceiling_strong = ((ceiling_strong > 0) | (dc > 0)).astype(np.uint8)
+                    ceiling_strong = (ceiling_strong & ~(floor_strong > 0)).astype(np.uint8)
+                except Exception as exc:
+                    logger.warning("Depth floor/ceiling strengthen skipped: %s", exc)
+
+            # ── Comprehensive CLUTTER exclusion ───────────────────────────
+            # The pure complement painted furniture (sofas, tables, dressers)
+            # because they aren't floor/ceiling/wall-objects.  The segmenter DOES
+            # classify them (as bed/sofa/table/…), so anything it does NOT call
+            # wall/floor/ceiling is clutter and must never be painted.  Union
+            # with the detected wall-objects/openings (a pipe may be "wall"
+            # semantically yet still an object) for the full exclusion.
+            clutter = (
+                ~((wall_mask > 0) | (floor_strong > 0) | (ceiling_strong > 0))
+            ).astype(np.uint8)
+            exclude = ((clutter > 0) | (obj_carve > 0)).astype(np.uint8)
+            # Small safety dilation so we stop just short of furniture/frames.
+            exclude = cv2.dilate(
+                exclude, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             )
+            exclude = (exclude & ~(floor_strong > 0)).astype(np.uint8)
+            obj_carve = exclude  # bound every downstream op by full clutter
 
-            # M-LSD edge snapping
+            # Wall base = the SEMANTIC wall class (excludes furniture by design),
+            # refined + edge-sharpened, then bounded away from clutter/floor/ceiling.
+            wall_mask = (wall_mask > 0).astype(np.uint8)
+            wall_mask = await asyncio.to_thread(
+                lambda m: sharpen_wall_boundary(refine_mask(m, image_bgr), image_bgr),
+                wall_mask,
+            )
+            wall_mask = (wall_mask & ~(exclude > 0) & ~(floor_strong > 0)
+                         & ~(ceiling_strong > 0)).astype(np.uint8)
+
+            # M-LSD edge snapping (straighten wall/ceiling architectural lines)
             mlsd_predictor = getattr(request.app.state, "mlsd_predictor", None)
             mlsd_segments  = None
             if SNAP_EDGES_TO_LINES and mlsd_predictor is not None:
                 try:
-                    mlsd_segments = await asyncio.to_thread(
-                        mlsd_predictor.predict, image_np
+                    mlsd_segments = await asyncio.to_thread(mlsd_predictor.predict, image_np)
+                    wall_mask = await asyncio.to_thread(
+                        snap_mask_to_lines, wall_mask, mlsd_segments
                     )
-
-                    def _snap(wl, c):
-                        return (
-                            snap_mask_to_lines(wl, mlsd_segments),
-                            snap_mask_to_lines(c, mlsd_segments),
-                        )
-                    wall_mask, ceiling_mask = await asyncio.to_thread(
-                        _snap, wall_mask, ceiling_mask
-                    )
+                    wall_mask = (wall_mask & ~(exclude > 0) & ~(floor_strong > 0)).astype(np.uint8)
                 except Exception as exc:
                     logger.warning("Edge snapping skipped: %s", exc)
 
-            if obj_excl is not None:
-                wall_mask    = (wall_mask    & ~(obj_excl > 0)).astype(np.uint8)
-                ceiling_mask = (ceiling_mask & ~(obj_excl > 0)).astype(np.uint8)
-
-            # ── Chromatic vs neutral wall ─────────────────────────────────
-            # On a saturated (tiled/painted) wall, colour separates objects
-            # cleanly, so we use the TIGHT object mask — the DILATED exclusion
-            # would carve a coloured halo around windows/cabinets.  On a neutral
-            # wall we keep the dilated exclusion (colour can't be trusted).
-            chromatic = wall_is_chromatic(wall_mask, image_bgr)
-            if chromatic:
-                # Release wall-coloured tile the object detector over-grabbed
-                # (e.g. tile around a pipe) so it doesn't leave a colour strip.
-                obj_carve = strip_wall_color_from_objects(obj_tight, wall_mask, image_bgr)
-            else:
-                obj_carve = obj_excl if obj_excl is not None else obj_tight
-            logger.info("detect-walls: wall chromatic=%s", chromatic)
-
-            # ── Color-coherence expansion ─────────────────────────────────
-            # For uniformly-tiled / single-color walls the model leaves gaps at
-            # object boundaries and counter tops. Expand into adjacent same-color
-            # unclaimed pixels. On chromatic walls, floor/ceiling are SOFT bounds
-            # (a strongly wall-coloured pixel wrongly labelled ceiling/floor is
-            # reclaimed as wall → kills the junction halo); objects are hard.
-            # Use the (colour-stripped) obj_carve as the object boundary so the
-            # expansion can reach the tile the detector over-grabbed around pipes.
-            soft_forbidden = None
-            if chromatic:
-                hard_forbidden = (obj_carve > 0).astype(np.uint8)
-                soft_forbidden = ((floor_mask > 0) | (ceiling_mask > 0)).astype(np.uint8)
-            else:
-                hard_forbidden = (
-                    (floor_mask > 0) | (ceiling_mask > 0) | (obj_carve > 0)
-                ).astype(np.uint8)
-            wall_mask = await asyncio.to_thread(
-                color_coherence_expand, wall_mask, image_bgr, hard_forbidden, soft_forbidden
-            )
-
-            # ── Infer wall behind counters / cabinets ─────────────────────
-            wall_mask = await asyncio.to_thread(
-                infer_wall_behind_furniture, wall_mask, floor_mask, ceiling_mask, h
-            )
-            # Carve objects (tight on chromatic walls → no halo; dilated on neutral)
-            wall_mask = (wall_mask & ~(obj_carve > 0)).astype(np.uint8)
-            # Reclaimed green tiles leave the ceiling — keep surfaces exclusive.
-            ceiling_mask = (ceiling_mask & ~(wall_mask > 0)).astype(np.uint8)
-
+            ceiling_mask = ceiling_strong
             logger.info(
-                "detect-walls: wall px=%d  ceiling px=%d  (after expansion)",
+                "detect-walls: semantic wall px=%d  ceiling px=%d",
                 int(wall_mask.sum()), int(ceiling_mask.sum()),
             )
 
-            # ── Step 5: Plane splitting + gap fill + label extraction ──────
+            # ── Step 5: Plane splitting + label extraction ────────────────
             yield _sse({"step": 5, "total": 5,
                         "message": "Séparation des plans muraux…"})
 
-            depth_predictor = getattr(request.app.state, "depth_predictor", None)
-            labeled_walls   = None
-
-            if depth_predictor is not None:
+            labeled_walls = None
+            if depth is not None:
                 try:
-                    depth = await asyncio.to_thread(depth_predictor.predict, image_np)
                     labeled_walls, n_planes = split_wall_planes(wall_mask, depth)
                     logger.info("detect-walls: depth RANSAC → %d planes", n_planes)
                 except Exception as exc:
-                    logger.warning("Depth RANSAC failed: %s — trying M-LSD fallback", exc)
+                    logger.warning("Depth RANSAC failed: %s — M-LSD fallback", exc)
                     labeled_walls = None
-
-            # M-LSD geometric fallback (works on texture-less painted walls)
             if labeled_walls is None or int((labeled_walls > 0).sum()) < 500:
                 if mlsd_segments is not None:
                     labeled_walls, n_planes = split_wall_planes_with_lines(
@@ -558,38 +546,24 @@ async def detect_walls(
                     )
                     logger.info("detect-walls: M-LSD fallback → %d planes", n_planes)
                 else:
-                    # Last resort: connected components
                     _, labeled_walls = cv2.connectedComponents(
                         wall_mask.astype(np.uint8), connectivity=8
                     )
                     labeled_walls = labeled_walls.astype(np.uint8)
-                    logger.info("detect-walls: connected-components fallback")
 
-            # Gap fill between adjacent surfaces. The real floor mask (from the
-            # cached segmentation) is used ONLY as a boundary so walls never bleed
-            # onto the floor; it is not returned (the frontend already has it).
-            floor_ref = floor_mask.copy()
+            # Gap fill (real floor as boundary, not returned — frontend has it).
+            floor_ref = floor_strong.copy()
             floor_ref, labeled_walls, ceiling_mask = fill_surface_gaps(
                 floor_ref, labeled_walls, ceiling_mask
             )
-
-            # Carve objects (tight on chromatic walls → no halo; dilated on neutral)
             labeled_walls[obj_carve > 0] = 0
             ceiling_mask = (ceiling_mask & ~(obj_carve > 0)).astype(np.uint8)
 
-            if WALL_FILL_GAPS_PX > 0:
-                labeled_walls = grow_walls_to_objects(
-                    labeled_walls, floor_ref, ceiling_mask, obj_carve, WALL_FILL_GAPS_PX
-                )
-
-            # Guarantee the labelled planes cover the ENTIRE detected wall so no
-            # tile centre is left unpainted by the plane-split step.
+            # Guarantee every complement-wall pixel is labelled (no unpainted gaps)
             paintable = ((wall_mask > 0) & ~(obj_carve > 0)).astype(np.uint8)
             labeled_walls = _reconcile_labels_to_mask(labeled_walls, paintable)
 
-            # ── Close junction halos ──────────────────────────────────────
-            # Grow each plane right up to (and a few px past) the wall↔ceiling /
-            # wall↔floor / corner lines so painting leaves no coloured halo strip.
+            # Close junction halos (reach right up to floor/ceiling/corner lines)
             labeled_walls = close_wall_halos(
                 labeled_walls, floor_ref, ceiling_mask, obj_carve
             )
@@ -924,37 +898,50 @@ async def debug_walls(
     image_bgr  = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
     h, w = image_np.shape[:2]
 
-    (floor_mask, wall_mask, ceiling_mask,
+    (floor_mask, wall_seed, ceiling_mask,
      object_mask, opening_mask) = await _run_segmentation(request, image_np)
     floor_mask   = (floor_mask   > 0).astype(np.uint8)
     ceiling_mask = (ceiling_mask & ~(floor_mask > 0)).astype(np.uint8)
-    wall_mask    = (wall_mask    & ~(floor_mask > 0) & ~(ceiling_mask > 0)).astype(np.uint8)
+    wall_seed    = (wall_seed & ~(floor_mask > 0) & ~(ceiling_mask > 0)).astype(np.uint8)
     if object_mask  is None: object_mask  = np.zeros((h, w), np.uint8)
     if opening_mask is None: opening_mask = np.zeros((h, w), np.uint8)
-    obj_tight = ((object_mask > 0) | (opening_mask > 0)).astype(np.uint8)
+    obj_tight = (((object_mask > 0) | (opening_mask > 0)) & ~(floor_mask > 0)).astype(np.uint8)
 
-    wall_ref = sharpen_wall_boundary(refine_mask(wall_mask, image_bgr), image_bgr)
-    chromatic = wall_is_chromatic(wall_ref, image_bgr)
-    if chromatic:
-        obj_carve = strip_wall_color_from_objects(obj_tight, wall_ref, image_bgr)
-        hard_forbidden = (obj_carve > 0).astype(np.uint8)
-        soft_forbidden = ((floor_mask > 0) | (ceiling_mask > 0)).astype(np.uint8)
-    else:
-        obj_carve = obj_tight
-        hard_forbidden = ((floor_mask > 0) | (ceiling_mask > 0) | (obj_tight > 0)).astype(np.uint8)
-        soft_forbidden = None
-    wall_ref  = color_coherence_expand(wall_ref, image_bgr, hard_forbidden, soft_forbidden)
-    wall_ref  = infer_wall_behind_furniture(wall_ref, floor_mask, ceiling_mask, h)
-    wall_ref  = (wall_ref & ~(obj_carve > 0)).astype(np.uint8)
-    ceiling_mask = (ceiling_mask & ~(wall_ref > 0)).astype(np.uint8)
-    obj_tight = obj_carve  # overlay shows the effective (colour-stripped) objects
-
-    # Plane split + reconcile — this is the EXACT mask that gets painted.
+    # Depth + floor/ceiling strengthening
     depth_predictor = getattr(request.app.state, "depth_predictor", None)
-    labeled = None
+    depth = None
     if depth_predictor is not None:
         try:
             depth = depth_predictor.predict(image_np)
+        except Exception:
+            depth = None
+    floor_strong, ceiling_strong = floor_mask.copy(), ceiling_mask.copy()
+    if depth is not None:
+        try:
+            df, dc = horizontal_surfaces_from_depth(depth)
+            floor_strong   = ((floor_strong   > 0) | (df > 0)).astype(np.uint8)
+            ceiling_strong = ((ceiling_strong > 0) | (dc > 0)).astype(np.uint8)
+            ceiling_strong = (ceiling_strong & ~(floor_strong > 0)).astype(np.uint8)
+        except Exception:
+            pass
+
+    # Comprehensive clutter (everything not wall/floor/ceiling) + detected objects
+    clutter = (~((wall_seed > 0) | (floor_strong > 0) | (ceiling_strong > 0))).astype(np.uint8)
+    obj_carve = ((clutter > 0) | (obj_tight > 0)).astype(np.uint8)
+    obj_carve = cv2.dilate(obj_carve, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    obj_carve = (obj_carve & ~(floor_strong > 0)).astype(np.uint8)
+
+    # Wall = semantic wall class, bounded away from clutter/floor/ceiling
+    wall_ref = sharpen_wall_boundary(refine_mask(wall_seed, image_bgr), image_bgr)
+    wall_ref = (wall_ref & ~(obj_carve > 0) & ~(floor_strong > 0)
+                & ~(ceiling_strong > 0)).astype(np.uint8)
+    ceiling_mask = ceiling_strong
+    obj_tight = obj_carve  # overlay shows the full clutter exclusion
+
+    # Plane split + reconcile + halo close — the EXACT mask that gets painted.
+    labeled = None
+    if depth is not None:
+        try:
             labeled, _ = split_wall_planes(wall_ref, depth)
         except Exception:
             labeled = None
@@ -962,7 +949,7 @@ async def debug_walls(
         _, labeled = cv2.connectedComponents(wall_ref.astype(np.uint8), connectivity=8)
         labeled = labeled.astype(np.uint8)
     labeled = _reconcile_labels_to_mask(labeled, wall_ref)
-    labeled = close_wall_halos(labeled, floor_mask, ceiling_mask, obj_tight)
+    labeled = close_wall_halos(labeled, floor_strong, ceiling_mask, obj_carve)
 
     overlay = image_bgr.copy().astype(np.float32)
     def _blend(mask, color, a=0.5):
