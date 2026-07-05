@@ -46,7 +46,7 @@ class OneFormerManager:
         return cls._instance
 
     def __init__(self):
-        self.local_path = model_dir("oneformer", "ONEFORMER_DIR")
+        self.local_path = model_dir("oneformer", "ONEFORMER_DIR", ONEFORMER_VARIANT, self._model_id)
         if self._model is None:
             self._load_model()
 

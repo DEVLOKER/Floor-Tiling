@@ -222,6 +222,330 @@ def snap_mask_to_lines(
     return np.where(band > 0, out, m).astype(np.uint8)
 
 
+def color_coherence_expand(
+    wall_mask: np.ndarray,
+    image: np.ndarray,
+    forbidden: np.ndarray,
+    soft_forbidden: np.ndarray = None,
+    hue_tol: float = 22.0,
+    sat_tol: float = 0.35,
+    val_tol: float = 0.45,
+    grout_bridge_px: int = 9,
+) -> np.ndarray:
+    """Grow the wall mask over all connected same-colored area (grout-robust).
+
+    Semantic segmentation leaves gaps on uniformly-tiled walls (kitchen,
+    bathroom): whole tiles above cabinets, around window frames and in corners
+    are missed even though they share the wall's dominant color.
+
+    A naive per-pixel flood dies at the grey/white grout lines between tiles —
+    those pixels fail the color match, so the frontier can't reach the next
+    tile.  We fix that in three steps:
+
+      1. Build a color-match map (HSV within tolerance of the wall's median).
+      2. Morphologically CLOSE it by ``grout_bridge_px`` so adjacent tiles merge
+         across their grout lines into one region.
+      3. Keep only the closed regions that TOUCH the existing wall mask (via
+         connected components), minus the forbidden set.
+
+    Args:
+        wall_mask:       Binary wall mask before expansion.
+        image:           BGR image (color guide).
+        forbidden:       HARD block — never becomes wall (objects, and on neutral
+                         walls also floor+ceiling).
+        soft_forbidden:  SOFT block — floor/ceiling that MAY be reclaimed as wall
+                         if the pixel STRONGLY matches the wall colour.  This
+                         recovers green tile rows that the ceiling/floor
+                         segmentation wrongly claimed (the junction halo), while
+                         the tighter threshold rejects desaturated colour-bounce
+                         (e.g. green light tint on a white ceiling).
+        hue_tol:         Hue tolerance in degrees (OpenCV H is 0-180).
+        sat_tol:         Saturation tolerance [0, 1].
+        val_tol:         Value tolerance [0, 1].
+        grout_bridge_px: Morphological-close radius to bridge grout lines.
+    """
+    m = (wall_mask > 0).astype(np.uint8)
+    forb = (forbidden > 0)
+    if not m.any():
+        return m
+
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
+    Hc = hsv[:, :, 0]
+    Sc = hsv[:, :, 1] / 255.0
+    Vc = hsv[:, :, 2] / 255.0
+
+    wall_px = m > 0
+    med_h = float(np.median(Hc[wall_px]))
+    med_s = float(np.median(Sc[wall_px]))
+    med_v = float(np.median(Vc[wall_px]))
+
+    # Skip near-achromatic walls (grey/white/beige): color matching is
+    # unreliable and would bleed into ceiling/floor.
+    if med_s < 0.15:
+        return m
+
+    # 1. Color-match map (circular hue distance)
+    dh = np.abs(Hc - med_h)
+    dh = np.minimum(dh, 180.0 - dh)
+    color_match = (
+        (dh <= hue_tol) & (np.abs(Sc - med_s) <= sat_tol) & (np.abs(Vc - med_v) <= val_tol)
+    ).astype(np.uint8)
+
+    # Strong match (tighter) — used to reclaim soft-forbidden pixels only.
+    strong_match = (
+        (dh <= hue_tol * 0.7)
+        & (np.abs(Sc - med_s) <= sat_tol * 0.55)
+        & (np.abs(Vc - med_v) <= val_tol * 0.7)
+    )
+
+    # Always include what was already detected (grout inside a tile run counts)
+    color_match = np.maximum(color_match, m)
+    color_match[forb] = 0  # hard-forbidden never becomes wall
+
+    # Soft-forbidden (floor/ceiling): block UNLESS strongly wall-coloured.
+    soft = (soft_forbidden > 0) if soft_forbidden is not None else np.zeros_like(forb)
+    block_soft = soft & (~strong_match)
+    color_match[block_soft] = 0
+
+    # 2. Close across grout lines so neighbouring tiles merge into one region
+    kb = 2 * grout_bridge_px + 1
+    closed = cv2.morphologyEx(
+        color_match, cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kb, kb)),
+    )
+    closed[forb] = 0
+    closed[block_soft] = 0
+
+    # 3. Keep only closed regions that touch the existing wall mask
+    n, lab = cv2.connectedComponents(closed, connectivity=8)
+    if n <= 1:
+        return m
+    touch = set(np.unique(lab[wall_px]).tolist()) - {0}
+    result = np.isin(lab, list(touch)).astype(np.uint8)
+
+    # Guarantee we never lose originally-detected wall, never keep hard/soft-blocked
+    result = np.maximum(result, m)
+    result[forb] = 0
+    result[block_soft] = 0
+    return result.astype(np.uint8)
+
+
+def infer_wall_behind_furniture(
+    wall_mask: np.ndarray,
+    floor_mask: np.ndarray,
+    ceiling_mask: np.ndarray,
+    image_h: int,
+    min_wall_strip_h: float = 0.04,
+) -> np.ndarray:
+    """Recover wall pixels in the horizontal band occluded by counters / cabinets.
+
+    Kitchen and bathroom photos almost always have a horizontal zone where
+    furniture (counters, cabinets) sits against the wall.  The segmentation model
+    sees only the furniture top and labels nothing between it and the detected
+    wall above — leaving a gap.  This function fills that gap column-by-column:
+
+    For each image column that has wall pixels both above AND below (or floor below
+    and wall above), it fills the unclassified band between them as wall, capped
+    to ``min_wall_strip_h × image_h`` pixels so it never crosses a real opening.
+    """
+    m   = (wall_mask   > 0).astype(np.uint8)
+    flo = (floor_mask  > 0)
+    cei = (ceiling_mask > 0)
+    h, w = m.shape
+    max_gap = int(min_wall_strip_h * image_h) * 4  # generous — a tall cabinet is ~40% h
+
+    result = m.copy()
+
+    for x in range(w):
+        col_wall = np.where(m[:, x] > 0)[0]
+        if len(col_wall) < 2:
+            continue
+        top_wall = int(col_wall.min())
+        bot_wall = int(col_wall.max())
+        span = slice(top_wall, bot_wall + 1)
+
+        # Only fill the internal gap (unclassified pixels between wall pixels).
+        gap_col = m[span, x] == 0
+        gap_size = int(gap_col.sum())
+        if gap_size == 0 or gap_size > max_gap:
+            continue
+        # Never bridge across a real floor or ceiling pixel — that would paint
+        # over the floor / ceiling. Furniture (unclassified) is the only thing
+        # we're allowed to fill behind.
+        if flo[span, x].any() or cei[span, x].any():
+            continue
+        result[span, x] = 1
+
+    return result.astype(np.uint8)
+
+
+def derive_wall_by_complement(
+    floor: np.ndarray,
+    ceiling: np.ndarray,
+    exclude: np.ndarray,
+    shape_hw: tuple,
+    min_area_frac: float = 0.004,
+    open_frac: float = 1 / 300,
+) -> np.ndarray:
+    """Define walls as the COMPLEMENT of everything else.
+
+        wall = image − floor − ceiling − objects − openings
+
+    This is fundamentally more robust than detecting walls directly: whatever
+    the segmenter can't confidently name (tiled walls, textured walls, unusual
+    colours) simply falls through to "wall" instead of being dropped.  Coverage
+    is complete BY CONSTRUCTION — the wall reaches exactly to the floor / ceiling
+    / object boundaries, so there are no gaps or colour halos to patch.
+
+    The trade-off shifts entirely to floor / ceiling / object recall: a MISSED
+    floor/ceiling/object becomes wall (and would be painted), so those masks
+    should be biased toward over-detection upstream.
+
+    Args:
+        floor:         Binary floor mask.
+        ceiling:       Binary ceiling mask.
+        exclude:       Union of everything else not to paint (objects+openings).
+        shape_hw:      (H, W) of the image.
+        min_area_frac: Drop wall components smaller than this fraction of the image
+                       (removes isolated speckle left between excluded regions).
+        open_frac:     Morphological-open radius as a fraction of the short side
+                       (cleans thin slivers along object edges).
+
+    Returns:
+        Binary uint8 wall mask [H, W].
+    """
+    h, w = shape_hw
+    not_wall = (floor > 0) | (ceiling > 0) | (exclude > 0)
+    wall = (~not_wall).astype(np.uint8)
+
+    # Clean thin slivers (e.g. 1-px gaps between two excluded regions)
+    k = max(3, int(min(h, w) * open_frac)) | 1
+    wall = cv2.morphologyEx(
+        wall, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    )
+    if not wall.any():
+        return wall
+
+    # Keep only significant components (drop noise pockets)
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(wall, connectivity=8)
+    thr = min_area_frac * h * w
+    keep = np.zeros_like(wall)
+    for i in range(1, n):
+        if stats[i, cv2.CC_STAT_AREA] >= thr:
+            keep[lab == i] = 1
+    return keep.astype(np.uint8)
+
+
+def wall_is_chromatic(wall_mask: np.ndarray, image: np.ndarray, sat_thresh: float = 0.25) -> bool:
+    """True if the detected wall is a saturated color (tiled/painted), not neutral.
+
+    On chromatic walls, color is a stronger separator than the object masks, so
+    the pipeline can trust color-coherence expansion and use TIGHT (undilated)
+    object exclusion — avoiding the green halo a dilated exclusion leaves around
+    windows and cabinets.
+    """
+    m = wall_mask > 0
+    if not m.any():
+        return False
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    return float(np.median(hsv[:, :, 1][m]) / 255.0) >= sat_thresh
+
+
+def strip_wall_color_from_objects(
+    obj_mask: np.ndarray,
+    wall_mask: np.ndarray,
+    image: np.ndarray,
+    hue_tol: float = 16.0,
+    sat_tol: float = 0.22,
+    val_tol: float = 0.32,
+) -> np.ndarray:
+    """Remove wall-coloured pixels from the object exclusion mask (chromatic walls).
+
+    Open-vocab detectors + SAM often over-segment thin fixtures (a pipe, its cast
+    shadow, and a band of surrounding tile) into one blob.  On a chromatic wall
+    that band is really wall, so excluding it leaves an unpainted colour strip
+    around the fixture.  Since the wall has a distinctive colour, we keep only the
+    object pixels that DON'T match it — the genuine fixture (black pipe, white
+    frame, wood cabinet) stays excluded while the tile it grabbed is released
+    back to the wall.
+
+    Uses a TIGHT colour tolerance so only clearly-wall-coloured pixels are freed.
+    """
+    obj = (obj_mask > 0).astype(np.uint8)
+    wall = wall_mask > 0
+    if not obj.any() or not wall.any():
+        return obj
+
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
+    Hc, Sc, Vc = hsv[:, :, 0], hsv[:, :, 1] / 255.0, hsv[:, :, 2] / 255.0
+    med_h = float(np.median(Hc[wall]))
+    med_s = float(np.median(Sc[wall]))
+    med_v = float(np.median(Vc[wall]))
+    if med_s < 0.15:
+        return obj  # neutral wall — don't touch objects
+
+    dh = np.abs(Hc - med_h)
+    dh = np.minimum(dh, 180.0 - dh)
+    wall_colored = (
+        (dh <= hue_tol) & (np.abs(Sc - med_s) <= sat_tol) & (np.abs(Vc - med_v) <= val_tol)
+    )
+    return (obj & ~wall_colored).astype(np.uint8)
+
+
+def close_wall_halos(
+    wall_labeled: np.ndarray,
+    floor: np.ndarray,
+    ceiling: np.ndarray,
+    objects: np.ndarray,
+    grow_px: int = 12,
+    junction_px: int = 7,
+) -> np.ndarray:
+    """Eliminate thin unpainted strips at wall boundaries (junction halos).
+
+    Even a well-detected wall usually stops a few px short of the real
+    architectural line (wall↔ceiling, wall↔floor, corners), leaving a thin strip
+    of the ORIGINAL wall visible after painting — a coloured "halo" around the
+    repaint.  We close it by growing each wall plane:
+
+      • up to ``grow_px`` into any UNCLASSIFIED neighbour, and
+      • up to ``junction_px`` PAST the floor / ceiling boundary (their masks are
+        eroded first) so the paint reaches right into the junction,
+
+    while never crossing the TIGHT object mask.  New pixels take their nearest
+    wall plane's id.  A few px of paint onto the ceiling/floor edge is invisible;
+    a green halo is not.
+    """
+    wl = wall_labeled.copy()
+    walls = (wl > 0).astype(np.uint8)
+    if not walls.any():
+        return wl
+
+    # Erode floor/ceiling so walls may reach into the junction band.
+    je = 2 * junction_px + 1
+    ker_j = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (je, je))
+    fe = cv2.erode((floor   > 0).astype(np.uint8), ker_j)
+    ce = cv2.erode((ceiling > 0).astype(np.uint8), ker_j)
+    forbidden = (fe > 0) | (ce > 0) | (objects > 0)
+
+    region = (~forbidden) & (wl == 0)
+    gk = 2 * grow_px + 1
+    grown = cv2.dilate(walls, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (gk, gk)))
+    newpix = (grown > 0) & region
+    if not newpix.any():
+        return wl
+
+    best   = np.full(wl.shape, np.inf, np.float32)
+    choice = np.full(wl.shape, -1, np.int32)
+    for wid in [int(i) for i in np.unique(wl) if i != 0]:
+        dist = cv2.distanceTransform((wl != wid).astype(np.uint8), cv2.DIST_L2, 3)
+        upd = newpix & (dist < best)
+        best[upd]   = dist[upd]
+        choice[upd] = wid
+    for wid in [int(i) for i in np.unique(wl) if i != 0]:
+        wl[newpix & (choice == wid)] = wid
+    return wl
+
+
 def fill_surface_gaps(
     floor: np.ndarray,
     wall_labeled: np.ndarray,
@@ -320,4 +644,78 @@ def grow_walls_to_objects(
     return wl
 
 
-__all__ = ["refine_mask", "fill_surface_gaps", "snap_mask_to_lines", "grow_walls_to_objects"]
+def sharpen_wall_boundary(
+    mask: np.ndarray,
+    image: np.ndarray,
+    band_px: int = 10,
+) -> np.ndarray:
+    """Pull wall mask boundaries onto real image edges using Laplacian response.
+
+    The guided filter already snaps soft boundaries to color edges, but smooth
+    painted walls have very little color gradient — the filter gets little
+    guidance and the boundary stays blurry.  Adding the Laplacian (which fires
+    on luminance *changes*, not just color differences) gives an independent
+    edge signal that sharpens the boundary even on monochrome plaster.
+
+    Strategy:
+      1. Compute the Laplacian of a bilateral-smoothed luminance channel.
+         Bilateral preserves architectural edges while suppressing texture noise.
+      2. Run a second guided-filter pass using the edge map as guide.
+         This collapses the remaining soft zone to a crisp step.
+      3. Merge: inside the boundary band use the sharpened result; outside keep
+         the original to avoid disturbing the stable interior.
+    """
+    m = (mask > 0).astype(np.uint8)
+    if not m.any():
+        return m
+
+    # ── Edge map: bilateral-smooth → Laplacian ──────────────────────────────
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image.copy()
+    smooth = cv2.bilateralFilter(gray, d=9, sigmaColor=40, sigmaSpace=40)
+    lap = cv2.Laplacian(smooth.astype(np.float32), cv2.CV_32F)
+    edge = np.abs(lap)
+    # Normalise to [0, 1] with a mild percentile clip (ignores highlight spikes)
+    p95 = float(np.percentile(edge, 95)) + 1e-6
+    edge = np.clip(edge / p95, 0.0, 1.0)
+
+    # ── Boundary band: thin shell around the mask edge ───────────────────────
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * band_px + 1, 2 * band_px + 1))
+    dilated = cv2.dilate(m, k)
+    eroded = cv2.erode(m, k)
+    band = (dilated - eroded).astype(bool)
+
+    # ── Sharpened pass via edge-guided filter ────────────────────────────────
+    # Use the edge map as a single-channel guide: eps is low so the filter
+    # tracks the edge signal tightly.
+    radius = max(4, min(image.shape[:2]) // 120)
+    edge_u8 = (edge * 255).astype(np.uint8)
+    soft2 = cv2.ximgproc.guidedFilter(
+        edge_u8, m.astype(np.float32), radius, (0.03 * 255) ** 2
+    )
+
+    # ── Sigmoid sharpening: amplify contrast around 0.5 ─────────────────────
+    # In high-edge areas push the soft value further toward 0 or 1.
+    sharpness = edge  # (H, W) in [0, 1]
+    centered = soft2 - 0.5
+    sharpened = 0.5 + centered * (1.0 + 3.0 * sharpness)
+    sharpened = np.clip(sharpened, 0.0, 1.0)
+
+    # ── Apply sharpened result only inside the boundary band ─────────────────
+    result = m.copy().astype(np.float32)
+    result[band] = sharpened[band]
+    return (result > 0.5).astype(np.uint8)
+
+
+__all__ = [
+    "refine_mask",
+    "fill_surface_gaps",
+    "snap_mask_to_lines",
+    "grow_walls_to_objects",
+    "sharpen_wall_boundary",
+    "color_coherence_expand",
+    "infer_wall_behind_furniture",
+    "wall_is_chromatic",
+    "close_wall_halos",
+    "strip_wall_color_from_objects",
+    "derive_wall_by_complement",
+]

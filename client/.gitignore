@@ -38,13 +38,14 @@ env.bak/
 venv.bak/
 .venv
 
-# ML model weights (large — auto-downloaded at runtime into models/<name>/).
-# Configs/tokenizers stay tracked; only the heavy weights are ignored.
-models/**/*.bin
-models/**/*.safetensors
-models/**/*.pt
-models/**/*.pth
-models/**/*.onnx
+# ML models — auto-downloaded at runtime into models/<name>/<variant>/.
+# Fully LOCAL and never committed: this way switching DETECTION_PROFILE reuses
+# already-downloaded variants (each in its own subdir), and switching git
+# branches never resets a model config or triggers a re-download. Only the
+# .gitkeep placeholders are tracked so the directory structure exists.
+models/**
+!models/**/
+!models/**/.gitkeep
 
 # Cache
 .cache/

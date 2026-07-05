@@ -37,6 +37,56 @@ def depth_to_normals(depth: np.ndarray, focal: float | None = None) -> np.ndarra
     return n / (np.linalg.norm(n, axis=-1, keepdims=True) + 1e-8)
 
 
+def horizontal_surfaces_from_depth(
+    depth: np.ndarray,
+    up_cos: float = 0.80,
+    min_area_frac: float = 0.01,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Depth-derived floor / ceiling hints from surface-normal orientation.
+
+    Used to STRENGTHEN (union with) the segmentation floor/ceiling in the
+    complement wall model: if the segmenter under-detects the floor or ceiling,
+    those pixels would otherwise fall through to "wall" and be painted.  A
+    horizontal surface (normal ≈ vertical in world space) that the segmenter
+    missed is recovered here.
+
+    Camera space has +Y pointing DOWN, so:
+      • a FLOOR normal points up   → n·(0,-1,0) high → n_y < -up_cos
+      • a CEILING normal points down → n·(0,-1,0) low → n_y > +up_cos
+
+    Conservative: position-gated (floor only in the lower 60 %, ceiling only in
+    the upper 60 %) and area-filtered, so noisy monocular normals don't leak.
+
+    Returns (floor_hint, ceiling_hint) binary uint8 masks.
+    """
+    h, w = depth.shape
+    normals = depth_to_normals(depth)
+    ny = normals[:, :, 1]
+
+    floor_hint   = (ny < -up_cos).astype(np.uint8)
+    ceiling_hint = (ny > up_cos).astype(np.uint8)
+
+    # Position gating: floors sit low, ceilings sit high in the frame.
+    gate_floor = np.zeros((h, w), np.uint8);  gate_floor[int(h * 0.40):, :] = 1
+    gate_ceil  = np.zeros((h, w), np.uint8);  gate_ceil[:int(h * 0.60), :]  = 1
+    floor_hint   &= gate_floor
+    ceiling_hint &= gate_ceil
+
+    # Clean + area filter
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    out = []
+    for hint in (floor_hint, ceiling_hint):
+        hint = cv2.morphologyEx(hint, cv2.MORPH_OPEN, ker)
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(hint, connectivity=8)
+        keep = np.zeros_like(hint)
+        thr = min_area_frac * h * w
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] >= thr:
+                keep[lab == i] = 1
+        out.append(keep)
+    return out[0], out[1]
+
+
 def _backproject(xs, ys, depth, focal, cx, cy):
     """Pixel coords + depth → 3D camera-space points (N, 3)."""
     z = depth[ys, xs].astype(np.float64)
@@ -114,13 +164,118 @@ def _merge_coplanar(planes, ang_cos=0.985, doff=0.06):
     return merged
 
 
+def _is_wall_normal(normal: np.ndarray, min_horizontal_frac: float = 0.45) -> bool:
+    """Return True if the plane normal is consistent with a vertical wall.
+
+    Wall normals are roughly horizontal in camera space (x=right, y=down,
+    z=forward).  A large |y| component means the plane is tilted like a floor
+    or ceiling — we reject those to avoid inheriting segmentation bleed-over.
+    """
+    xz = float(np.sqrt(normal[0] ** 2 + normal[2] ** 2))
+    return xz >= min_horizontal_frac * float(np.linalg.norm(normal) + 1e-9)
+
+
+def _aspect_ok(ys: np.ndarray, xs: np.ndarray, max_ratio: float = 12.0) -> bool:
+    """Reject only truly degenerate slivers (bounding-box aspect > 12:1).
+
+    A tall wall seen edge-on is legitimately narrow-and-tall, so the threshold
+    is generous — this catches segmentation noise strips, not real walls.
+    """
+    if len(ys) == 0:
+        return False
+    h_px = int(ys.max() - ys.min()) + 1
+    w_px = int(xs.max() - xs.min()) + 1
+    if h_px == 0 or w_px == 0:
+        return False
+    ratio = max(h_px / w_px, w_px / h_px)
+    return ratio <= max_ratio
+
+
+def split_wall_planes_with_lines(
+    wall_mask: np.ndarray,
+    segments,
+    min_area: int = 500,
+) -> tuple[np.ndarray, int]:
+    """Geometric wall-plane splitting using M-LSD lines (depth-free fallback).
+
+    When metric depth is unavailable or unreliable, detected architectural lines
+    that cross the wall region serve as plane boundaries.  Lines that are at
+    least 20° from horizontal (vertical or diagonal room edges) cut the wall
+    mask; each connected region that survives is one plane candidate.
+
+    This gives meaningful splits even on texture-less painted walls where
+    monocular depth estimation produces noisy point clouds.
+    """
+    m = (wall_mask > 0).astype(np.uint8)
+    h, w = m.shape
+
+    def _cc_fallback():
+        n, lab = cv2.connectedComponents(m, connectivity=8)
+        return lab.astype(np.uint8), max(n - 1, 0)
+
+    if segments is None or len(segments) == 0:
+        return _cc_fallback()
+
+    min_line_len = min(h, w) * 0.08
+    wall_dilated = cv2.dilate(m, np.ones((9, 9), np.uint8))
+    line_cut = np.zeros((h, w), np.uint8)
+
+    for seg in np.asarray(segments, dtype=np.float64).reshape(-1, 4):
+        x1, y1, x2, y2 = seg
+        dx, dy = x2 - x1, y2 - y1
+        if np.hypot(dx, dy) < min_line_len:
+            continue
+        angle = abs(np.degrees(np.arctan2(dy, dx))) % 180
+        # Keep lines at least 20° from horizontal = vertical / diagonal edges
+        if angle < 20 or angle > 160:
+            continue
+        # Only draw if the line actually crosses the wall region
+        test = np.zeros((h, w), np.uint8)
+        cv2.line(test, (int(x1), int(y1)), (int(x2), int(y2)), 1, 1)
+        if int((test & wall_dilated).sum()) < 3:
+            continue
+        cv2.line(line_cut, (int(x1), int(y1)), (int(x2), int(y2)), 1, 2)
+
+    # Cut wall along lines, then find connected components
+    cut = m.copy()
+    cut[line_cut > 0] = 0
+    n_labels, labeled = cv2.connectedComponents(cut, connectivity=8)
+
+    result = np.zeros_like(m, dtype=np.uint8)
+    lid = 0
+    for i in range(1, n_labels):
+        comp = labeled == i
+        if int(comp.sum()) >= min_area:
+            lid += 1
+            result[comp] = lid
+
+    if lid == 0:
+        return _cc_fallback()
+
+    # Restore pixels removed by the line cuts (assign to nearest plane)
+    unassigned = (m > 0) & (result == 0)
+    if unassigned.any():
+        best = np.full((h, w), np.inf, np.float32)
+        choice = np.zeros((h, w), np.uint8)
+        for plane_id in range(1, lid + 1):
+            dist = cv2.distanceTransform(
+                (result != plane_id).astype(np.uint8), cv2.DIST_L2, 3
+            )
+            upd = unassigned & (dist < best)
+            best[upd] = dist[upd]
+            choice[upd] = plane_id
+        result[unassigned] = choice[unassigned]
+
+    return result, lid
+
+
 def split_wall_planes(
     wall_mask: np.ndarray,
     depth: np.ndarray,
     min_area: int = 500,
-    max_planes: int = 6,
-    dist_frac: float = 0.03,
-    ransac_iters: int = 200,
+    max_planes: int = 8,
+    dist_frac: float = 0.025,
+    ransac_iters: int = 300,
 ) -> tuple[np.ndarray, int]:
     """Label individual wall planes within ``wall_mask`` using depth.
 
@@ -153,13 +308,21 @@ def split_wall_planes(
     P = _backproject(xs, ys, depth, focal, cx, cy)
 
     median_z = float(np.median(P[:, 2]))
+    if median_z < 1e-3:
+        return _fallback()  # depth map is degenerate (all-zero or negative)
     dist_thresh = max(1e-3, dist_frac * abs(median_z))
 
     # ── Fit planes on a subsample (fast), then assign ALL pixels ────────────
+    # 15 000 points vs the old 6 000: much better coverage for large walls and
+    # complex rooms without meaningfully slowing down RANSAC.
     rng = np.random.default_rng(12345)  # deterministic → stable across runs
-    sub = P if len(P) <= 6000 else P[rng.choice(len(P), 6000, replace=False)]
-    planes = _fit_planes_ransac(sub, max_planes, dist_thresh, 0.06, ransac_iters, rng)
+    n_sub = min(len(P), 15_000)
+    sub = P if len(P) <= n_sub else P[rng.choice(len(P), n_sub, replace=False)]
+    planes = _fit_planes_ransac(sub, max_planes, dist_thresh, 0.05, ransac_iters, rng)
     planes = _merge_coplanar(planes, doff=dist_thresh * 1.5)
+
+    # ── Validate: drop planes that look like floor / ceiling bleed-over ──────
+    planes = [(n, d) for n, d in planes if _is_wall_normal(n)]
     if not planes:
         return _fallback()
 
@@ -199,15 +362,27 @@ def split_wall_planes(
     labeled[ys, xs] = (final + 1).astype(np.uint8)
     labeled[wall_mask == 0] = 0
 
-    # Relabel to a contiguous 1..n.
-    ids = [i for i in np.unique(labeled) if i != 0]
-    if not ids:
+    # ── Post-assignment validation: drop sliver planes ───────────────────────
+    # A plane whose bounding box is an extreme horizontal sliver (aspect > 7:1)
+    # is almost certainly segmentation noise bleeding along a floor/ceiling edge.
+    ids_raw = [int(i) for i in np.unique(labeled) if i != 0]
+    valid_ids = []
+    for pid in ids_raw:
+        p_ys, p_xs = np.where(labeled == pid)
+        if _aspect_ok(p_ys, p_xs):
+            valid_ids.append(pid)
+        else:
+            labeled[labeled == pid] = 0  # remove sliver
+
+    if not valid_ids:
         return wall_mask.copy(), 1
-    remap = {old: new for new, old in enumerate(ids, start=1)}
+
+    # Relabel to a contiguous 1..n.
+    remap = {old: new for new, old in enumerate(valid_ids, start=1)}
     out = np.zeros_like(labeled)
     for old, new in remap.items():
         out[labeled == old] = new
-    return out, len(ids)
+    return out, len(valid_ids)
 
 
 def floor_plane_uv(mask, depth, tile_w_m, tile_h_m, manhattan_angle=None):
@@ -398,7 +573,9 @@ def floor_orientation_angle(mask, depth, segments=None, quad=None,
 
 __all__ = [
     "depth_to_normals",
+    "horizontal_surfaces_from_depth",
     "split_wall_planes",
+    "split_wall_planes_with_lines",
     "floor_plane_uv",
     "floor_orientation_angle",
 ]

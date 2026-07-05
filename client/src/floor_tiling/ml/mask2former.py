@@ -42,7 +42,7 @@ class Mask2FormerManager:
     def __init__(self):
         # Weight cache: MASK2FORMER_DIR env override (e.g. a mounted volume)
         # falling back to the shared models dir (see floor_tiling.paths).
-        self.local_path = model_dir("mask2former", "MASK2FORMER_DIR")
+        self.local_path = model_dir("mask2former", "MASK2FORMER_DIR", MASK2FORMER_VARIANT, self._model_id)
         if self._model is None:
             self._load_model()
 

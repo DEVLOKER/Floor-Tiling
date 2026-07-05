@@ -1,5 +1,0 @@
-{
-  "max_seq_length": 77,
-  "processor_class": "OneFormerProcessor",
-  "task_seq_length": 77
-}
